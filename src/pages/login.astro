@@ -1,0 +1,39 @@
+---
+export const prerender = false
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import Layout from "@/layouts/main.astro"
+
+let error = Astro.url.searchParams.get("error")
+---
+
+<Layout page="Login">
+  <div class="flex min-h-screen items-center justify-center bg-background">
+    <div class="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
+      <h1 class="mb-4 text-center text-2xl font-semibold">HarborMarks</h1>
+
+      {
+        error && (
+          <p class="mb-4 text-center text-sm text-red-500">
+            Invalid username or password
+          </p>
+        )
+      }
+
+      <form method="POST" action="/api/auth/login" class="space-y-4">
+        <div>
+          <label class="text-sm font-medium">Username</label>
+          <Input name="username" required />
+        </div>
+
+        <div>
+          <label class="text-sm font-medium">Password</label>
+          <Input type="password" name="password" required />
+        </div>
+
+        <Button type="submit" className="w-full">Login</Button>
+      </form>
+    </div>
+  </div>
+</Layout>
