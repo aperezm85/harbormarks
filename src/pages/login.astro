@@ -2,38 +2,77 @@
 export const prerender = false
 
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+
 import { Input } from "@/components/ui/input"
-import Layout from "@/layouts/main.astro"
+
+import HarborMarksHeader from "@/components/ui/HarborMarksHeader.astro"
+
+import ErrorToast from "@/components/ui/ErrorToast"
+import LayoutLogin from "@/layouts/login.astro"
+import { Toaster } from "sonner"
 
 let error = Astro.url.searchParams.get("error")
+if (error === "invalid_credentials") {
+  error = "Invalid username or password. Please try again."
+}
 ---
 
-<Layout page="Login">
+<LayoutLogin page="Login">
   <div class="flex min-h-screen items-center justify-center bg-background">
-    <div class="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
-      <h1 class="mb-4 text-center text-2xl font-semibold">HarborMarks</h1>
+    <div class="flex w-full max-w-sm flex-col gap-6">
+      <HarborMarksHeader />
 
-      {
-        error && (
-          <p class="mb-4 text-center text-sm text-red-500">
-            Invalid username or password
-          </p>
-        )
-      }
-
-      <form method="POST" action="/api/auth/login" class="space-y-4">
-        <div>
-          <label class="text-sm font-medium">Username</label>
-          <Input name="username" required />
-        </div>
-
-        <div>
-          <label class="text-sm font-medium">Password</label>
-          <Input type="password" name="password" required />
-        </div>
-
-        <Button type="submit" className="w-full">Login</Button>
-      </form>
+      <Card>
+        <CardHeader>
+          <CardTitle>Login to your account</CardTitle>
+          <CardDescription>
+            Enter your credentials below to login to your account
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form method="POST" action="/api/auth/login" class="space-y-4">
+            <FieldGroup>
+              <Field data-invalid={!!error}>
+                <FieldLabel htmlFor="username">Email</FieldLabel>
+                <Input
+                  id="username"
+                  name="username"
+                  placeholder="your@email.com"
+                  required
+                  aria-invalid={!!error}
+                />
+              </Field>
+              <Field data-invalid={!!error}>
+                <div class="flex items-center">
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                </div>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  placeholder="Your password"
+                  aria-invalid={!!error}
+                />
+              </Field>
+              <Field>
+                <Button type="submit">Login</Button>
+              </Field>
+            </FieldGroup>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   </div>
-</Layout>
+  <ErrorToast error={error} client:load />
+  <Toaster client:load />
+</LayoutLogin>

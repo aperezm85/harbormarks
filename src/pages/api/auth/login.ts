@@ -31,5 +31,5 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   }
 
   console.log("[auth] Invalid credentials")
-  return redirect("/login?error=1")
+  return redirect("/login?error=invalid_credentials")
 }

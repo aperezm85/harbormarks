@@ -1,0 +1,23 @@
+---
+import { Button } from "./button"
+import HarborMarksHeader from "./HarborMarksHeader.astro"
+import { ModeToggle } from "./ModeToggle"
+
+const isAuthenticated = Astro.locals.isAuthenticated === true
+---
+
+<header class="flex w-full items-center justify-between py-4">
+  <HarborMarksHeader justify="start" />
+  <div class="flex items-center gap-2">
+    <ModeToggle client:load />
+    {
+      isAuthenticated && (
+        <form method="POST" action="/api/auth/logout">
+          <Button variant="outline" type="submit">
+            Logout
+          </Button>
+        </form>
+      )
+    }
+  </div>
+</header>

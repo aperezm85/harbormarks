@@ -1,14 +1,13 @@
 ---
-import Header from "@/components/ui/Header.astro"
 import { ModeToggle } from "@/components/ui/ModeToggle"
 import "@/styles/global.css"
+import { Toaster } from "sonner"
 
 interface Props {
   page: string
 }
 
 const { page = "HarborMarks" } = Astro.props
-const isAuthenticated = Astro.locals.isAuthenticated === true
 ---
 
 <script is:inline>
@@ -43,9 +42,10 @@ const isAuthenticated = Astro.locals.isAuthenticated === true
     <title>{page}</title>
   </head>
   <body>
-    <Header />
-    <main>
-      <slot />
-    </main>
+    <div class="fixed top-4 right-4 z-50 flex items-center gap-2">
+      <ModeToggle client:load />
+      <Toaster client:load />
+    </div>
+    <slot />
   </body>
 </html>
