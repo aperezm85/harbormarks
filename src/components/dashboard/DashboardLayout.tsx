@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import type { BookmarkCardData } from "@/lib/bookmarks"
 
 import {
   SidebarInput,
@@ -12,7 +13,11 @@ import { HarborCard } from "../ui/HarborCard"
 import { ModeToggle } from "../ui/ModeToggle"
 import { Separator } from "../ui/separator"
 
-export const DashboardLayout = () => {
+export const DashboardLayout = ({
+  bookmarks,
+}: {
+  bookmarks: BookmarkCardData[]
+}) => {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -35,16 +40,15 @@ export const DashboardLayout = () => {
         <div className="flex flex-1 flex-col gap-4 p-4">
           <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
             <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3">
-              <HarborCard
-                id="1"
-                url="https://example.com"
-                title="Example"
-                description="Lorem ipsum dolor sit amet."
-                favicon="https://www.gstatic.com/images/branding/searchlogo/ico/favicon.ico"
-                tags={["tag1", "tag2"]}
-                createdAt="2024-06-01"
-                isFavorite={false}
-              />
+              {bookmarks.map((bookmark) => (
+                <HarborCard key={bookmark.id} {...bookmark} />
+              ))}
+              {bookmarks.length === 0 && (
+                <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  No bookmarks yet. Add your first bookmark to start building
+                  your harbor.
+                </div>
+              )}
             </div>
           </div>
         </div>

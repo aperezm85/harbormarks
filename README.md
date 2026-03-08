@@ -73,12 +73,14 @@ pnpm lint       # lint project
 pnpm typecheck  # run Astro type checks
 ```
 
-## Environment Variables (Planned)
+## Environment Variables
 
-Expected variables once the backend/db wiring is added:
+Required variables:
 
 ```bash
-DATABASE_URL=postgresql://harbormarks:harbormarks@db:5432/harbormarks
+DATABASE_URL=postgresql://astro:astro@db:5432/harbormarks
+HARBOR_USER=admin
+HARBOR_PASSWORD=change_me
 NODE_ENV=production
 ```
 
@@ -97,8 +99,37 @@ Typical setup will use:
 
 This makes deployment easy on NAS devices or any machine that can run Docker.
 
+### Run Locally With Docker
+
+1. Create a `.env` file in the project root with the required environment variables.
+2. Start app + database:
+
+```bash
+docker compose up --build
+```
+
+Run detached if preferred:
+
+```bash
+docker compose up -d --build
+```
+
+Stop containers:
+
+```bash
+docker compose down
+```
+
 ## Project Status
 
-This repository currently contains the Astro + shadcn/ui frontend scaffold.
+Current status:
 
-Next step is wiring Drizzle + PostgreSQL and adding the Docker setup described above.
+- Basic auth is implemented (`/login`, middleware session cookie, logout route).
+- PostgreSQL connection is wired with Drizzle.
+- Bookmark listing and basic actions (toggle favorite, delete) are backed by the database.
+
+Still in progress:
+
+- Add-bookmark flow (button and form are not wired yet).
+- Metadata extraction pipeline.
+- Rich tagging model (`tags` and `bookmark_tags` tables) and full-text search.

@@ -1,8 +1,11 @@
 ---
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
 import Layout from "@/layouts/main.astro"
+import { listBookmarks } from "@/lib/bookmarks"
+
+const bookmarks = await listBookmarks()
 ---
 
 <Layout page="HarborMarks">
-  <DashboardLayout client:load />
+  <DashboardLayout client:load bookmarks={bookmarks} />
 </Layout>
