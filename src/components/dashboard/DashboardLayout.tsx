@@ -1,17 +1,16 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import type { BookmarkCardData } from "@/lib/bookmarks"
 
+import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
+import { HarborCard } from "@/components/ui/HarborCard"
+import { ModeToggle } from "@/components/ui/ModeToggle"
+import { Separator } from "@/components/ui/separator"
 import {
   SidebarInput,
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { BookmarkSimpleIcon } from "@phosphor-icons/react"
-import { Button } from "../ui/button"
-import { HarborCard } from "../ui/HarborCard"
-import { ModeToggle } from "../ui/ModeToggle"
-import { Separator } from "../ui/separator"
 
 export const DashboardLayout = ({
   bookmarks,
@@ -30,10 +29,7 @@ export const DashboardLayout = ({
             placeholder="Search your harbor..."
             className="pl-8"
           />
-          <Button>
-            <BookmarkSimpleIcon className="size-4" />
-            Add Bookmark
-          </Button>
+          <CreateBookmarkDialog />
           <Separator orientation="vertical" className="mr-2 h-full" />
           <ModeToggle />
         </header>
