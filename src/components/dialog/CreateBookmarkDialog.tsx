@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +18,9 @@ import {
   ArrowsClockwiseIcon,
   BookmarkSimpleIcon,
   LinkIcon,
+  XIcon,
 } from "@phosphor-icons/react"
+import { Badge } from "../ui/badge"
 import { ButtonGroup } from "../ui/button-group"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group"
 import { Textarea } from "../ui/textarea"
@@ -29,21 +31,87 @@ export const CreateBookmarkDialog = () => {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [favicon, setFavicon] = useState("")
-  const [tags, setTags] = useState("")
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState("")
+  const [existingTags, setExistingTags] = useState<string[]>([])
+  const [isLoadingTags, setIsLoadingTags] = useState(false)
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [metadataError, setMetadataError] = useState("")
   const [submitError, setSubmitError] = useState("")
+
+  function hasTag(tag: string) {
+    const normalized = tag.toLowerCase()
+    return selectedTags.some(
+      (selected) => selected.toLowerCase() === normalized
+    )
+  }
+
+  function addTag(rawTag: string) {
+    const nextTag = rawTag.trim()
+    if (!nextTag || hasTag(nextTag)) {
+      return
+    }
+
+    setSelectedTags((current) => [...current, nextTag])
+  }
+
+  function removeTag(tagToRemove: string) {
+    const normalized = tagToRemove.toLowerCase()
+    setSelectedTags((current) =>
+      current.filter((tag) => tag.toLowerCase() !== normalized)
+    )
+  }
+
+  async function fetchExistingTags() {
+    setIsLoadingTags(true)
+
+    try {
+      const response = await fetch("/api/bookmarks/tags")
+      const payload: unknown = await response.json()
+
+      if (!response.ok) {
+        throw new Error("Unable to load existing tags.")
+      }
+
+      if (
+        typeof payload === "object" &&
+        payload !== null &&
+        "data" in payload &&
+        Array.isArray(payload.data)
+      ) {
+        setExistingTags(
+          payload.data.filter(
+            (tag: unknown): tag is string => typeof tag === "string"
+          )
+        )
+      }
+    } catch {
+      // Keep form usable even if suggestions cannot be loaded.
+      setExistingTags([])
+    } finally {
+      setIsLoadingTags(false)
+    }
+  }
 
   function resetForm() {
     setUrl("")
     setTitle("")
     setDescription("")
     setFavicon("")
-    setTags("")
+    setSelectedTags([])
+    setTagInput("")
     setMetadataError("")
     setSubmitError("")
   }
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    void fetchExistingTags()
+  }, [isOpen])
 
   function handleOpenChange(nextOpen: boolean) {
     setIsOpen(nextOpen)
@@ -101,6 +169,13 @@ export const CreateBookmarkDialog = () => {
     setSubmitError("")
     setIsSaving(true)
 
+    const pendingTag = tagInput.trim()
+    const tagsPayload = pendingTag
+      ? hasTag(pendingTag)
+        ? selectedTags
+        : [...selectedTags, pendingTag]
+      : selectedTags
+
     try {
       const response = await fetch("/api/bookmarks", {
         method: "POST",
@@ -112,7 +187,7 @@ export const CreateBookmarkDialog = () => {
           title,
           description,
           favicon,
-          tags,
+          tags: tagsPayload,
         }),
       })
 
@@ -138,6 +213,17 @@ export const CreateBookmarkDialog = () => {
     }
   }
 
+  const tagSuggestions = existingTags.filter((tag) => {
+    if (hasTag(tag)) {
+      return false
+    }
+
+    const query = tagInput.trim().toLowerCase()
+    return !query || tag.toLowerCase().includes(query)
+  })
+
+  const tagsDatalistId = "bookmark-tag-suggestions"
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -149,7 +235,7 @@ export const CreateBookmarkDialog = () => {
       <DialogContent className="sm:max-w-sm">
         <form
           method="POST"
-          className="sm:max-w-sm"
+          className="flex flex-col gap-4 sm:max-w-sm"
           onSubmit={(event) => {
             event.preventDefault()
             void handleSubmit()
@@ -214,14 +300,69 @@ export const CreateBookmarkDialog = () => {
               />
             </Field>
             <Field>
-              <Label htmlFor="tags">Tags</Label>
+              <Label htmlFor="tag-input">Tags</Label>
+              {selectedTags.length > 0 ? (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {selectedTags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="h-6 gap-1 pr-1"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        className="inline-flex size-4 items-center justify-center rounded-full hover:bg-black/10"
+                        onClick={() => removeTag(tag)}
+                        aria-label={`Remove ${tag} tag`}
+                      >
+                        <XIcon className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
               <Input
-                id="tags"
-                name="tags"
-                placeholder="Comma separated tags, e.g. news, tech, etc."
-                value={tags}
-                onChange={(event) => setTags(event.target.value)}
+                id="tag-input"
+                placeholder="Type a tag and press Enter"
+                value={tagInput}
+                list={tagsDatalistId}
+                onChange={(event) => setTagInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault()
+                    addTag(tagInput)
+                    setTagInput("")
+                  }
+
+                  if (
+                    event.key === "Backspace" &&
+                    !tagInput &&
+                    selectedTags.length > 0
+                  ) {
+                    event.preventDefault()
+                    setSelectedTags((current) => current.slice(0, -1))
+                  }
+                }}
+                onBlur={() => {
+                  if (!tagInput.trim()) {
+                    return
+                  }
+
+                  addTag(tagInput)
+                  setTagInput("")
+                }}
               />
+              <datalist id={tagsDatalistId}>
+                {tagSuggestions.map((tag) => (
+                  <option key={tag} value={tag} />
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                {isLoadingTags
+                  ? "Loading tag suggestions..."
+                  : "Choose an existing tag or type a new one."}
+              </p>
             </Field>
             <input type="hidden" name="favicon" value={favicon} />
           </FieldGroup>

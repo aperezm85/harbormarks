@@ -115,6 +115,35 @@ export async function listBookmarks(options?: {
   return rows.map(toCardData)
 }
 
+export async function listBookmarkTags(query?: string) {
+  await ensureBookmarksTable()
+
+  const rows = await db.select({ tags: bookmarks.tags }).from(bookmarks)
+  const normalizedQuery = query?.trim().toLowerCase()
+  const uniqueTags = new Set<string>()
+
+  for (const row of rows) {
+    for (const tag of parseTags(row.tags)) {
+      const normalizedTag = tag.trim()
+
+      if (!normalizedTag) {
+        continue
+      }
+
+      if (
+        normalizedQuery &&
+        !normalizedTag.toLowerCase().includes(normalizedQuery)
+      ) {
+        continue
+      }
+
+      uniqueTags.add(normalizedTag)
+    }
+  }
+
+  return [...uniqueTags].sort((a, b) => a.localeCompare(b))
+}
+
 function normalizeTags(tags?: string[] | string | null) {
   if (!tags) {
     return null

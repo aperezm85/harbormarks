@@ -1,11 +1,9 @@
 "use client"
 
-import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
+import * as React from "react"
 
-import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -22,7 +20,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { SidebarIcon } from "@phosphor-icons/react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
+import { MagnifyingGlassIcon, SidebarIcon, XIcon } from "@phosphor-icons/react"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "./input-group"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -316,15 +322,44 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
 
 function SidebarInput({
   className,
+  onClear,
+  clearAriaLabel = "Clear search",
   ...props
-}: React.ComponentProps<typeof Input>) {
+}: React.ComponentProps<typeof Input> & {
+  onClear?: () => void
+  clearAriaLabel?: string
+}) {
+  const valueAsString =
+    typeof props.value === "string" || typeof props.value === "number"
+      ? String(props.value)
+      : ""
+  const canClear = Boolean(onClear && valueAsString.length > 0)
+
   return (
-    <Input
-      data-slot="sidebar-input"
-      data-sidebar="input"
-      className={cn("h-8 w-full bg-background shadow-none", className)}
-      {...props}
-    />
+    <InputGroup>
+      <InputGroupAddon align="inline-start">
+        <MagnifyingGlassIcon />
+      </InputGroupAddon>
+      <InputGroupInput
+        data-slot="sidebar-input"
+        data-sidebar="input"
+        className={cn("h-8 w-full bg-background shadow-none", className)}
+        {...props}
+      />
+      {canClear && (
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton
+            size="icon-xs"
+            variant="ghost"
+            aria-label={clearAriaLabel}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onClear}
+          >
+            <XIcon />
+          </InputGroupButton>
+        </InputGroupAddon>
+      )}
+    </InputGroup>
   )
 }
 
