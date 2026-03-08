@@ -1,6 +1,22 @@
 import type { APIRoute } from "astro"
 
-import { createBookmark, listBookmarks } from "@/lib/bookmarks"
+import {
+  createBookmark,
+  listBookmarks,
+  type BookmarkView,
+} from "@/lib/bookmarks"
+
+function parseBookmarkView(rawValue: string | null): BookmarkView {
+  if (rawValue === "mostVisited") {
+    return "mostVisited"
+  }
+
+  if (rawValue === "unorganized") {
+    return "unorganized"
+  }
+
+  return "recent"
+}
 
 function isJsonRequest(contentType: string | null) {
   return contentType?.includes("application/json") === true
@@ -32,10 +48,12 @@ export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url)
   const search = url.searchParams.get("q") ?? undefined
   const onlyFavorites = url.searchParams.get("favorites") === "1"
+  const view = parseBookmarkView(url.searchParams.get("view"))
 
   const data = await listBookmarks({
     search,
     onlyFavorites,
+    view,
   })
 
   return new Response(JSON.stringify({ data }), {
@@ -49,11 +67,11 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request, redirect }) => {
   const contentType = request.headers.get("content-type")
 
-  let url: string | null = null
-  let title: string | null = null
-  let description: string | null = null
-  let favicon: string | null = null
-  let tags: string[] | string | null = null
+  let url: string | null
+  let title: string | null
+  let description: string | null
+  let favicon: string | null
+  let tags: string[] | string | null
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()

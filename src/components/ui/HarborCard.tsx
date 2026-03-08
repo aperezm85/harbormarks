@@ -41,6 +41,16 @@ export const HarborCard = ({
   isFavorite: boolean
 }) => {
   const openBookmark = () => {
+    void fetch(`/api/bookmarks/${id}/visit`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      keepalive: true,
+    }).catch(() => {
+      // Ignore tracking failures so opening links always works.
+    })
+
     window.open(url, "_blank", "noopener,noreferrer")
   }
 

@@ -9,8 +9,12 @@ The goal is simple: save links, extract useful metadata, organize them with tags
 - Save bookmarks in one place.
 - Extract metadata from URLs (title, description, image, site info).
 - Tag bookmarks for better organization.
-- Allow to add favourite to the bookmark and allow a filter to see them.
+- Allow to add favorite to the bookmark and allow a filter to see them.
 - Search by text and tags from a fast search bar.
+- Browse bookmarks by view mode when not searching:
+  - Recent (newest first)
+  - Most visited (highest click count first)
+  - Unorganized (bookmarks without tags)
 - Run everything locally with Docker for NAS/home server setups.
 
 ## Tech Stack
@@ -20,35 +24,33 @@ The goal is simple: save links, extract useful metadata, organize them with tags
 - ORM: Drizzle
 - Deployment: Docker + Docker Compose (app + database)
 
-## Core Data Model (Planned)
+## Core Data Model
 
-Main entities:
+Current implemented schema:
 
 - `bookmarks`
-  - `id`
-  - `url`
-  - `title`
-  - `description`
-  - `image_url`
-  - `site_name`
-  - `created_at`
-  - `updated_at`
-  - `is_favourite`
-- `tags`
-  - `id`
-  - `name`
-- `bookmark_tags`
-  - `bookmark_id`
-  - `tag_id`
+  - `id` (serial primary key)
+  - `url` (text, required)
+  - `title` (text)
+  - `description` (text)
+  - `favicon` (text)
+  - `is_favorite` (boolean, default `false`)
+  - `visit_count` (integer, default `0`)
+  - `tags` (text, stores serialized tags)
+  - `created_at` (timestamp, default now)
 
-This enables many-to-many tagging and flexible filtering/search.
+Planned normalization:
+
+- Move from serialized `tags` to relational tables (`tags`, `bookmark_tags`) for richer filtering and tag management.
 
 ## Features Roadmap
 
-- [ ] Add bookmark form (URL + optional notes)
-- [ ] Metadata extraction pipeline
-- [ ] Tag creation and tag assignment
-- [ ] Search bar for text queries
+- [x] Add bookmark form (URL + optional notes)
+- [x] Metadata extraction pipeline
+- [x] Tag creation and tag assignment
+- [x] Search bar for text queries
+- [x] View tabs for non-search browsing (Recent, Most visited, Unorganized)
+- [x] Bookmark click tracking (`visit_count`) for Most visited sorting
 - [ ] Tag-based filtering
 - [ ] Drizzle schema + migrations
 - [ ] Dockerized app and PostgreSQL
@@ -127,6 +129,12 @@ Current status:
 - Basic auth is implemented (`/login`, middleware session cookie, logout route).
 - PostgreSQL connection is wired with Drizzle.
 - Bookmark listing and basic actions (toggle favorite, delete) are backed by the database.
+- Search-driven bookmark filtering is available from the top search input.
+- Non-search dashboard tabs are available:
+  - `Recent`: sorts by `created_at` descending.
+  - `Most visited`: sorts by `visit_count` descending.
+  - `Unorganized`: shows bookmarks without tags.
+- Opening a bookmark card increments its visit counter for future `Most visited` ranking.
 
 Still in progress:
 

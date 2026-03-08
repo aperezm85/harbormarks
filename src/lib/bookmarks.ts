@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm"
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm"
 
 import { db } from "@/db/client"
 import { bookmarks } from "@/db/schema"
@@ -12,7 +12,10 @@ export type BookmarkCardData = {
   tags: string[]
   createdAt: string
   isFavorite: boolean
+  visitCount: number
 }
+
+export type BookmarkView = "recent" | "mostVisited" | "unorganized"
 
 const DEFAULT_FAVICON =
   "https://www.gstatic.com/images/branding/searchlogo/ico/favicon.ico"
@@ -32,9 +35,15 @@ async function ensureBookmarksTable() {
       description TEXT,
       favicon TEXT,
       is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+      visit_count INTEGER NOT NULL DEFAULT 0,
       tags TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     )
+  `)
+
+  await db.execute(sql`
+    ALTER TABLE bookmarks
+    ADD COLUMN IF NOT EXISTS visit_count INTEGER NOT NULL DEFAULT 0
   `)
 
   isSchemaReady = true
@@ -72,12 +81,14 @@ function toCardData(bookmark: typeof bookmarks.$inferSelect): BookmarkCardData {
       ? bookmark.createdAt.toISOString()
       : new Date().toISOString(),
     isFavorite: bookmark.isFavorite,
+    visitCount: bookmark.visitCount,
   }
 }
 
 export async function listBookmarks(options?: {
   search?: string
   onlyFavorites?: boolean
+  view?: BookmarkView
 }) {
   await ensureBookmarksTable()
 
@@ -99,6 +110,16 @@ export async function listBookmarks(options?: {
     )
   }
 
+  if (options?.view === "unorganized") {
+    filters.push(
+      or(
+        isNull(bookmarks.tags),
+        eq(bookmarks.tags, ""),
+        eq(bookmarks.tags, "[]")
+      )
+    )
+  }
+
   const whereClause =
     filters.length === 0
       ? undefined
@@ -110,7 +131,12 @@ export async function listBookmarks(options?: {
     .select()
     .from(bookmarks)
     .where(whereClause)
-    .orderBy(desc(bookmarks.createdAt))
+    .orderBy(
+      options?.view === "mostVisited"
+        ? desc(bookmarks.visitCount)
+        : desc(bookmarks.createdAt),
+      desc(bookmarks.createdAt)
+    )
 
   return rows.map(toCardData)
 }
@@ -216,4 +242,18 @@ export async function deleteBookmarkById(id: number) {
     .returning({ id: bookmarks.id })
 
   return deleted.length > 0
+}
+
+export async function incrementBookmarkVisitById(id: number) {
+  await ensureBookmarksTable()
+
+  const updated = await db
+    .update(bookmarks)
+    .set({
+      visitCount: sql`${bookmarks.visitCount} + 1`,
+    })
+    .where(eq(bookmarks.id, id))
+    .returning({ id: bookmarks.id })
+
+  return updated.length > 0
 }

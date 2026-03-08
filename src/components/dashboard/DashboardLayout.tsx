@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import type { BookmarkCardData } from "@/lib/bookmarks"
+import type { BookmarkCardData, BookmarkView } from "@/lib/bookmarks"
 
 import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
 import { HarborCard } from "@/components/ui/HarborCard"
@@ -14,6 +14,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 export const DashboardLayout = ({
   bookmarks,
 }: {
@@ -23,6 +25,7 @@ export const DashboardLayout = ({
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [visibleBookmarks, setVisibleBookmarks] =
     useState<BookmarkCardData[]>(bookmarks)
+  const [activeView, setActiveView] = useState<BookmarkView>("recent")
   const [isRefreshingBookmarks, setIsRefreshingBookmarks] = useState(false)
   const requestIdRef = useRef(0)
 
@@ -44,6 +47,8 @@ export const DashboardLayout = ({
 
     if (debouncedSearch) {
       query.set("q", debouncedSearch)
+    } else {
+      query.set("view", activeView)
     }
 
     async function refreshBookmarks() {
@@ -81,7 +86,7 @@ export const DashboardLayout = ({
     return () => {
       abortController.abort()
     }
-  }, [debouncedSearch])
+  }, [activeView, debouncedSearch])
 
   const hasActiveSearch = debouncedSearch.length > 0
 
@@ -108,7 +113,7 @@ export const DashboardLayout = ({
               aria-live="polite"
               role="status"
             >
-              Searching...
+              {hasActiveSearch ? "Searching..." : "Refreshing..."}
             </span>
           )}
           <CreateBookmarkDialog />
@@ -117,12 +122,53 @@ export const DashboardLayout = ({
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4">
           <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
-            {hasActiveSearch && (
-              <div className="px-4 pt-4 text-sm font-medium text-muted-foreground">
-                Looking at results for "{debouncedSearch}".
-              </div>
-            )}
             <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3">
+              {hasActiveSearch ? (
+                <div className="text-md pt-4 font-medium text-muted-foreground">
+                  Looking at results for "{debouncedSearch}".
+                </div>
+              ) : (
+                <>
+                  <div className="col-span-full flex flex-wrap gap-2">
+                    <Tabs defaultValue={activeView} className="w-auto">
+                      <TabsList variant="line">
+                        <TabsTrigger
+                          value="recent"
+                          onClick={() => setActiveView("recent")}
+                        >
+                          Recent
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="mostVisited"
+                          onClick={() => setActiveView("mostVisited")}
+                        >
+                          Most visited
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="unorganized"
+                          onClick={() => setActiveView("unorganized")}
+                        >
+                          Unorganized
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                  <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
+                    {activeView === "recent" && "Recent Bookmarks"}
+                    {activeView === "mostVisited" && "Most Visited Bookmarks"}
+                    {activeView === "unorganized" && "Unorganized Bookmarks"}
+                  </h2>
+                  <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+                    {activeView === "recent" &&
+                      `${visibleBookmarks.length} links sorted by creation date`}
+                    {activeView === "mostVisited" &&
+                      `${visibleBookmarks.length} links sorted by total visits`}
+                    {activeView === "unorganized" &&
+                      `${visibleBookmarks.length} links without tags`}
+                  </h3>
+                </>
+              )}
+
               {visibleBookmarks.map((bookmark) => (
                 <HarborCard key={bookmark.id} {...bookmark} />
               ))}
