@@ -9,6 +9,7 @@ The goal is simple: save links, extract useful metadata, organize them with tags
 - Save bookmarks in one place.
 - Extract metadata from URLs (title, description, image, site info).
 - Tag bookmarks for better organization.
+- Allow to add favourite to the bookmark and allow a filter to see them.
 - Search by text and tags from a fast search bar.
 - Run everything locally with Docker for NAS/home server setups.
 
@@ -32,6 +33,7 @@ Main entities:
   - `site_name`
   - `created_at`
   - `updated_at`
+  - `is_favourite`
 - `tags`
   - `id`
   - `name`
@@ -50,7 +52,7 @@ This enables many-to-many tagging and flexible filtering/search.
 - [ ] Tag-based filtering
 - [ ] Drizzle schema + migrations
 - [ ] Dockerized app and PostgreSQL
-- [ ] Basic auth for private self-hosted usage
+- [ X ] Basic auth for private self-hosted usage
 
 ## Local Development
 

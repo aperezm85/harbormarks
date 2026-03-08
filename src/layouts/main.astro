@@ -8,7 +8,6 @@ interface Props {
 }
 
 const { page = "HarborMarks" } = Astro.props
-const isAuthenticated = Astro.locals.isAuthenticated === true
 ---
 
 <script is:inline>
@@ -43,7 +42,6 @@ const isAuthenticated = Astro.locals.isAuthenticated === true
     <title>{page}</title>
   </head>
   <body>
-    <Header />
     <main>
       <slot />
     </main>
