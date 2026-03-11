@@ -19,10 +19,12 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: postgresql://astro:astro@db:5432/harbormarks
       HARBOR_USER: ${HARBOR_USER}
       HARBOR_PASSWORD: ${HARBOR_PASSWORD}
       SESSION_SECRET: ${SESSION_SECRET}
+      HOST: 0.0.0.0
+      PORT: 3000
     ports:
       - "3000:3000"
     depends_on:

@@ -15,9 +15,13 @@ WORKDIR /app
 # Copy only the built output + necessary files
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+COPY pnpm-lock.yaml ./
 
 # Install only production deps (Astro preview needs them)
 RUN corepack enable && pnpm install --prod --frozen-lockfile
 
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
 EXPOSE 3000
-CMD ["pnpm", "run", "preview"]
+CMD ["node", "./dist/server/entry.mjs"]

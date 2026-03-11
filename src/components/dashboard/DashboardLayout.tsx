@@ -298,7 +298,7 @@ export const DashboardLayout = ({
         />
         <div className="flex flex-1 flex-col gap-4 p-4">
           <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
-            <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {hasActiveSearch ? (
                 <div className="text-md pt-4 font-medium text-muted-foreground">
                   Looking at results for "{debouncedSearch}".

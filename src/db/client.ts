@@ -3,7 +3,7 @@ import { Pool } from "pg"
 
 import * as schema from "./schema"
 
-const databaseUrl = import.meta.env.DATABASE_URL
+const databaseUrl = process.env.DATABASE_URL ?? import.meta.env.DATABASE_URL
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required to connect to PostgreSQL")

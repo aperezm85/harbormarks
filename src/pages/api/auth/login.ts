@@ -8,6 +8,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const form = await request.formData()
   const username = form.get("username")
   const password = form.get("password")
+  const isHttps = new URL(request.url).protocol === "https:"
 
   const USER = import.meta.env.HARBOR_USER
   const PASS = import.meta.env.HARBOR_PASSWORD
@@ -22,7 +23,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     cookies.set("session", "authenticated", {
       path: "/",
       httpOnly: true,
-      secure: import.meta.env.PROD,
+      secure: isHttps,
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
     })
