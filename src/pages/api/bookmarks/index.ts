@@ -32,8 +32,11 @@ function parseAndValidateUrl(value: string | null) {
     return null
   }
 
+  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)
+  const normalizedValue = hasProtocol ? trimmed : `https://${trimmed}`
+
   try {
-    const parsed = new URL(trimmed)
+    const parsed = new URL(normalizedValue)
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return null
     }
@@ -47,11 +50,13 @@ function parseAndValidateUrl(value: string | null) {
 export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url)
   const search = url.searchParams.get("q") ?? undefined
+  const tag = url.searchParams.get("tag") ?? undefined
   const onlyFavorites = url.searchParams.get("favorites") === "1"
   const view = parseBookmarkView(url.searchParams.get("view"))
 
   const data = await listBookmarks({
     search,
+    tag,
     onlyFavorites,
     view,
   })
@@ -71,7 +76,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   let title: string | null
   let description: string | null
   let favicon: string | null
+  let previewImage: string | null
   let tags: string[] | string | null
+  let isFavorite: boolean
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -80,10 +87,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     description =
       typeof body?.description === "string" ? body.description : null
     favicon = typeof body?.favicon === "string" ? body.favicon : null
+    previewImage =
+      typeof body?.previewImage === "string" ? body.previewImage : null
     tags =
       Array.isArray(body?.tags) || typeof body?.tags === "string"
         ? body.tags
         : null
+    isFavorite = body?.isFavorite === true
   } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
@@ -99,8 +109,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       typeof form.get("favicon") === "string"
         ? String(form.get("favicon"))
         : null
+    previewImage =
+      typeof form.get("previewImage") === "string"
+        ? String(form.get("previewImage"))
+        : null
     tags =
       typeof form.get("tags") === "string" ? String(form.get("tags")) : null
+    isFavorite = form.get("isFavorite") === "true"
   }
 
   if (!url) {
@@ -121,7 +136,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     title,
     description,
     favicon,
+    previewImage,
     tags,
+    isFavorite,
   })
 
   if (isJsonRequest(contentType)) {

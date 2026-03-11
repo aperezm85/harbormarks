@@ -10,21 +10,45 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function ModeToggle() {
-  const [theme, setThemeState] = React.useState<
-    "theme-light" | "dark" | "system"
-  >("theme-light")
+  const [theme, setThemeState] = React.useState<"light" | "dark" | "system">(
+    () => {
+      if (typeof window === "undefined") {
+        return "system"
+      }
+
+      const savedTheme = localStorage.getItem("theme")
+      if (
+        savedTheme === "dark" ||
+        savedTheme === "light" ||
+        savedTheme === "system"
+      ) {
+        return savedTheme
+      }
+
+      return "system"
+    }
+  )
 
   React.useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains("dark")
-    setThemeState(isDarkMode ? "dark" : "theme-light")
-  }, [])
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
 
-  React.useEffect(() => {
-    const isDark =
-      theme === "dark" ||
-      (theme === "system" &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches)
-    document.documentElement.classList[isDark ? "add" : "remove"]("dark")
+    const applyTheme = () => {
+      const isDark =
+        theme === "dark" || (theme === "system" && mediaQuery.matches)
+      document.documentElement.classList[isDark ? "add" : "remove"]("dark")
+    }
+
+    applyTheme()
+    localStorage.setItem("theme", theme)
+
+    if (theme !== "system") {
+      return
+    }
+
+    mediaQuery.addEventListener("change", applyTheme)
+    return () => {
+      mediaQuery.removeEventListener("change", applyTheme)
+    }
   }, [theme])
 
   return (
@@ -37,7 +61,7 @@ export function ModeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setThemeState("theme-light")}>
+        <DropdownMenuItem onClick={() => setThemeState("light")}>
           Light
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setThemeState("dark")}>

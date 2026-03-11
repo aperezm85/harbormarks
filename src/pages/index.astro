@@ -7,5 +7,5 @@ const bookmarks = await listBookmarks()
 ---
 
 <Layout page="HarborMarks">
-  <DashboardLayout client:load bookmarks={bookmarks} />
+  <DashboardLayout client:load transition:persist bookmarks={bookmarks} />
 </Layout>

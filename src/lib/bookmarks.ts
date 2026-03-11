@@ -9,10 +9,16 @@ export type BookmarkCardData = {
   title: string
   description: string
   favicon: string
+  previewImage: string | null
   tags: string[]
   createdAt: string
   isFavorite: boolean
   visitCount: number
+}
+
+export type BookmarkTagSummary = {
+  tag: string
+  count: number
 }
 
 export type BookmarkView = "recent" | "mostVisited" | "unorganized"
@@ -34,6 +40,7 @@ async function ensureBookmarksTable() {
       title TEXT,
       description TEXT,
       favicon TEXT,
+      preview_image TEXT,
       is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
       visit_count INTEGER NOT NULL DEFAULT 0,
       tags TEXT,
@@ -44,6 +51,11 @@ async function ensureBookmarksTable() {
   await db.execute(sql`
     ALTER TABLE bookmarks
     ADD COLUMN IF NOT EXISTS visit_count INTEGER NOT NULL DEFAULT 0
+  `)
+
+  await db.execute(sql`
+    ALTER TABLE bookmarks
+    ADD COLUMN IF NOT EXISTS preview_image TEXT
   `)
 
   isSchemaReady = true
@@ -76,6 +88,7 @@ function toCardData(bookmark: typeof bookmarks.$inferSelect): BookmarkCardData {
     title: bookmark.title ?? bookmark.url,
     description: bookmark.description ?? "No description yet.",
     favicon: bookmark.favicon ?? DEFAULT_FAVICON,
+    previewImage: bookmark.previewImage,
     tags: parseTags(bookmark.tags),
     createdAt: bookmark.createdAt
       ? bookmark.createdAt.toISOString()
@@ -89,10 +102,12 @@ export async function listBookmarks(options?: {
   search?: string
   onlyFavorites?: boolean
   view?: BookmarkView
+  tag?: string
 }) {
   await ensureBookmarksTable()
 
   const search = options?.search?.trim()
+  const tag = options?.tag?.trim()
   const filters = []
 
   if (options?.onlyFavorites) {
@@ -108,6 +123,10 @@ export async function listBookmarks(options?: {
         ilike(bookmarks.tags, `%${search}%`)
       )
     )
+  }
+
+  if (tag) {
+    filters.push(ilike(bookmarks.tags, `%${tag}%`))
   }
 
   if (options?.view === "unorganized") {
@@ -138,7 +157,18 @@ export async function listBookmarks(options?: {
       desc(bookmarks.createdAt)
     )
 
-  return rows.map(toCardData)
+  const mappedRows = rows.map(toCardData)
+
+  if (!tag) {
+    return mappedRows
+  }
+
+  const normalizedTag = tag.toLowerCase()
+  return mappedRows.filter((bookmark) =>
+    bookmark.tags.some(
+      (bookmarkTag) => bookmarkTag.toLowerCase() === normalizedTag
+    )
+  )
 }
 
 export async function listBookmarkTags(query?: string) {
@@ -146,7 +176,7 @@ export async function listBookmarkTags(query?: string) {
 
   const rows = await db.select({ tags: bookmarks.tags }).from(bookmarks)
   const normalizedQuery = query?.trim().toLowerCase()
-  const uniqueTags = new Set<string>()
+  const tagCounts = new Map<string, number>()
 
   for (const row of rows) {
     for (const tag of parseTags(row.tags)) {
@@ -156,18 +186,26 @@ export async function listBookmarkTags(query?: string) {
         continue
       }
 
-      if (
-        normalizedQuery &&
-        !normalizedTag.toLowerCase().includes(normalizedQuery)
-      ) {
-        continue
-      }
-
-      uniqueTags.add(normalizedTag)
+      tagCounts.set(normalizedTag, (tagCounts.get(normalizedTag) ?? 0) + 1)
     }
   }
 
-  return [...uniqueTags].sort((a, b) => a.localeCompare(b))
+  return [...tagCounts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .filter((entry) => {
+      if (!normalizedQuery) {
+        return true
+      }
+
+      return entry.tag.toLowerCase().includes(normalizedQuery)
+    })
+    .sort((a, b) => {
+      if (b.count !== a.count) {
+        return b.count - a.count
+      }
+
+      return a.tag.localeCompare(b.tag)
+    })
 }
 
 function normalizeTags(tags?: string[] | string | null) {
@@ -194,7 +232,9 @@ export async function createBookmark(input: {
   title?: string | null
   description?: string | null
   favicon?: string | null
+  previewImage?: string | null
   tags?: string[] | string | null
+  isFavorite?: boolean
 }) {
   await ensureBookmarksTable()
 
@@ -205,7 +245,9 @@ export async function createBookmark(input: {
       title: input.title?.trim() || null,
       description: input.description?.trim() || null,
       favicon: input.favicon?.trim() || null,
+      previewImage: input.previewImage?.trim() || null,
       tags: normalizeTags(input.tags),
+      isFavorite: input.isFavorite ?? false,
     })
     .returning()
 
@@ -219,6 +261,7 @@ export async function updateBookmarkById(
     title?: string | null
     description?: string | null
     favicon?: string | null
+    previewImage?: string | null
     tags?: string[] | string | null
   }
 ) {
@@ -231,6 +274,7 @@ export async function updateBookmarkById(
       title: input.title?.trim() || null,
       description: input.description?.trim() || null,
       favicon: input.favicon?.trim() || null,
+      previewImage: input.previewImage?.trim() || null,
       tags: normalizeTags(input.tags),
     })
     .where(eq(bookmarks.id, id))

@@ -60,6 +60,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
   let title: string | null
   let description: string | null
   let favicon: string | null
+  let previewImage: string | null
   let tags: string[] | string | null
 
   if (isJsonRequest(contentType)) {
@@ -69,6 +70,8 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
     description =
       typeof body?.description === "string" ? body.description : null
     favicon = typeof body?.favicon === "string" ? body.favicon : null
+    previewImage =
+      typeof body?.previewImage === "string" ? body.previewImage : null
     tags =
       Array.isArray(body?.tags) || typeof body?.tags === "string"
         ? body.tags
@@ -87,6 +90,10 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
     favicon =
       typeof form.get("favicon") === "string"
         ? String(form.get("favicon"))
+        : null
+    previewImage =
+      typeof form.get("previewImage") === "string"
+        ? String(form.get("previewImage"))
         : null
     tags =
       typeof form.get("tags") === "string" ? String(form.get("tags")) : null
@@ -110,6 +117,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
     title,
     description,
     favicon,
+    previewImage,
     tags,
   })
 

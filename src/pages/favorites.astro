@@ -1,0 +1,16 @@
+---
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import Layout from "@/layouts/main.astro"
+import { listBookmarks } from "@/lib/bookmarks"
+
+const bookmarks = await listBookmarks({ onlyFavorites: true })
+---
+
+<Layout page="Favorites | HarborMarks">
+  <DashboardLayout
+    client:load
+    transition:persist
+    bookmarks={bookmarks}
+    onlyFavorites
+  />
+</Layout>

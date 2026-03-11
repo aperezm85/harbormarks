@@ -25,6 +25,8 @@ const DashboardTopBar = ({
   isRefreshingBookmarks,
   hasActiveSearch,
   onBookmarkSaved,
+  preselectedTags,
+  defaultFavorite,
 }: {
   searchInput: string
   setSearchInput: (value: string) => void
@@ -32,6 +34,8 @@ const DashboardTopBar = ({
   isRefreshingBookmarks: boolean
   hasActiveSearch: boolean
   onBookmarkSaved: (bookmark: BookmarkCardData) => void
+  preselectedTags?: string[]
+  defaultFavorite?: boolean
 }) => {
   const { open, openMobile, isMobile } = useSidebar()
   const isSidebarOpen = isMobile ? openMobile : open
@@ -73,7 +77,11 @@ const DashboardTopBar = ({
           {hasActiveSearch ? "Searching..." : "Refreshing..."}
         </span>
       )}
-      <CreateBookmarkDialog onSaved={onBookmarkSaved} />
+      <CreateBookmarkDialog
+        onSaved={onBookmarkSaved}
+        preselectedTags={preselectedTags}
+        defaultFavorite={defaultFavorite}
+      />
       <Separator orientation="vertical" className="mr-2 h-full" />
       <ModeToggle />
     </header>
@@ -82,9 +90,15 @@ const DashboardTopBar = ({
 
 export const DashboardLayout = ({
   bookmarks,
+  tagFilter,
+  onlyFavorites,
 }: {
   bookmarks: BookmarkCardData[]
+  tagFilter?: string
+  onlyFavorites?: boolean
 }) => {
+  const [routeTagFilter, setRouteTagFilter] = useState(tagFilter)
+  const [routeOnlyFavorites, setRouteOnlyFavorites] = useState(onlyFavorites)
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [visibleBookmarks, setVisibleBookmarks] =
@@ -92,6 +106,39 @@ export const DashboardLayout = ({
   const [activeView, setActiveView] = useState<BookmarkView>("recent")
   const [isRefreshingBookmarks, setIsRefreshingBookmarks] = useState(false)
   const requestIdRef = useRef(0)
+
+  useEffect(() => {
+    function syncRouteFilters() {
+      const { pathname, search } = window.location
+      const searchParams = new URLSearchParams(search)
+
+      if (pathname === "/tag") {
+        const nextTag = searchParams.get("tag")?.trim() ?? ""
+        setRouteTagFilter(nextTag || undefined)
+        setRouteOnlyFavorites(false)
+        return
+      }
+
+      if (pathname === "/favorites") {
+        setRouteTagFilter(undefined)
+        setRouteOnlyFavorites(true)
+        return
+      }
+
+      setRouteTagFilter(undefined)
+      setRouteOnlyFavorites(false)
+    }
+
+    syncRouteFilters()
+
+    window.addEventListener("astro:page-load", syncRouteFilters)
+    window.addEventListener("popstate", syncRouteFilters)
+
+    return () => {
+      window.removeEventListener("astro:page-load", syncRouteFilters)
+      window.removeEventListener("popstate", syncRouteFilters)
+    }
+  }, [])
 
   const applyBookmarkUpdate = (updatedBookmark: BookmarkCardData) => {
     setVisibleBookmarks((current) => {
@@ -184,8 +231,16 @@ export const DashboardLayout = ({
 
     if (debouncedSearch) {
       query.set("q", debouncedSearch)
-    } else {
+    } else if (!routeTagFilter && !routeOnlyFavorites) {
       query.set("view", activeView)
+    }
+
+    if (routeTagFilter) {
+      query.set("tag", routeTagFilter)
+    }
+
+    if (routeOnlyFavorites) {
+      query.set("favorites", "1")
     }
 
     async function refreshBookmarks() {
@@ -223,7 +278,7 @@ export const DashboardLayout = ({
     return () => {
       abortController.abort()
     }
-  }, [activeView, debouncedSearch])
+  }, [activeView, debouncedSearch, routeTagFilter, routeOnlyFavorites])
 
   const hasActiveSearch = debouncedSearch.length > 0
 
@@ -238,6 +293,8 @@ export const DashboardLayout = ({
           isRefreshingBookmarks={isRefreshingBookmarks}
           hasActiveSearch={hasActiveSearch}
           onBookmarkSaved={applyBookmarkUpdate}
+          preselectedTags={routeTagFilter ? [routeTagFilter] : undefined}
+          defaultFavorite={routeOnlyFavorites}
         />
         <div className="flex flex-1 flex-col gap-4 p-4">
           <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
@@ -246,6 +303,24 @@ export const DashboardLayout = ({
                 <div className="text-md pt-4 font-medium text-muted-foreground">
                   Looking at results for "{debouncedSearch}".
                 </div>
+              ) : routeOnlyFavorites ? (
+                <>
+                  <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
+                    Favorite Bookmarks
+                  </h2>
+                  <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+                    {visibleBookmarks.length} favorite links
+                  </h3>
+                </>
+              ) : routeTagFilter ? (
+                <>
+                  <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
+                    Tag: {routeTagFilter}
+                  </h2>
+                  <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+                    {visibleBookmarks.length} links with this tag
+                  </h3>
+                </>
               ) : (
                 <>
                   <div className="col-span-full flex flex-wrap gap-2">
@@ -319,7 +394,11 @@ export const DashboardLayout = ({
                 <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                   {hasActiveSearch
                     ? `Your harbor doesn't contain any results for "${debouncedSearch}".`
-                    : "No bookmarks yet. Add your first bookmark to start building your harbor."}
+                    : routeOnlyFavorites
+                      ? "No favorite bookmarks yet. Mark a bookmark as favorite to see it here."
+                      : routeTagFilter
+                        ? `No bookmarks found with the tag "${routeTagFilter}".`
+                        : "No bookmarks yet. Add your first bookmark to start building your harbor."}
                 </div>
               )}
             </div>

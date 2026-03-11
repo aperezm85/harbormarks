@@ -1,5 +1,5 @@
 import type { BookmarkCardData } from "@/lib/bookmarks"
-import { useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -32,25 +32,38 @@ type EditableBookmark = {
   title: string
   description: string
   favicon: string
+  previewImage: string | null
   tags: string[]
+}
+
+type BookmarkMetadataPayload = {
+  title?: string
+  description?: string
+  favicon?: string
+  previewImage?: string | null
 }
 
 type CreateBookmarkDialogProps = {
   bookmark?: EditableBookmark
   trigger?: ReactNode
   onSaved?: (bookmark: BookmarkCardData) => void
+  preselectedTags?: string[]
+  defaultFavorite?: boolean
 }
 
 export const CreateBookmarkDialog = ({
   bookmark,
   trigger,
   onSaved,
+  preselectedTags,
+  defaultFavorite = false,
 }: CreateBookmarkDialogProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const [url, setUrl] = useState("")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [favicon, setFavicon] = useState("")
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
   const [existingTags, setExistingTags] = useState<string[]>([])
@@ -102,9 +115,24 @@ export const CreateBookmarkDialog = ({
         Array.isArray(payload.data)
       ) {
         setExistingTags(
-          payload.data.filter(
-            (tag: unknown): tag is string => typeof tag === "string"
-          )
+          payload.data
+            .map((tag: unknown) => {
+              if (typeof tag === "string") {
+                return tag
+              }
+
+              if (
+                typeof tag === "object" &&
+                tag !== null &&
+                "tag" in tag &&
+                typeof tag.tag === "string"
+              ) {
+                return tag.tag
+              }
+
+              return null
+            })
+            .filter((tag): tag is string => Boolean(tag))
         )
       }
     } catch {
@@ -115,16 +143,20 @@ export const CreateBookmarkDialog = ({
     }
   }
 
-  function applyBookmarkValues(values?: EditableBookmark) {
-    setUrl(values?.url ?? "")
-    setTitle(values?.title ?? "")
-    setDescription(values?.description ?? "")
-    setFavicon(values?.favicon ?? "")
-    setSelectedTags(values?.tags ?? [])
-    setTagInput("")
-    setMetadataError("")
-    setSubmitError("")
-  }
+  const applyBookmarkValues = useCallback(
+    (values?: EditableBookmark) => {
+      setUrl(values?.url ?? "")
+      setTitle(values?.title ?? "")
+      setDescription(values?.description ?? "")
+      setFavicon(values?.favicon ?? "")
+      setPreviewImage(values?.previewImage ?? null)
+      setSelectedTags(values?.tags ?? preselectedTags ?? [])
+      setTagInput("")
+      setMetadataError("")
+      setSubmitError("")
+    },
+    [preselectedTags]
+  )
 
   function resetForm() {
     applyBookmarkValues(bookmark)
@@ -137,7 +169,7 @@ export const CreateBookmarkDialog = ({
 
     applyBookmarkValues(bookmark)
     void fetchExistingTags()
-  }, [bookmark, isOpen])
+  }, [applyBookmarkValues, bookmark, isOpen])
 
   function handleOpenChange(nextOpen: boolean) {
     setIsOpen(nextOpen)
@@ -161,7 +193,7 @@ export const CreateBookmarkDialog = ({
         `/api/bookmarks/metadata?url=${encodeURIComponent(url.trim())}`
       )
       const payload = (await response.json()) as {
-        data?: BookmarkCardData
+        data?: BookmarkMetadataPayload
         error?: string
       }
 
@@ -185,6 +217,12 @@ export const CreateBookmarkDialog = ({
       if (typeof metadata?.favicon === "string") {
         setFavicon(metadata.favicon)
       }
+
+      setPreviewImage(
+        typeof metadata?.previewImage === "string"
+          ? metadata.previewImage
+          : null
+      )
     } catch (error) {
       setMetadataError(
         error instanceof Error ? error.message : "Unable to fetch metadata."
@@ -220,7 +258,9 @@ export const CreateBookmarkDialog = ({
           title,
           description,
           favicon,
+          previewImage,
           tags: tagsPayload,
+          isFavorite: !isEditMode && defaultFavorite,
         }),
       })
 

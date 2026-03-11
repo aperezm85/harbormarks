@@ -4,6 +4,7 @@ type BookmarkMetadata = {
   title: string
   description: string
   favicon: string
+  previewImage: string | null
 }
 
 function parseAndValidateUrl(value: string | null) {
@@ -16,8 +17,11 @@ function parseAndValidateUrl(value: string | null) {
     return null
   }
 
+  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)
+  const normalizedValue = hasProtocol ? trimmed : `https://${trimmed}`
+
   try {
-    const parsed = new URL(trimmed)
+    const parsed = new URL(normalizedValue)
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return null
     }
@@ -89,6 +93,25 @@ function extractFavicon(html: string, pageUrl: URL) {
   }
 }
 
+function extractPreviewImage(html: string, pageUrl: URL) {
+  const imageMatch = html.match(
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>|<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>|<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>|<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i
+  )
+
+  const imageHref =
+    imageMatch?.[1] ?? imageMatch?.[2] ?? imageMatch?.[3] ?? imageMatch?.[4]
+
+  if (!imageHref) {
+    return null
+  }
+
+  try {
+    return new URL(imageHref, pageUrl).toString()
+  } catch {
+    return null
+  }
+}
+
 export const GET: APIRoute = async ({ request }) => {
   const requestUrl = new URL(request.url)
   const url = parseAndValidateUrl(requestUrl.searchParams.get("url"))
@@ -130,6 +153,7 @@ export const GET: APIRoute = async ({ request }) => {
       title: extractTitle(html),
       description: extractDescription(html),
       favicon: extractFavicon(html, url),
+      previewImage: extractPreviewImage(html, url),
     }
 
     return new Response(JSON.stringify({ data: metadata }), {

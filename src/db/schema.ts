@@ -13,6 +13,7 @@ export const bookmarks = pgTable("bookmarks", {
   title: text("title"),
   description: text("description"),
   favicon: text("favicon"),
+  previewImage: text("preview_image"),
   isFavorite: boolean("is_favorite").notNull().default(false),
   visitCount: integer("visit_count").notNull().default(0),
   tags: text("tags"),

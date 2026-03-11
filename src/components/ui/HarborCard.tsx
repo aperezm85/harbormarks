@@ -29,7 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import type { BookmarkCardData } from "@/lib/bookmarks"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 export const HarborCard = ({
@@ -38,6 +38,7 @@ export const HarborCard = ({
   title,
   description,
   favicon,
+  previewImage,
   tags,
   createdAt,
   isFavorite,
@@ -56,6 +57,7 @@ export const HarborCard = ({
   title: string
   description: string
   favicon: string
+  previewImage: string | null
   tags: string[]
   createdAt: string
   isFavorite: boolean
@@ -72,6 +74,13 @@ export const HarborCard = ({
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   const [isResettingVisit, setIsResettingVisit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isPreviewImageVisible, setIsPreviewImageVisible] = useState(
+    Boolean(previewImage)
+  )
+
+  useEffect(() => {
+    setIsPreviewImageVisible(Boolean(previewImage))
+  }, [previewImage])
 
   const bookmarkData: BookmarkCardData = {
     id,
@@ -79,6 +88,7 @@ export const HarborCard = ({
     title,
     description,
     favicon,
+    previewImage,
     tags,
     createdAt,
     isFavorite,
@@ -188,7 +198,7 @@ export const HarborCard = ({
 
   return (
     <Card
-      className="group h-full cursor-pointer border transition-colors hover:bg-muted/50"
+      className="group h-full cursor-pointer border pt-0 transition-colors hover:bg-muted/50"
       role="link"
       tabIndex={0}
       onClick={openBookmark}
@@ -199,6 +209,18 @@ export const HarborCard = ({
         }
       }}
     >
+      <div className="relative z-20 aspect-video w-full overflow-hidden">
+        {previewImage && isPreviewImageVisible ? (
+          <img
+            src={previewImage}
+            alt={`${title} preview`}
+            className="h-full w-full object-cover brightness-60 grayscale dark:brightness-40"
+            onError={() => setIsPreviewImageVisible(false)}
+          />
+        ) : (
+          <div className="h-full w-full bg-linear-to-br from-sky-500/25 via-cyan-400/15 to-indigo-500/30" />
+        )}
+      </div>
       <CardHeader>
         <div className="flex w-full items-center justify-between">
           <img
@@ -250,6 +272,7 @@ export const HarborCard = ({
                 title,
                 description,
                 favicon,
+                previewImage,
                 tags,
               }}
               onSaved={onSaved}
