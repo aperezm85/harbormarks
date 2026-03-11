@@ -272,7 +272,7 @@ export const CreateBookmarkDialog = ({
         {trigger ?? (
           <Button>
             <BookmarkSimpleIcon className="size-4" />
-            Add Bookmark
+            <span className="hidden sm:block">Add Bookmark</span>
           </Button>
         )}
       </DialogTrigger>

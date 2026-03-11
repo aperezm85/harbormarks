@@ -42,7 +42,7 @@ const DashboardTopBar = ({
         href="/"
         aria-hidden={isSidebarOpen}
         className={[
-          "overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
+          "hidden overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out sm:block",
           isSidebarOpen
             ? "pointer-events-none max-w-0 -translate-x-2 opacity-0"
             : "max-w-52 shrink-0 translate-x-0 opacity-100",
