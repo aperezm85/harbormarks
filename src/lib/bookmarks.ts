@@ -212,6 +212,33 @@ export async function createBookmark(input: {
   return toCardData(created)
 }
 
+export async function updateBookmarkById(
+  id: number,
+  input: {
+    url: string
+    title?: string | null
+    description?: string | null
+    favicon?: string | null
+    tags?: string[] | string | null
+  }
+) {
+  await ensureBookmarksTable()
+
+  const [updated] = await db
+    .update(bookmarks)
+    .set({
+      url: input.url,
+      title: input.title?.trim() || null,
+      description: input.description?.trim() || null,
+      favicon: input.favicon?.trim() || null,
+      tags: normalizeTags(input.tags),
+    })
+    .where(eq(bookmarks.id, id))
+    .returning()
+
+  return updated ? toCardData(updated) : null
+}
+
 export async function toggleFavoriteById(id: number) {
   await ensureBookmarksTable()
 
@@ -252,6 +279,18 @@ export async function incrementBookmarkVisitById(id: number) {
     .set({
       visitCount: sql`${bookmarks.visitCount} + 1`,
     })
+    .where(eq(bookmarks.id, id))
+    .returning({ id: bookmarks.id })
+
+  return updated.length > 0
+}
+
+export async function resetBookmarkVisitCountById(id: number) {
+  await ensureBookmarksTable()
+
+  const updated = await db
+    .update(bookmarks)
+    .set({ visitCount: 0 })
     .where(eq(bookmarks.id, id))
     .returning({ id: bookmarks.id })
 

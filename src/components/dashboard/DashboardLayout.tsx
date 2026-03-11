@@ -12,9 +12,73 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
+import { Toaster } from "@/components/ui/sonner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+const DashboardTopBar = ({
+  searchInput,
+  setSearchInput,
+  setDebouncedSearch,
+  isRefreshingBookmarks,
+  hasActiveSearch,
+  onBookmarkSaved,
+}: {
+  searchInput: string
+  setSearchInput: (value: string) => void
+  setDebouncedSearch: (value: string) => void
+  isRefreshingBookmarks: boolean
+  hasActiveSearch: boolean
+  onBookmarkSaved: (bookmark: BookmarkCardData) => void
+}) => {
+  const { open, openMobile, isMobile } = useSidebar()
+  const isSidebarOpen = isMobile ? openMobile : open
+
+  return (
+    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+      <a
+        href="/"
+        aria-hidden={isSidebarOpen}
+        className={[
+          "overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
+          isSidebarOpen
+            ? "pointer-events-none max-w-0 -translate-x-2 opacity-0"
+            : "max-w-52 shrink-0 translate-x-0 opacity-100",
+        ].join(" ")}
+      >
+        <span className="text-lg font-semibold">
+          Harbor<span className="text-primary">Marks</span>
+        </span>
+      </a>
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="mr-2 h-full" />
+      <SidebarInput
+        id="search"
+        placeholder="Search your harbor..."
+        value={searchInput}
+        onChange={(event) => setSearchInput(event.target.value)}
+        onClear={() => {
+          setSearchInput("")
+          setDebouncedSearch("")
+        }}
+      />
+      {isRefreshingBookmarks && (
+        <span
+          className="text-xs text-muted-foreground"
+          aria-live="polite"
+          role="status"
+        >
+          {hasActiveSearch ? "Searching..." : "Refreshing..."}
+        </span>
+      )}
+      <CreateBookmarkDialog onSaved={onBookmarkSaved} />
+      <Separator orientation="vertical" className="mr-2 h-full" />
+      <ModeToggle />
+    </header>
+  )
+}
 
 export const DashboardLayout = ({
   bookmarks,
@@ -28,6 +92,79 @@ export const DashboardLayout = ({
   const [activeView, setActiveView] = useState<BookmarkView>("recent")
   const [isRefreshingBookmarks, setIsRefreshingBookmarks] = useState(false)
   const requestIdRef = useRef(0)
+
+  const applyBookmarkUpdate = (updatedBookmark: BookmarkCardData) => {
+    setVisibleBookmarks((current) => {
+      const existingIndex = current.findIndex(
+        (bookmark) => bookmark.id === updatedBookmark.id
+      )
+
+      if (existingIndex === -1) {
+        return [updatedBookmark, ...current]
+      }
+
+      const next = [...current]
+      next[existingIndex] = updatedBookmark
+      return next
+    })
+  }
+
+  const incrementVisitCount = (id: string) => {
+    setVisibleBookmarks((current) =>
+      current.map((bookmark) =>
+        bookmark.id === id
+          ? { ...bookmark, visitCount: bookmark.visitCount + 1 }
+          : bookmark
+      )
+    )
+  }
+
+  const decrementVisitCount = (id: string) => {
+    setVisibleBookmarks((current) =>
+      current.map((bookmark) =>
+        bookmark.id === id
+          ? {
+              ...bookmark,
+              visitCount: Math.max(0, bookmark.visitCount - 1),
+            }
+          : bookmark
+      )
+    )
+  }
+
+  const resetVisitCount = (id: string) => {
+    setVisibleBookmarks((current) =>
+      current.map((bookmark) =>
+        bookmark.id === id ? { ...bookmark, visitCount: 0 } : bookmark
+      )
+    )
+  }
+
+  const setFavoriteState = (id: string, nextIsFavorite: boolean) => {
+    setVisibleBookmarks((current) =>
+      current.map((bookmark) =>
+        bookmark.id === id
+          ? { ...bookmark, isFavorite: nextIsFavorite }
+          : bookmark
+      )
+    )
+  }
+
+  const removeBookmark = (bookmarkToRemove: BookmarkCardData) => {
+    setVisibleBookmarks((current) =>
+      current.filter((bookmark) => bookmark.id !== bookmarkToRemove.id)
+    )
+  }
+
+  const restoreBookmark = (bookmarkToRestore: BookmarkCardData) => {
+    setVisibleBookmarks((current) => {
+      if (current.some((bookmark) => bookmark.id === bookmarkToRestore.id)) {
+        return current
+      }
+
+      return [bookmarkToRestore, ...current]
+    })
+  }
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -94,32 +231,14 @@ export const DashboardLayout = ({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-full" />
-          <SidebarInput
-            id="search"
-            placeholder="Search your harbor..."
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            onClear={() => {
-              setSearchInput("")
-              setDebouncedSearch("")
-            }}
-          />
-          {isRefreshingBookmarks && (
-            <span
-              className="text-xs text-muted-foreground"
-              aria-live="polite"
-              role="status"
-            >
-              {hasActiveSearch ? "Searching..." : "Refreshing..."}
-            </span>
-          )}
-          <CreateBookmarkDialog />
-          <Separator orientation="vertical" className="mr-2 h-full" />
-          <ModeToggle />
-        </header>
+        <DashboardTopBar
+          searchInput={searchInput}
+          setSearchInput={setSearchInput}
+          setDebouncedSearch={setDebouncedSearch}
+          isRefreshingBookmarks={isRefreshingBookmarks}
+          hasActiveSearch={hasActiveSearch}
+          onBookmarkSaved={applyBookmarkUpdate}
+        />
         <div className="flex flex-1 flex-col gap-4 p-4">
           <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
             <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3">
@@ -170,7 +289,31 @@ export const DashboardLayout = ({
               )}
 
               {visibleBookmarks.map((bookmark) => (
-                <HarborCard key={bookmark.id} {...bookmark} />
+                <HarborCard
+                  key={bookmark.id}
+                  {...bookmark}
+                  onSaved={applyBookmarkUpdate}
+                  onVisit={() => incrementVisitCount(bookmark.id)}
+                  onVisitRollback={() => decrementVisitCount(bookmark.id)}
+                  onVisitReset={() => resetVisitCount(bookmark.id)}
+                  onVisitResetRollback={(previousCount) =>
+                    setVisibleBookmarks((current) =>
+                      current.map((currentBookmark) =>
+                        currentBookmark.id === bookmark.id
+                          ? {
+                              ...currentBookmark,
+                              visitCount: previousCount,
+                            }
+                          : currentBookmark
+                      )
+                    )
+                  }
+                  onFavoriteToggle={(nextIsFavorite) =>
+                    setFavoriteState(bookmark.id, nextIsFavorite)
+                  }
+                  onDeleted={removeBookmark}
+                  onDeleteRollback={restoreBookmark}
+                />
               ))}
               {visibleBookmarks.length === 0 && (
                 <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -183,6 +326,7 @@ export const DashboardLayout = ({
           </div>
         </div>
       </SidebarInset>
+      <Toaster position="top-center" />
     </SidebarProvider>
   )
 }

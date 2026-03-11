@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { deleteBookmarkById } from "@/lib/bookmarks"
+import { resetBookmarkVisitCountById } from "@/lib/bookmarks"
 
 function parseId(rawId: string | undefined) {
   const id = Number(rawId)
@@ -12,16 +12,13 @@ function parseId(rawId: string | undefined) {
   return id
 }
 
-function isJsonRequest(contentType: string | null) {
-  return contentType?.includes("application/json") === true
-}
-
 export const POST: APIRoute = async ({ params, request, redirect }) => {
   const id = parseId(params.id)
-  const wantsJson = isJsonRequest(request.headers.get("content-type"))
+  const isJsonRequest =
+    request.headers.get("content-type")?.includes("application/json") === true
 
   if (!id) {
-    if (wantsJson) {
+    if (isJsonRequest) {
       return new Response(JSON.stringify({ error: "Invalid bookmark id" }), {
         status: 400,
         headers: {
@@ -33,9 +30,9 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
     return redirect("/?error=invalid_bookmark_id")
   }
 
-  const deleted = await deleteBookmarkById(id)
+  const updated = await resetBookmarkVisitCountById(id)
 
-  if (!deleted && wantsJson) {
+  if (!updated && isJsonRequest) {
     return new Response(JSON.stringify({ error: "Bookmark not found" }), {
       status: 404,
       headers: {
@@ -44,7 +41,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
     })
   }
 
-  if (wantsJson) {
+  if (isJsonRequest) {
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: {

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import type { BookmarkCardData } from "@/lib/bookmarks"
+import { useEffect, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,7 +26,26 @@ import { ButtonGroup } from "../ui/button-group"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group"
 import { Textarea } from "../ui/textarea"
 
-export const CreateBookmarkDialog = () => {
+type EditableBookmark = {
+  id: string
+  url: string
+  title: string
+  description: string
+  favicon: string
+  tags: string[]
+}
+
+type CreateBookmarkDialogProps = {
+  bookmark?: EditableBookmark
+  trigger?: ReactNode
+  onSaved?: (bookmark: BookmarkCardData) => void
+}
+
+export const CreateBookmarkDialog = ({
+  bookmark,
+  trigger,
+  onSaved,
+}: CreateBookmarkDialogProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const [url, setUrl] = useState("")
   const [title, setTitle] = useState("")
@@ -39,6 +59,7 @@ export const CreateBookmarkDialog = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [metadataError, setMetadataError] = useState("")
   const [submitError, setSubmitError] = useState("")
+  const isEditMode = Boolean(bookmark)
 
   function hasTag(tag: string) {
     const normalized = tag.toLowerCase()
@@ -94,15 +115,19 @@ export const CreateBookmarkDialog = () => {
     }
   }
 
-  function resetForm() {
-    setUrl("")
-    setTitle("")
-    setDescription("")
-    setFavicon("")
-    setSelectedTags([])
+  function applyBookmarkValues(values?: EditableBookmark) {
+    setUrl(values?.url ?? "")
+    setTitle(values?.title ?? "")
+    setDescription(values?.description ?? "")
+    setFavicon(values?.favicon ?? "")
+    setSelectedTags(values?.tags ?? [])
     setTagInput("")
     setMetadataError("")
     setSubmitError("")
+  }
+
+  function resetForm() {
+    applyBookmarkValues(bookmark)
   }
 
   useEffect(() => {
@@ -110,8 +135,9 @@ export const CreateBookmarkDialog = () => {
       return
     }
 
+    applyBookmarkValues(bookmark)
     void fetchExistingTags()
-  }, [isOpen])
+  }, [bookmark, isOpen])
 
   function handleOpenChange(nextOpen: boolean) {
     setIsOpen(nextOpen)
@@ -134,7 +160,10 @@ export const CreateBookmarkDialog = () => {
       const response = await fetch(
         `/api/bookmarks/metadata?url=${encodeURIComponent(url.trim())}`
       )
-      const payload = await response.json()
+      const payload = (await response.json()) as {
+        data?: BookmarkCardData
+        error?: string
+      }
 
       if (!response.ok) {
         const errorMessage =
@@ -177,7 +206,11 @@ export const CreateBookmarkDialog = () => {
       : selectedTags
 
     try {
-      const response = await fetch("/api/bookmarks", {
+      const endpoint = isEditMode
+        ? `/api/bookmarks/${bookmark?.id}/update`
+        : "/api/bookmarks"
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -195,15 +228,24 @@ export const CreateBookmarkDialog = () => {
 
       if (!response.ok) {
         const errorMessage =
-          typeof payload?.error === "string"
+          typeof payload.error === "string"
             ? payload.error
             : "Unable to save bookmark."
         throw new Error(errorMessage)
       }
 
-      resetForm()
+      const savedBookmark = payload.data
+      if (!savedBookmark) {
+        throw new Error("Unable to save bookmark.")
+      }
+
+      applyBookmarkValues(bookmark)
       setIsOpen(false)
-      window.location.reload()
+      if (onSaved) {
+        onSaved(savedBookmark)
+      } else {
+        window.location.reload()
+      }
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : "Unable to save bookmark."
@@ -227,10 +269,12 @@ export const CreateBookmarkDialog = () => {
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button>
-          <BookmarkSimpleIcon className="size-4" />
-          Add Bookmark
-        </Button>
+        {trigger ?? (
+          <Button>
+            <BookmarkSimpleIcon className="size-4" />
+            Add Bookmark
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <form
@@ -242,9 +286,13 @@ export const CreateBookmarkDialog = () => {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Add Bookmark</DialogTitle>
+            <DialogTitle>
+              {isEditMode ? "Edit Bookmark" : "Add Bookmark"}
+            </DialogTitle>
             <DialogDescription>
-              Add a new bookmark to your harbor.
+              {isEditMode
+                ? "Update bookmark details in your harbor."
+                : "Add a new bookmark to your harbor."}
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
@@ -377,7 +425,11 @@ export const CreateBookmarkDialog = () => {
             </DialogClose>
             <Button type="submit" disabled={isSaving}>
               <BookmarkSimpleIcon className="size-4" />
-              {isSaving ? "Saving..." : "Save Bookmark"}
+              {isSaving
+                ? "Saving..."
+                : isEditMode
+                  ? "Save Changes"
+                  : "Save Bookmark"}
             </Button>
           </DialogFooter>
         </form>
