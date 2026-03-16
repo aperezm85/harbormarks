@@ -237,25 +237,29 @@ async function backfillLegacyBookmarks() {
     return
   }
 
-  try {
-    await db
-      .update(bookmarks)
-      .set({ userId: owner.id })
-      .where(isNull(bookmarks.userId))
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message.toLowerCase() : String(error)
+  const [schemaState] = await db
+    .select({
+      bookmarksTable: sql<string | null>`to_regclass('public.bookmarks')::text`,
+      hasUserId: sql<boolean>`EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'bookmarks'
+          AND column_name = 'user_id'
+      )`,
+    })
+    .from(users)
+    .where(eq(users.id, owner.id))
+    .limit(1)
 
-    // Older installs might not have the bookmarks table or user_id column yet.
-    if (
-      message.includes('relation "bookmarks" does not exist') ||
-      message.includes('column "user_id" does not exist')
-    ) {
-      return
-    }
-
-    throw error
+  if (!schemaState?.bookmarksTable || !schemaState.hasUserId) {
+    return
   }
+
+  await db
+    .update(bookmarks)
+    .set({ userId: owner.id })
+    .where(isNull(bookmarks.userId))
 }
 
 export async function ensureAuthSchema() {
