@@ -3,6 +3,7 @@ import * as React from "react"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -15,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 
 import Logo from "@/assets/harborMark.svg"
+import { NavUser, type SidebarUser } from "@/components/ui/NavUser"
 import {
   BookmarkIcon,
   HashIcon,
@@ -26,29 +28,12 @@ type SidebarTagSummary = {
   count: number
 }
 
-// This is sample data.
-const data = {
-  navMain: [
-    {
-      title: "Main",
-      items: [
-        {
-          title: "All Bookmarks",
-          url: "/",
-          icon: <BookmarkIcon className="size-4" weight="fill" />,
-          isActive: true,
-        },
-        {
-          title: "Favorites",
-          url: "/favorites",
-          icon: <HeartStraightIcon className="size-4" weight="fill" />,
-        },
-      ],
-    },
-  ],
-}
-
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  currentUser,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & {
+  currentUser?: SidebarUser | null
+}) {
   const [tags, setTags] = React.useState<SidebarTagSummary[]>([])
   const [isLoadingTags, setIsLoadingTags] = React.useState(true)
   const [activeTag, setActiveTag] = React.useState<string | null>(null)
@@ -125,6 +110,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [syncRouteState])
 
+  const navigationGroups = React.useMemo(() => {
+    return [
+      {
+        title: "Main",
+        items: [
+          {
+            title: "All Bookmarks",
+            url: "/",
+            icon: <BookmarkIcon className="size-4" weight="fill" />,
+          },
+          {
+            title: "Favorites",
+            url: "/favorites",
+            icon: <HeartStraightIcon className="size-4" weight="fill" />,
+          },
+        ],
+      },
+    ]
+  }, [])
+
   return (
     <Sidebar {...props}>
       <SidebarHeader>
@@ -137,7 +142,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         {/* We create a SidebarGroup for each parent. */}
-        {data.navMain.map((item) => (
+        {navigationGroups.map((item) => (
           <SidebarGroup key={item.title}>
             <SidebarGroupLabel className="text-md">
               {item.title}
@@ -148,13 +153,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild
-                      isActive={
-                        item.title === "All Bookmarks"
-                          ? pathname === "/"
-                          : item.title === "Favorites"
-                            ? pathname === "/favorites"
-                            : item.isActive
-                      }
+                      isActive={pathname === item.url}
                       size="lg"
                     >
                       <a href={item.url}>
@@ -223,6 +222,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {currentUser ? (
+        <SidebarFooter>
+          <NavUser user={currentUser} />
+        </SidebarFooter>
+      ) : null}
       <SidebarRail />
     </Sidebar>
   )

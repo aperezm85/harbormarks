@@ -3,7 +3,11 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
 import Layout from "@/layouts/main.astro"
 import { listBookmarks } from "@/lib/bookmarks"
 
-const bookmarks = await listBookmarks({ onlyFavorites: true })
+const userId = Astro.locals.userId
+const user = Astro.locals.user
+const bookmarks = userId
+  ? await listBookmarks(userId, { onlyFavorites: true })
+  : []
 ---
 
 <Layout page="Favorites | HarborMarks">
@@ -11,6 +15,7 @@ const bookmarks = await listBookmarks({ onlyFavorites: true })
     client:load
     transition:persist
     bookmarks={bookmarks}
+    currentUser={user}
     onlyFavorites
   />
 </Layout>

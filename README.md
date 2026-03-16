@@ -6,8 +6,20 @@ It helps you save links, enrich them with metadata, organize them with tags, and
 
 ## What Is Implemented
 
-- Authentication with login/logout and route protection.
+- Authentication and account lifecycle:
+  - login/logout with DB-backed session tokens,
+  - self-service registration (when enabled),
+  - forgot/reset password flows,
+  - email verification request/confirm endpoints (link output currently logged server-side),
+  - route protection with role-based admin route guards.
+- Account management:
+  - redesigned profile page with dashboard-style layout,
+  - profile update and password change flows,
+  - quick back navigation from profile to main page.
+- Admin user management page for creating users, assigning roles, and toggling account access.
+- Sidebar account menu with profile, admin users (for admins), and logout actions.
 - Bookmark CRUD (create, edit, delete).
+- Per-user bookmark isolation across list, tags, favorites, updates, and visits.
 - URL normalization on create and metadata fetch (`https://` is auto-added when missing).
 - Metadata extraction (title, description, favicon, preview image).
 - Favorite bookmarks support with a dedicated Favorites page.
@@ -54,21 +66,32 @@ pnpm typecheck
 
 ## Environment Variables
 
-Create a `.env` file in the project root.
+For Docker usage, set these directly under `services.app.environment` in `docker-compose.yml`.
+
+Important: replace any committed example/default credentials before exposing the app on a network.
 
 Required:
 
 ```bash
 DATABASE_URL=postgresql://astro:astro@db:5432/harbormarks
-HARBOR_USER=admin
-HARBOR_PASSWORD=change_me
+HARBOR_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+HARBOR_BOOTSTRAP_ADMIN_NAME=Harbor Admin
+HARBOR_BOOTSTRAP_ADMIN_PASSWORD=change_me
+SESSION_SECRET=change_me
 ```
+
+For local non-Docker development, you can still use a `.env` file.
+
+Bootstrap notes:
+
+- Bootstrap admin variables are only used on first start when no users exist.
+- Legacy `HARBOR_USER` / `HARBOR_PASSWORD` are still accepted as fallback bootstrap inputs.
 
 Optional / deployment-specific:
 
 ```bash
-SESSION_SECRET=change_me
 NODE_ENV=production
+HARBOR_ALLOW_SIGNUP=true
 ```
 
 ## Run With Docker Compose
@@ -90,6 +113,19 @@ Stop:
 ```bash
 docker compose down
 ```
+
+## Recent Changes
+
+### 2026-03-16
+
+- Migrated authentication to DB-backed users and session tokens.
+- Added self-service registration, profile update, password change, forgot/reset password, and email verification request/confirm flows.
+- Added admin user management (`/admin/users`) for creating users, assigning roles, and toggling active status.
+- Scoped bookmark APIs and listing/tag queries to the authenticated user.
+- Added sidebar user menu with account/admin navigation and logout.
+- Redesigned the profile page to match the dashboard/admin visual pattern.
+- Updated Docker env conventions to bootstrap-admin variables under Compose.
+- Added GHCR publish workflow and image-based deploy compose file.
 
 ## Product Roadmap
 

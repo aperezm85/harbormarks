@@ -1,0 +1,110 @@
+---
+export const prerender = false
+
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import HarborMarksHeader from "@/components/ui/HarborMarksHeader.astro"
+import { Input } from "@/components/ui/input"
+import LayoutLogin from "@/layouts/login.astro"
+
+const token = Astro.url.searchParams.get("token") ?? ""
+let error = Astro.url.searchParams.get("error")
+const status = Astro.url.searchParams.get("status")
+
+if (error === "invalid_token") {
+  error = "This verification token is invalid or expired."
+}
+---
+
+<LayoutLogin page="Verify email">
+  <div class="flex min-h-screen items-center justify-center bg-background">
+    <div class="flex w-full max-w-sm flex-col gap-6">
+      <HarborMarksHeader />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Verify your email</CardTitle>
+          <CardDescription>
+            Enter the verification token from your email link.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            method="POST"
+            action="/api/auth/verify-email-confirm"
+            class="space-y-4"
+          >
+            <FieldGroup>
+              <Field data-invalid={!!error}>
+                <FieldLabel htmlFor="token">Verification token</FieldLabel>
+                <Input
+                  id="token"
+                  name="token"
+                  required
+                  value={token}
+                  aria-invalid={!!error}
+                />
+              </Field>
+              <Field>
+                <Button type="submit">Verify email</Button>
+              </Field>
+            </FieldGroup>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resend verification</CardTitle>
+          <CardDescription>
+            We'll log a new verification link in the server logs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            method="POST"
+            action="/api/auth/verify-email-request"
+            class="space-y-4"
+          >
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="you@example.com"
+                />
+              </Field>
+              <Field>
+                <Button type="submit" variant="outline"
+                  >Send verification link</Button
+                >
+              </Field>
+            </FieldGroup>
+          </form>
+        </CardContent>
+      </Card>
+
+      {
+        status === "sent" ? (
+          <p class="text-sm text-muted-foreground">
+            A verification link has been generated. Check server logs.
+          </p>
+        ) : null
+      }
+      {error ? <p class="text-sm text-destructive">{error}</p> : null}
+      <p class="text-sm text-muted-foreground">
+        Back to <a href="/login" class="underline">login</a>.
+      </p>
+    </div>
+  </div>
+</LayoutLogin>

@@ -9,11 +9,9 @@ services:
       POSTGRES_DB: harbormarks
     volumes:
       - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
 
   app:
-    build: .
+    image: ghcr.io/aperezm85/harbormarks:latest
     container_name: harbormarks-app
     restart: unless-stopped
     environment:

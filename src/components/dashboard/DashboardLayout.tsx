@@ -92,10 +92,18 @@ export const DashboardLayout = ({
   bookmarks,
   tagFilter,
   onlyFavorites,
+  currentUser,
 }: {
   bookmarks: BookmarkCardData[]
   tagFilter?: string
   onlyFavorites?: boolean
+  currentUser?: {
+    id: number
+    email: string
+    displayName: string | null
+    avatarUrl: string
+    role: "admin" | "user"
+  } | null
 }) => {
   const [routeTagFilter, setRouteTagFilter] = useState(tagFilter)
   const [routeOnlyFavorites, setRouteOnlyFavorites] = useState(onlyFavorites)
@@ -284,7 +292,7 @@ export const DashboardLayout = ({
 
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar currentUser={currentUser ?? null} />
       <SidebarInset>
         <DashboardTopBar
           searchInput={searchInput}

@@ -38,7 +38,20 @@ function parseAndValidateUrl(value: string | null) {
   }
 }
 
-export const POST: APIRoute = async ({ params, request, redirect }) => {
+export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
+  if (!locals.userId) {
+    if (isJsonRequest(request.headers.get("content-type"))) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: {
+          "content-type": "application/json",
+        },
+      })
+    }
+
+    return redirect("/login")
+  }
+
   const id = parseId(params.id)
 
   if (!id) {
@@ -112,7 +125,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
     return redirect("/?error=invalid_bookmark_url")
   }
 
-  const bookmark = await updateBookmarkById(id, {
+  const bookmark = await updateBookmarkById(locals.userId, id, {
     url,
     title,
     description,

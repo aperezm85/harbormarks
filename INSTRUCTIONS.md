@@ -24,27 +24,25 @@ Then open a shell in that directory:
 cd /volume1/docker/harbormarks
 ```
 
-## 3. Create Environment File
+## 3. Configure App Credentials In Compose
 
-Copy the example and edit values:
+Edit `docker-compose.yml` and set at least these values under `services.app.environment`:
 
-```bash
-cp .env.example .env
-```
-
-Set at least these variables in `.env`:
-
-```bash
-HARBOR_USER=admin
-HARBOR_PASSWORD=change_this_now
-SESSION_SECRET=use_a_long_random_secret
+```yaml
+HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
+HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
+HARBOR_BOOTSTRAP_ADMIN_PASSWORD: change_this_now
+HARBOR_ALLOW_SIGNUP: "true"
+SESSION_SECRET: use_a_long_random_secret
 ```
 
 Notes:
 
 - In this repository, `docker-compose.yml` already sets the internal database URL to the `db` service.
 - `HOST` and `PORT` are also forced by Compose for container runtime.
-- You usually only need to set login credentials and `SESSION_SECRET` in `.env`.
+- Bootstrap admin values are used only when the users table is empty.
+- Always replace any example/default bootstrap credentials before starting in shared or production environments.
+- You usually only need to set bootstrap admin values and `SESSION_SECRET` in `docker-compose.yml`.
 
 ## 4. Build And Start
 
@@ -164,3 +162,70 @@ Restore example:
 ```bash
 cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harbormarks
 ```
+
+## Recent Changes
+
+### 2026-03-16
+
+- Updated Compose setup docs to use bootstrap-admin env variables (`HARBOR_BOOTSTRAP_ADMIN_*`) instead of legacy login-only env keys.
+- Clarified that bootstrap-admin values are used only when no users exist.
+- Added explicit guidance to replace default/example credentials before deployment.
+- Added GHCR-based image publishing and deploy-without-repo-copy workflow guidance.
+- Added image-based deployment path using `docker-compose.deploy.yml`.
+
+## 10. Deploy Without Copying The Project To NAS
+
+If you do not want to copy this repository to the NAS, publish a prebuilt image and deploy from a minimal Compose file.
+
+This repository includes:
+
+- `docker-compose.deploy.yml`: image-based deploy file (no local build).
+- `.github/workflows/publish-ghcr.yml`: builds and pushes to GitHub Container Registry.
+
+Current publish workflow in this repo: GHCR.
+
+### A) Publish from GitHub Actions
+
+GHCR workflow needs no extra secret in most repos because it uses `GITHUB_TOKEN`.
+
+The publish workflow triggers on:
+
+- push to `main`
+- tags like `v1.0.0`
+- manual run (`workflow_dispatch`)
+
+### B) NAS-side files only
+
+On NAS, create a small folder (for example `/volume1/docker/harbormarks`) with only:
+
+- `docker-compose.deploy.yml`
+
+Edit `docker-compose.deploy.yml` and set these values under `services.app.environment`:
+
+```yaml
+HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
+HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
+HARBOR_BOOTSTRAP_ADMIN_PASSWORD: change_this_now
+HARBOR_ALLOW_SIGNUP: "true"
+SESSION_SECRET: use_a_long_random_secret
+```
+
+In `docker-compose.deploy.yml`, set your image reference (default shown here is GHCR):
+
+- GHCR: `ghcr.io/aperezm85/harbormarks:latest`
+
+Start/update on NAS:
+
+```bash
+docker compose -f docker-compose.deploy.yml pull
+docker compose -f docker-compose.deploy.yml up -d
+```
+
+### C) Recommended tag strategy
+
+For safer upgrades on NAS, pin to a version tag (for example `:v1.2.0`) instead of always using `:latest`.
+
+Rollback example:
+
+1. Change image tag in `docker-compose.deploy.yml` to previous version.
+2. Run `docker compose -f docker-compose.deploy.yml up -d`.

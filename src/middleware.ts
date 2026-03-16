@@ -1,6 +1,8 @@
 import { defineMiddleware } from "astro:middleware"
 
-export const onRequest = defineMiddleware((context, next) => {
+import { getSessionCookieName, getUserBySessionToken } from "@/lib/auth"
+
+export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url
 
   // Allow static assets
@@ -13,17 +15,42 @@ export const onRequest = defineMiddleware((context, next) => {
   }
 
   const isLoginPage = pathname === "/login"
+  const isRegisterPage = pathname === "/register"
+  const isVerifyEmailPage = pathname === "/verify-email"
+  const isForgotPasswordPage = pathname === "/forgot-password"
+  const isResetPasswordPage = pathname === "/reset-password"
   const isPublicAuthApi = pathname.startsWith("/api/auth/")
+  const isAdminPage = pathname.startsWith("/admin")
+  const isAdminApi = pathname.startsWith("/api/admin/")
 
-  const session = context.cookies.get("session")?.value
-  const isAuthenticated = session === "authenticated"
+  const session = context.cookies.get(getSessionCookieName())?.value
+  const user = await getUserBySessionToken(session)
+  const isAuthenticated = user !== null
   context.locals.isAuthenticated = isAuthenticated
+  context.locals.userId = user?.id ?? null
+  context.locals.user = user
 
-  if (!isAuthenticated && !isLoginPage && !isPublicAuthApi) {
+  if (
+    !isAuthenticated &&
+    !isLoginPage &&
+    !isRegisterPage &&
+    !isVerifyEmailPage &&
+    !isForgotPasswordPage &&
+    !isResetPasswordPage &&
+    !isPublicAuthApi
+  ) {
     return context.redirect("/login")
   }
 
-  if (isAuthenticated && isLoginPage) {
+  if (
+    isAuthenticated &&
+    (isAdminPage || isAdminApi) &&
+    user?.role !== "admin"
+  ) {
+    return context.redirect("/")
+  }
+
+  if (isAuthenticated && (isLoginPage || isRegisterPage)) {
     return context.redirect("/")
   }
 

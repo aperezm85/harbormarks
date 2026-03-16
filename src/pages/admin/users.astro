@@ -1,0 +1,239 @@
+---
+export const prerender = false
+
+import { AdminUserAvatar } from "@/components/admin/AdminUserAvatar"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import Header from "@/components/ui/Header.astro"
+import { Input } from "@/components/ui/input"
+import Layout from "@/layouts/main.astro"
+import { listUsersForAdmin } from "@/lib/auth"
+
+const actor = Astro.locals.user
+
+if (!actor || actor.role !== "admin") {
+  return Astro.redirect("/")
+}
+
+const users = await listUsersForAdmin()
+const activeCount = users.filter((user) => user.isActive).length
+const adminCount = users.filter((user) => user.role === "admin").length
+const status = Astro.url.searchParams.get("status")
+let error = Astro.url.searchParams.get("error")
+if (error?.startsWith("Password must be at least")) {
+  error = "Password must be at least 8 characters."
+}
+---
+
+<Layout page="User management | HarborMarks">
+  <div class="relative mx-auto max-w-6xl px-4 py-6">
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-40"
+    >
+    </div>
+
+    <Header />
+
+    <div class="mt-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">User management</h1>
+        <p class="text-sm text-muted-foreground">
+          Create accounts, grant admin access, and control sign-in status.
+        </p>
+      </div>
+      <a href="/">
+        <Button type="button" variant="outline">&larr; Go back</Button>
+      </a>
+    </div>
+
+    <div class="mb-6 grid gap-3 md:grid-cols-3">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardDescription>Total users</CardDescription>
+          <CardTitle className="text-2xl">{users.length}</CardTitle>
+        </CardHeader>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardDescription>Active users</CardDescription>
+          <CardTitle className="text-2xl">{activeCount}</CardTitle>
+        </CardHeader>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardDescription>Admins</CardDescription>
+          <CardTitle className="text-2xl">{adminCount}</CardTitle>
+        </CardHeader>
+      </Card>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[1.1fr_1.9fr]">
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle>Create user</CardTitle>
+          <CardDescription>Create a new account as admin.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            method="POST"
+            action="/api/admin/users/create"
+            class="space-y-4"
+          >
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="name">Name</FieldLabel>
+                <Input id="name" name="name" required placeholder="Alice" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="alice@example.com"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="password">Temporary password</FieldLabel>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  minLength={8}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="role">Role</FieldLabel>
+                <div class="relative">
+                  <select
+                    id="role"
+                    name="role"
+                    class="h-9 w-full appearance-none rounded-lg border border-input bg-transparent py-2 pr-9 pl-2.5 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30"
+                    required
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <span
+                    aria-hidden="true"
+                    class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                  >
+                    <svg
+                      class="size-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M6 9L12 15L18 9"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </div>
+              </Field>
+              <Field>
+                <Button type="submit" className="w-full">Create user</Button>
+              </Field>
+            </FieldGroup>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Users</CardTitle>
+          <CardDescription>Enable or disable account access.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div class="space-y-3">
+            {
+              users.length === 0 ? (
+                <div class="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No users yet.
+                </div>
+              ) : (
+                users.map((user) => (
+                  <div class="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-4">
+                    <div class="flex min-w-0 items-center gap-3">
+                      <AdminUserAvatar
+                        name={user.displayName ?? ""}
+                        email={user.email}
+                        avatarUrl={user.avatarUrl}
+                      />
+
+                      <div class="min-w-0">
+                        <p class="truncate font-medium">
+                          {user.displayName ?? user.email}
+                        </p>
+                        <p class="truncate text-sm text-muted-foreground">
+                          {user.email}
+                        </p>
+                        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                          <span class="rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">
+                            {user.role}
+                          </span>
+                          <span
+                            class:list={[
+                              "rounded-full px-2 py-0.5",
+                              user.isActive
+                                ? "bg-green-100 text-green-700"
+                                : "bg-muted text-muted-foreground",
+                            ]}
+                          >
+                            {user.isActive ? "active" : "disabled"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <form method="POST" action="/api/admin/users/toggle-active">
+                      <input
+                        type="hidden"
+                        name="userId"
+                        value={String(user.id)}
+                      />
+                      <input
+                        type="hidden"
+                        name="isActive"
+                        value={user.isActive ? "false" : "true"}
+                      />
+                      <Button type="submit" variant="outline">
+                        {user.isActive ? "Disable" : "Enable"}
+                      </Button>
+                    </form>
+                  </div>
+                ))
+              )
+            }
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+
+    <div class="mt-6 space-y-2">
+      {
+        status === "created" ? (
+          <p class="text-sm text-muted-foreground">User created.</p>
+        ) : null
+      }
+      {
+        status === "updated" ? (
+          <p class="text-sm text-muted-foreground">User status updated.</p>
+        ) : null
+      }
+      {error ? <p class="text-sm text-destructive">{error}</p> : null}
+    </div>
+  </div>
+</Layout>

@@ -16,6 +16,9 @@ pnpm-debug.log*
 .env
 .env.production
 
+# local docker compose overrides (auto-loaded by docker compose)
+docker-compose.override.yml
+
 # macOS-specific files
 .DS_Store
 

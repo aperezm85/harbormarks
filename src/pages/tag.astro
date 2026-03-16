@@ -3,8 +3,11 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
 import Layout from "@/layouts/main.astro"
 import { listBookmarks } from "@/lib/bookmarks"
 
+const userId = Astro.locals.userId
+const user = Astro.locals.user
 const selectedTag = Astro.url.searchParams.get("tag")?.trim() ?? ""
-const bookmarks = selectedTag ? await listBookmarks({ tag: selectedTag }) : []
+const bookmarks =
+  userId && selectedTag ? await listBookmarks(userId, { tag: selectedTag }) : []
 ---
 
 <Layout
@@ -14,6 +17,7 @@ const bookmarks = selectedTag ? await listBookmarks({ tag: selectedTag }) : []
     client:load
     transition:persist
     bookmarks={bookmarks}
+    currentUser={user}
     tagFilter={selectedTag}
   />
 </Layout>

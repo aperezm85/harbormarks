@@ -1,0 +1,169 @@
+---
+export const prerender = false
+
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import Header from "@/components/ui/Header.astro"
+import { Input } from "@/components/ui/input"
+import Layout from "@/layouts/main.astro"
+
+const user = Astro.locals.user
+
+if (!user) {
+  return Astro.redirect("/login")
+}
+
+const status = Astro.url.searchParams.get("status")
+let error = Astro.url.searchParams.get("error")
+if (error?.startsWith("Password must be at least")) {
+  error = "Password must be at least 8 characters."
+}
+---
+
+<Layout page="Profile | HarborMarks">
+  <div class="relative mx-auto max-w-5xl px-4 py-6">
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-40"
+    >
+    </div>
+
+    <Header />
+
+    <div class="mt-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Your profile</h1>
+        <p class="text-sm text-muted-foreground">
+          Manage account details and keep your login secure.
+        </p>
+      </div>
+      <a href="/">
+        <Button type="button" variant="outline">&larr; Go back</Button>
+      </a>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[1fr_1.35fr]">
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle>Account details</CardTitle>
+          <CardDescription>
+            This is how your profile appears across HarborMarks.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <dl class="space-y-3 text-sm">
+            <div class="rounded-lg border bg-background p-3">
+              <dt class="text-muted-foreground">Display name</dt>
+              <dd class="mt-1 font-medium">{user.displayName ?? "Not set"}</dd>
+            </div>
+            <div class="rounded-lg border bg-background p-3">
+              <dt class="text-muted-foreground">Email address</dt>
+              <dd class="mt-1 font-medium">{user.email}</dd>
+            </div>
+            <div class="rounded-lg border bg-background p-3">
+              <dt class="text-muted-foreground">Role</dt>
+              <dd class="mt-1 font-medium capitalize">{user.role}</dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
+
+      <div class="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile</CardTitle>
+            <CardDescription>Update your account name.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              method="POST"
+              action="/api/auth/profile-update"
+              class="space-y-4"
+            >
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="displayName">Name</FieldLabel>
+                  <Input
+                    id="displayName"
+                    name="displayName"
+                    required
+                    value={user.displayName ?? ""}
+                    placeholder="Your name"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <Input id="email" value={user.email} disabled />
+                </Field>
+                <Field>
+                  <Button type="submit">Save profile</Button>
+                </Field>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Change password</CardTitle>
+            <CardDescription>
+              Updating password will sign you out on all devices.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              method="POST"
+              action="/api/auth/profile-password"
+              class="space-y-4"
+            >
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="currentPassword"
+                    >Current password</FieldLabel
+                  >
+                  <Input
+                    id="currentPassword"
+                    name="currentPassword"
+                    type="password"
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="nextPassword">New password</FieldLabel>
+                  <Input
+                    id="nextPassword"
+                    name="nextPassword"
+                    type="password"
+                    minLength={8}
+                    required
+                  />
+                </Field>
+                <Field>
+                  <Button type="submit" variant="outline"
+                    >Update password</Button
+                  >
+                </Field>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+
+    <div class="mt-6 space-y-2">
+      {
+        status === "updated" ? (
+          <p class="text-sm text-muted-foreground">Profile updated.</p>
+        ) : null
+      }
+      {error ? <p class="text-sm text-destructive">{error}</p> : null}
+    </div>
+  </div>
+</Layout>

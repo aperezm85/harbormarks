@@ -47,14 +47,23 @@ function parseAndValidateUrl(value: string | null) {
   }
 }
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
+  if (!locals.userId) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: {
+        "content-type": "application/json",
+      },
+    })
+  }
+
   const url = new URL(request.url)
   const search = url.searchParams.get("q") ?? undefined
   const tag = url.searchParams.get("tag") ?? undefined
   const onlyFavorites = url.searchParams.get("favorites") === "1"
   const view = parseBookmarkView(url.searchParams.get("view"))
 
-  const data = await listBookmarks({
+  const data = await listBookmarks(locals.userId, {
     search,
     tag,
     onlyFavorites,
@@ -69,7 +78,20 @@ export const GET: APIRoute = async ({ request }) => {
   })
 }
 
-export const POST: APIRoute = async ({ request, redirect }) => {
+export const POST: APIRoute = async ({ request, redirect, locals }) => {
+  if (!locals.userId) {
+    if (isJsonRequest(request.headers.get("content-type"))) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: {
+          "content-type": "application/json",
+        },
+      })
+    }
+
+    return redirect("/login")
+  }
+
   const contentType = request.headers.get("content-type")
 
   let url: string | null
@@ -131,7 +153,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return redirect("/?error=invalid_bookmark_url")
   }
 
-  const bookmark = await createBookmark({
+  const bookmark = await createBookmark(locals.userId, {
     url,
     title,
     description,

@@ -18,61 +18,60 @@ import HarborMarksHeader from "@/components/ui/HarborMarksHeader.astro"
 
 import ErrorToast from "@/components/ui/ErrorToast"
 import LayoutLogin from "@/layouts/login.astro"
-import { isSignupEnabled } from "@/lib/auth"
 import { Toaster } from "sonner"
 
-const signupEnabled = isSignupEnabled()
-
 let error = Astro.url.searchParams.get("error")
-if (error === "invalid_credentials") {
-  error = "Invalid username or password. Please try again."
+if (error === "signup_disabled") {
+  error = "Account creation is disabled by this deployment."
 }
-if (error === "account_disabled") {
-  error = "Your account has been disabled. Contact an administrator."
+if (error === "Email is already registered") {
+  error = "That email is already registered."
 }
-if (error === "password_reset_success") {
-  error = "Password updated. Please log in with your new password."
+if (error === "Email is required") {
+  error = "Email is required."
 }
-if (error === "password_changed") {
-  error = "Password changed. Please log in again."
+if (error === "Name is required") {
+  error = "Name is required."
+}
+if (error?.startsWith("Password must be at least")) {
+  error = "Password must be at least 8 characters."
 }
 ---
 
-<LayoutLogin page="Login">
+<LayoutLogin page="Create account">
   <div class="flex min-h-screen items-center justify-center bg-background">
     <div class="flex w-full max-w-sm flex-col gap-6">
       <HarborMarksHeader />
 
       <Card>
         <CardHeader>
-          <CardTitle>Login to your account</CardTitle>
+          <CardTitle>Create account</CardTitle>
           <CardDescription>
-            Enter your credentials below to login to your account
+            Create a local account for this HarborMarks instance
           </CardDescription>
-          {
-            signupEnabled ? (
-              <CardDescription>
-                Need an account?{" "}
-                <a href="/register" class="underline">
-                  Create one
-                </a>
-              </CardDescription>
-            ) : null
-          }
           <CardDescription>
-            Forgot password? <a href="/forgot-password" class="underline"
-              >Reset it</a
-            >
+            Already have one? <a href="/login" class="underline">Login</a>
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form method="POST" action="/api/auth/login" class="space-y-4">
+          <form method="POST" action="/api/auth/register" class="space-y-4">
             <FieldGroup>
               <Field data-invalid={!!error}>
-                <FieldLabel htmlFor="username">Email</FieldLabel>
+                <FieldLabel htmlFor="displayName">Name</FieldLabel>
                 <Input
-                  id="username"
-                  name="username"
+                  id="displayName"
+                  name="displayName"
+                  placeholder="Your name"
+                  required
+                  aria-invalid={!!error}
+                />
+              </Field>
+              <Field data-invalid={!!error}>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
                   placeholder="your@email.com"
                   required
                   aria-invalid={!!error}
@@ -87,12 +86,13 @@ if (error === "password_changed") {
                   name="password"
                   type="password"
                   required
-                  placeholder="Your password"
+                  minLength={8}
+                  placeholder="At least 8 characters"
                   aria-invalid={!!error}
                 />
               </Field>
               <Field>
-                <Button type="submit">Login</Button>
+                <Button type="submit">Create account</Button>
               </Field>
             </FieldGroup>
           </form>

@@ -12,7 +12,16 @@ function parseId(rawId: string | undefined) {
   return id
 }
 
-export const POST: APIRoute = async ({ params }) => {
+export const POST: APIRoute = async ({ params, locals }) => {
+  if (!locals.userId) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: {
+        "content-type": "application/json",
+      },
+    })
+  }
+
   const id = parseId(params.id)
 
   if (!id) {
@@ -24,7 +33,7 @@ export const POST: APIRoute = async ({ params }) => {
     })
   }
 
-  const updated = await incrementBookmarkVisitById(id)
+  const updated = await incrementBookmarkVisitById(locals.userId, id)
 
   if (!updated) {
     return new Response(JSON.stringify({ error: "Bookmark not found" }), {

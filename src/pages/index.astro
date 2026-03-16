@@ -3,9 +3,16 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
 import Layout from "@/layouts/main.astro"
 import { listBookmarks } from "@/lib/bookmarks"
 
-const bookmarks = await listBookmarks()
+const userId = Astro.locals.userId
+const user = Astro.locals.user
+const bookmarks = userId ? await listBookmarks(userId) : []
 ---
 
 <Layout page="HarborMarks">
-  <DashboardLayout client:load transition:persist bookmarks={bookmarks} />
+  <DashboardLayout
+    client:load
+    transition:persist
+    bookmarks={bookmarks}
+    currentUser={user}
+  />
 </Layout>
