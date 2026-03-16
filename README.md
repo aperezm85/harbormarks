@@ -92,7 +92,10 @@ Optional / deployment-specific:
 ```bash
 NODE_ENV=production
 HARBOR_ALLOW_SIGNUP=true
+HARBOR_CHECK_ORIGIN=false
 ```
+
+`HARBOR_CHECK_ORIGIN=false` helps when HarborMarks runs behind a reverse proxy or alternate external port (for example NAS UI port mapping) and login POST requests otherwise fail with `403 Forbidden`.
 
 ## Run With Docker Compose
 
