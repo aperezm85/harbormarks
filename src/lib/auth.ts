@@ -22,6 +22,7 @@ const VERIFICATION_TOKEN_TTL_SECONDS = 60 * 60 * 24
 const PASSWORD_RESET_TOKEN_TTL_SECONDS = 60 * 30
 
 let isAuthSchemaReady = false
+let authSchemaReadyPromise: Promise<void> | null = null
 let bootstrapAttempted = false
 
 export type AuthenticatedUser = {
@@ -247,94 +248,119 @@ export async function ensureAuthSchema() {
     return
   }
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      display_name TEXT,
-      avatar_url TEXT,
-      role TEXT NOT NULL DEFAULT 'user',
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      email_verified_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
-    )
-  `)
+  if (authSchemaReadyPromise) {
+    await authSchemaReadyPromise
+    return
+  }
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token_hash TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMP NOT NULL,
-      revoked_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `)
+  authSchemaReadyPromise = (async () => {
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          email TEXT NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          display_name TEXT,
+          avatar_url TEXT,
+          role TEXT NOT NULL DEFAULT 'user',
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          email_verified_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS email_verification_tokens (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token_hash TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMP NOT NULL,
-      used_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `)
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_hash TEXT NOT NULL UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          revoked_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token_hash TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMP NOT NULL,
-      used_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `)
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS email_verification_tokens (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_hash TEXT NOT NULL UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          used_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
 
-  await db.execute(sql`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
-  `)
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_hash TEXT NOT NULL UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          used_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
 
-  await db.execute(sql`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE
-  `)
+      await db.execute(sql`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
+      `)
 
-  await db.execute(sql`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP
-  `)
+      await db.execute(sql`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE
+      `)
 
-  await db.execute(sql`
-    ALTER TABLE bookmarks
-    ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
-  `)
+      await db.execute(sql`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP
+      `)
 
-  await db.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id)
-  `)
+      await db.execute(sql`
+        DO $$
+        BEGIN
+          IF to_regclass('public.bookmarks') IS NOT NULL THEN
+            ALTER TABLE bookmarks
+            ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+          END IF;
+        END
+        $$
+      `)
 
-  await db.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
-  `)
+      await db.execute(sql`
+        DO $$
+        BEGIN
+          IF to_regclass('public.bookmarks') IS NOT NULL THEN
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
+          END IF;
+        END
+        $$
+      `)
 
-  await db.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id)
-  `)
+      await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
+      `)
 
-  await db.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)
-  `)
+      await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id)
+      `)
 
-  await maybeBootstrapAdminUser()
-  await backfillLegacyBookmarks()
+      await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)
+      `)
 
-  isAuthSchemaReady = true
+      await maybeBootstrapAdminUser()
+      await backfillLegacyBookmarks()
+
+      isAuthSchemaReady = true
+    } finally {
+      authSchemaReadyPromise = null
+    }
+  })()
+
+  await authSchemaReadyPromise
 }
 
 export async function createUser(input: {

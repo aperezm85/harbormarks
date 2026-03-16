@@ -28,46 +28,60 @@ const DEFAULT_FAVICON =
   "https://www.gstatic.com/images/branding/searchlogo/ico/favicon.ico"
 
 let isSchemaReady = false
+let schemaReadyPromise: Promise<void> | null = null
 
 async function ensureBookmarksTable() {
   if (isSchemaReady) {
     return
   }
 
-  await ensureAuthSchema()
+  if (schemaReadyPromise) {
+    await schemaReadyPromise
+    return
+  }
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS bookmarks (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      url TEXT NOT NULL,
-      title TEXT,
-      description TEXT,
-      favicon TEXT,
-      preview_image TEXT,
-      is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
-      visit_count INTEGER NOT NULL DEFAULT 0,
-      tags TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `)
+  schemaReadyPromise = (async () => {
+    try {
+      await ensureAuthSchema()
 
-  await db.execute(sql`
-    ALTER TABLE bookmarks
-    ADD COLUMN IF NOT EXISTS visit_count INTEGER NOT NULL DEFAULT 0
-  `)
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS bookmarks (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          url TEXT NOT NULL,
+          title TEXT,
+          description TEXT,
+          favicon TEXT,
+          preview_image TEXT,
+          is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+          visit_count INTEGER NOT NULL DEFAULT 0,
+          tags TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
 
-  await db.execute(sql`
-    ALTER TABLE bookmarks
-    ADD COLUMN IF NOT EXISTS preview_image TEXT
-  `)
+      await db.execute(sql`
+        ALTER TABLE bookmarks
+        ADD COLUMN IF NOT EXISTS visit_count INTEGER NOT NULL DEFAULT 0
+      `)
 
-  await db.execute(sql`
-    ALTER TABLE bookmarks
-    ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
-  `)
+      await db.execute(sql`
+        ALTER TABLE bookmarks
+        ADD COLUMN IF NOT EXISTS preview_image TEXT
+      `)
 
-  isSchemaReady = true
+      await db.execute(sql`
+        ALTER TABLE bookmarks
+        ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+      `)
+
+      isSchemaReady = true
+    } finally {
+      schemaReadyPromise = null
+    }
+  })()
+
+  await schemaReadyPromise
 }
 
 function parseTags(rawTags: string | null): string[] {
