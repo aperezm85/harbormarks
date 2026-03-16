@@ -237,10 +237,25 @@ async function backfillLegacyBookmarks() {
     return
   }
 
-  await db
-    .update(bookmarks)
-    .set({ userId: owner.id })
-    .where(isNull(bookmarks.userId))
+  try {
+    await db
+      .update(bookmarks)
+      .set({ userId: owner.id })
+      .where(isNull(bookmarks.userId))
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error)
+
+    // Older installs might not have the bookmarks table or user_id column yet.
+    if (
+      message.includes('relation "bookmarks" does not exist') ||
+      message.includes('column "user_id" does not exist')
+    ) {
+      return
+    }
+
+    throw error
+  }
 }
 
 export async function ensureAuthSchema() {
