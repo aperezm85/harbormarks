@@ -13,7 +13,10 @@ services:
       - "5432:5432"
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        HARBOR_CHECK_ORIGIN: "false"
     container_name: harbormarks-app
     restart: unless-stopped
     environment:

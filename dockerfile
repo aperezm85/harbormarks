@@ -2,6 +2,9 @@
 FROM node:lts AS build
 WORKDIR /app
 
+ARG HARBOR_CHECK_ORIGIN=false
+ENV HARBOR_CHECK_ORIGIN=$HARBOR_CHECK_ORIGIN
+
 COPY package.json pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 
