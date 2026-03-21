@@ -28,9 +28,54 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import type { BookmarkCardData } from "@/lib/bookmarks"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+
+type SummarizerAvailability =
+  | "available"
+  | "downloadable"
+  | "downloading"
+  | "unavailable"
+
+type SummarizerSession = {
+  summarize: (
+    input: string,
+    options?: {
+      context?: string
+    }
+  ) => Promise<string>
+  destroy?: () => void
+}
+
+type SummarizerApi = {
+  availability: () => Promise<SummarizerAvailability>
+  create: (options?: {
+    type?: "key-points" | "tldr" | "teaser" | "headline"
+    format?: "markdown" | "plain-text"
+    length?: "short" | "medium" | "long"
+  }) => Promise<SummarizerSession>
+}
+
+function getSummarizerApi() {
+  if (typeof window === "undefined" || !("Summarizer" in window)) {
+    return null
+  }
+
+  return (
+    window as Window & {
+      Summarizer?: SummarizerApi
+    }
+  ).Summarizer
+}
 
 export const HarborCard = ({
   id,
@@ -77,10 +122,47 @@ export const HarborCard = ({
   const [isPreviewImageVisible, setIsPreviewImageVisible] = useState(
     Boolean(previewImage)
   )
+  const [isSummarizerSupported, setIsSummarizerSupported] = useState(false)
+  const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false)
+  const [isSummarizing, setIsSummarizing] = useState(false)
+  const [summaryText, setSummaryText] = useState("")
+  const [summaryError, setSummaryError] = useState("")
 
   useEffect(() => {
     setIsPreviewImageVisible(Boolean(previewImage))
   }, [previewImage])
+
+  useEffect(() => {
+    const summarizerApi = getSummarizerApi()
+
+    if (!summarizerApi) {
+      setIsSummarizerSupported(false)
+      return
+    }
+
+    let isMounted = true
+
+    void summarizerApi
+      .availability()
+      .then((availability) => {
+        if (!isMounted) {
+          return
+        }
+
+        setIsSummarizerSupported(availability !== "unavailable")
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return
+        }
+
+        setIsSummarizerSupported(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const bookmarkData: BookmarkCardData = {
     id,
@@ -194,6 +276,94 @@ export const HarborCard = ({
       .finally(() => {
         setIsDeleting(false)
       })
+  }
+
+  const summarizeWithAi = async () => {
+    if (isSummarizing || isDeleting) {
+      return
+    }
+
+    const summarizerApi = getSummarizerApi()
+    if (!summarizerApi) {
+      toast.error("Summarizer API is not supported in this browser.")
+      return
+    }
+
+    setIsSummaryDialogOpen(true)
+    setIsSummarizing(true)
+    setSummaryText("")
+    setSummaryError("")
+
+    let summarizer: SummarizerSession | null = null
+
+    try {
+      const createPromise = summarizerApi.create({
+        type: "tldr",
+        format: "plain-text",
+        length: "medium",
+      })
+
+      const availability = await summarizerApi.availability()
+      if (availability === "unavailable") {
+        throw new Error("Summarizer API is unavailable on this device.")
+      }
+
+      if (availability === "downloadable" || availability === "downloading") {
+        toast.message("Preparing AI model", {
+          description:
+            "Chrome may download the on-device model before summarizing.",
+        })
+      }
+
+      const sourceResponse = await fetch(
+        `/api/bookmarks/summarize-source?url=${encodeURIComponent(url)}`,
+        {
+          headers: {
+            accept: "application/json",
+          },
+        }
+      )
+
+      const sourcePayload = (await sourceResponse.json()) as {
+        data?: {
+          content: string
+        }
+        error?: string
+      }
+
+      if (!sourceResponse.ok) {
+        throw new Error(sourcePayload.error ?? "Unable to read page content.")
+      }
+
+      const sourceText = sourcePayload.data?.content?.trim()
+      if (!sourceText) {
+        throw new Error("No readable content found on this page.")
+      }
+
+      summarizer = await createPromise
+
+      const summary = await summarizer.summarize(sourceText, {
+        context:
+          "Provide a concise summary in simple language with the key takeaway first.",
+      })
+
+      setSummaryText(summary.trim())
+    } catch (error) {
+      const rawMessage = error instanceof Error ? error.message : ""
+      const normalizedMessage = rawMessage.toLowerCase()
+
+      const message =
+        normalizedMessage.includes("cancel") ||
+        normalizedMessage.includes("aborted")
+          ? "The AI summary request was cancelled. Please try again."
+          : rawMessage || "Unable to summarize this page right now."
+
+      setSummaryError(message)
+      toast.error(message)
+    } finally {
+      summarizer?.destroy?.()
+      setIsSummarizing(false)
+    }
   }
 
   return (
@@ -363,6 +533,33 @@ export const HarborCard = ({
             {isResettingVisit ? "Resetting..." : "Reset"}
           </Button>
         </div>
+        {isSummarizerSupported && (
+          <div
+            className="mt-3"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={isSummarizing || isDeleting}
+              onClick={(event) => {
+                event.stopPropagation()
+                void summarizeWithAi()
+              }}
+            >
+              {isSummarizing ? (
+                <>
+                  <SpinnerIcon className="size-4 animate-spin" />
+                  Summarizing...
+                </>
+              ) : (
+                "Summarize with AI"
+              )}
+            </Button>
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
           {tags.map((tag) => (
             <Badge variant="default" key={tag}>
@@ -371,6 +568,37 @@ export const HarborCard = ({
           ))}
         </div>
       </CardContent>
+      <Dialog
+        open={isSummaryDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setIsSummaryDialogOpen(nextOpen)
+
+          if (!nextOpen && !isSummarizing) {
+            setSummaryText("")
+            setSummaryError("")
+          }
+        }}
+      >
+        <DialogContent
+          className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <DialogHeader>
+            <DialogTitle>AI Summary</DialogTitle>
+            <DialogDescription>{title}</DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm leading-relaxed whitespace-pre-wrap">
+            {isSummarizing &&
+              "Preparing summary... this can take a few seconds."}
+            {!isSummarizing && summaryError && summaryError}
+            {!isSummarizing && !summaryError && summaryText}
+          </div>
+
+          <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
