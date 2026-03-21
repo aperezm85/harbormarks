@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import {
   ArrowsClockwiseIcon,
   BookmarkSimpleIcon,
+  CaretDownIcon,
   LinkIcon,
   XIcon,
 } from "@phosphor-icons/react"
@@ -66,6 +67,7 @@ export const CreateBookmarkDialog = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
+  const [isTagSuggestionsOpen, setIsTagSuggestionsOpen] = useState(false)
   const [existingTags, setExistingTags] = useState<string[]>([])
   const [isLoadingTags, setIsLoadingTags] = useState(false)
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false)
@@ -152,6 +154,7 @@ export const CreateBookmarkDialog = ({
       setPreviewImage(values?.previewImage ?? null)
       setSelectedTags(values?.tags ?? preselectedTags ?? [])
       setTagInput("")
+      setIsTagSuggestionsOpen(false)
       setMetadataError("")
       setSubmitError("")
     },
@@ -303,8 +306,7 @@ export const CreateBookmarkDialog = ({
     const query = tagInput.trim().toLowerCase()
     return !query || tag.toLowerCase().includes(query)
   })
-
-  const tagsDatalistId = "bookmark-tag-suggestions"
+  const visibleTagSuggestions = tagSuggestions.slice(0, 8)
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -410,42 +412,73 @@ export const CreateBookmarkDialog = ({
                   ))}
                 </div>
               ) : null}
-              <Input
-                id="tag-input"
-                placeholder="Type a tag and press Enter"
-                value={tagInput}
-                list={tagsDatalistId}
-                onChange={(event) => setTagInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === ",") {
-                    event.preventDefault()
+              <div className="relative">
+                <Input
+                  id="tag-input"
+                  placeholder="Type a tag and press Enter"
+                  value={tagInput}
+                  onFocus={() => setIsTagSuggestionsOpen(true)}
+                  onChange={(event) => {
+                    setTagInput(event.target.value)
+                    setIsTagSuggestionsOpen(true)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault()
+                      addTag(tagInput)
+                      setTagInput("")
+                      setIsTagSuggestionsOpen(false)
+                    }
+
+                    if (
+                      event.key === "Backspace" &&
+                      !tagInput &&
+                      selectedTags.length > 0
+                    ) {
+                      event.preventDefault()
+                      setSelectedTags((current) => current.slice(0, -1))
+                    }
+
+                    if (event.key === "Escape") {
+                      setIsTagSuggestionsOpen(false)
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setIsTagSuggestionsOpen(false)
+                    }, 100)
+
+                    if (!tagInput.trim()) {
+                      return
+                    }
+
                     addTag(tagInput)
                     setTagInput("")
-                  }
-
-                  if (
-                    event.key === "Backspace" &&
-                    !tagInput &&
-                    selectedTags.length > 0
-                  ) {
-                    event.preventDefault()
-                    setSelectedTags((current) => current.slice(0, -1))
-                  }
-                }}
-                onBlur={() => {
-                  if (!tagInput.trim()) {
-                    return
-                  }
-
-                  addTag(tagInput)
-                  setTagInput("")
-                }}
-              />
-              <datalist id={tagsDatalistId}>
-                {tagSuggestions.map((tag) => (
-                  <option key={tag} value={tag} />
-                ))}
-              </datalist>
+                  }}
+                />
+                <CaretDownIcon className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                {isTagSuggestionsOpen && visibleTagSuggestions.length > 0 ? (
+                  <div className="absolute z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 text-sm shadow-lg">
+                    {visibleTagSuggestions.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                        }}
+                        onClick={() => {
+                          addTag(tag)
+                          setTagInput("")
+                          setIsTagSuggestionsOpen(false)
+                        }}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {isLoadingTags
                   ? "Loading tag suggestions..."

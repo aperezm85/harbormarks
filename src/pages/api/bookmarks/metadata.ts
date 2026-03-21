@@ -7,6 +7,53 @@ type BookmarkMetadata = {
   previewImage: string | null
 }
 
+type PartialBookmarkMetadata = Partial<BookmarkMetadata>
+
+function createJsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+    },
+  })
+}
+
+function humanizePathname(pathname: string) {
+  const lastSegment = pathname.split("/").filter(Boolean).at(-1)
+  if (!lastSegment) {
+    return "Untitled"
+  }
+
+  const withoutId = lastSegment.replace(/-[a-f\d]{8,}$/i, "")
+  const normalized = decodeURIComponent(withoutId).replace(/[-_]+/g, " ").trim()
+
+  if (!normalized) {
+    return "Untitled"
+  }
+
+  return normalized
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function buildFallbackMetadata(pageUrl: URL): BookmarkMetadata {
+  return {
+    title: humanizePathname(pageUrl.pathname),
+    description: "",
+    favicon: new URL("/favicon.ico", pageUrl).toString(),
+    previewImage: null,
+  }
+}
+
+function isBotChallengePage(html: string) {
+  const normalizedHtml = html.toLowerCase()
+  return (
+    normalizedHtml.includes("just a moment") &&
+    normalizedHtml.includes("__cf_chl_opt")
+  )
+}
+
 function parseAndValidateUrl(value: string | null) {
   if (!value) {
     return null
@@ -40,6 +87,126 @@ function decodeHtmlEntities(value: string) {
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .trim()
+}
+
+function stripHtmlTags(value: string) {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function extractXmlTagValue(xml: string, tagName: string) {
+  const match = xml.match(
+    new RegExp(
+      `<${tagName}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tagName}>`,
+      "i"
+    )
+  )
+
+  return decodeHtmlEntities(match?.[1] ?? "")
+}
+
+function normalizePathname(pathname: string) {
+  const normalized = pathname.replace(/\/+$/, "")
+  return normalized || "/"
+}
+
+function extractPostId(pathname: string) {
+  const match = normalizePathname(pathname).match(/-([a-f\d]{8,})$/i)
+  return match?.[1]?.toLowerCase() ?? null
+}
+
+function buildMetadataFromFallbacks(
+  fallback: BookmarkMetadata,
+  metadata?: PartialBookmarkMetadata | null
+): BookmarkMetadata {
+  const title = metadata?.title?.trim() || fallback.title
+  const description = metadata?.description?.trim() || fallback.description
+  const favicon = metadata?.favicon?.trim() || fallback.favicon
+  const previewImage = metadata?.previewImage?.trim() || null
+
+  return {
+    title,
+    description,
+    favicon,
+    previewImage,
+  }
+}
+
+async function fetchMetadataFromFeed(pageUrl: URL) {
+  const feedUrl = new URL("/feed", pageUrl)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+
+  try {
+    const response = await fetch(feedUrl.toString(), {
+      signal: controller.signal,
+      headers: {
+        "user-agent": "HarborMarksBot/1.0 (+metadata-fetch)",
+      },
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const xml = await response.text()
+    const items = xml.match(/<item>[\s\S]*?<\/item>/gi) ?? []
+    const targetPathname = normalizePathname(pageUrl.pathname)
+    const targetId = extractPostId(pageUrl.pathname)
+
+    for (const item of items) {
+      const linkRaw = extractXmlTagValue(item, "link")
+      const guidRaw = extractXmlTagValue(item, "guid")
+
+      let linkPathname: string | null = null
+      try {
+        linkPathname = normalizePathname(new URL(linkRaw).pathname)
+      } catch {
+        linkPathname = null
+      }
+
+      let linkId: string | null = null
+      if (linkPathname) {
+        linkId = extractPostId(linkPathname)
+      }
+
+      const guidId =
+        guidRaw.match(/([a-f\d]{8,})$/i)?.[1]?.toLowerCase() ?? null
+      const matchesPath = linkPathname === targetPathname
+      const matchesId = Boolean(
+        targetId && (targetId === linkId || targetId === guidId)
+      )
+
+      if (!matchesPath && !matchesId) {
+        continue
+      }
+
+      const descriptionHtml = extractXmlTagValue(item, "description")
+      const snippetMatch = descriptionHtml.match(
+        /<p[^>]+class=["']medium-feed-snippet["'][^>]*>([\s\S]*?)<\/p>/i
+      )
+      const imageMatch = descriptionHtml.match(
+        /<img[^>]+src=["']([^"']+)["'][^>]*>/i
+      )
+      const title = extractXmlTagValue(item, "title")
+      const description = stripHtmlTags(snippetMatch?.[1] ?? descriptionHtml)
+      const previewImage = imageMatch?.[1] ?? null
+
+      return {
+        title,
+        description,
+        previewImage,
+      } satisfies PartialBookmarkMetadata
+    }
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function extractMetaContent(html: string, query: RegExp) {
@@ -117,16 +284,12 @@ export const GET: APIRoute = async ({ request }) => {
   const url = parseAndValidateUrl(requestUrl.searchParams.get("url"))
 
   if (!url) {
-    return new Response(JSON.stringify({ error: "Invalid or missing url" }), {
-      status: 400,
-      headers: {
-        "content-type": "application/json",
-      },
-    })
+    return createJsonResponse({ error: "Invalid or missing url" }, 400)
   }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
+  const fallbackMetadata = buildFallbackMetadata(url)
 
   try {
     const response = await fetch(url.toString(), {
@@ -137,41 +300,33 @@ export const GET: APIRoute = async ({ request }) => {
     })
 
     if (!response.ok) {
-      return new Response(
-        JSON.stringify({ error: "Could not fetch target website" }),
-        {
-          status: 502,
-          headers: {
-            "content-type": "application/json",
-          },
-        }
-      )
+      const feedMetadata = await fetchMetadataFromFeed(url)
+      return createJsonResponse({
+        data: buildMetadataFromFallbacks(fallbackMetadata, feedMetadata),
+      })
     }
 
     const html = await response.text()
+    if (isBotChallengePage(html)) {
+      const feedMetadata = await fetchMetadataFromFeed(url)
+      return createJsonResponse({
+        data: buildMetadataFromFallbacks(fallbackMetadata, feedMetadata),
+      })
+    }
+
     const metadata: BookmarkMetadata = {
-      title: extractTitle(html),
+      title: extractTitle(html) || fallbackMetadata.title,
       description: extractDescription(html),
-      favicon: extractFavicon(html, url),
+      favicon: extractFavicon(html, url) || fallbackMetadata.favicon,
       previewImage: extractPreviewImage(html, url),
     }
 
-    return new Response(JSON.stringify({ data: metadata }), {
-      status: 200,
-      headers: {
-        "content-type": "application/json",
-      },
-    })
+    return createJsonResponse({ data: metadata })
   } catch {
-    return new Response(
-      JSON.stringify({ error: "Failed to fetch metadata for this URL" }),
-      {
-        status: 502,
-        headers: {
-          "content-type": "application/json",
-        },
-      }
-    )
+    const feedMetadata = await fetchMetadataFromFeed(url)
+    return createJsonResponse({
+      data: buildMetadataFromFallbacks(fallbackMetadata, feedMetadata),
+    })
   } finally {
     clearTimeout(timeout)
   }
