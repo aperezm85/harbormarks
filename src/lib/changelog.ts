@@ -1,0 +1,36 @@
+export type ChangelogEntry = {
+  version: string
+  date: string
+  changes: string[]
+}
+
+export const latestChanges: ChangelogEntry[] = [
+  {
+    version: "v0.9.0",
+    date: "2026-03-21",
+    changes: [
+      "Added a sidebar button to view latest product changes in a modal.",
+      "Improved bookmark editing flow with clearer save and reset actions.",
+      "Expanded API error messaging for authentication and bookmark endpoints.",
+      "In Chrome, you can use a Summarize AI button to summarize the content of a bookmark. This uses a browser AI (Free). This feature not always works, depends on the content of the page and the browser's AI capabilities.",
+    ],
+  },
+  {
+    version: "v0.8.2",
+    date: "2026-03-12",
+    changes: [
+      "Refined tag navigation state syncing after Astro page transitions.",
+      "Improved sidebar loading placeholders for bookmark tags.",
+      "Updated dialog interactions to better match mobile behavior.",
+    ],
+  },
+  {
+    version: "v0.8.0",
+    date: "2026-03-01",
+    changes: [
+      "Introduced favorites filtering and quick-access navigation.",
+      "Added admin user controls for activation and account management.",
+      "Improved bookmark metadata extraction and fallback handling.",
+    ],
+  },
+]

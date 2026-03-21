@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 
 import Logo from "@/assets/harborMark.svg"
+import { LatestChangesDialog } from "@/components/dialog/LatestChangesDialog"
 import { NavUser, type SidebarUser } from "@/components/ui/NavUser"
 import {
   BookmarkIcon,
@@ -101,10 +102,12 @@ export function AppSidebar({
   React.useEffect(() => {
     syncRouteState()
 
+    window.addEventListener("astro:after-swap", syncRouteState)
     window.addEventListener("astro:page-load", syncRouteState)
     window.addEventListener("popstate", syncRouteState)
 
     return () => {
+      window.removeEventListener("astro:after-swap", syncRouteState)
       window.removeEventListener("astro:page-load", syncRouteState)
       window.removeEventListener("popstate", syncRouteState)
     }
@@ -156,7 +159,13 @@ export function AppSidebar({
                       isActive={pathname === item.url}
                       size="lg"
                     >
-                      <a href={item.url}>
+                      <a
+                        href={item.url}
+                        onClick={() => {
+                          setPathname(item.url)
+                          setActiveTag(null)
+                        }}
+                      >
                         <div className="flex items-center gap-2">
                           {item?.icon} {item.title}
                         </div>
@@ -193,7 +202,13 @@ export function AppSidebar({
                       activeTag?.toLowerCase() === tag.tag.toLowerCase()
                     }
                   >
-                    <a href={`/tag?tag=${encodeURIComponent(tag.tag)}`}>
+                    <a
+                      href={`/tag?tag=${encodeURIComponent(tag.tag)}`}
+                      onClick={() => {
+                        setPathname("/tag")
+                        setActiveTag(tag.tag)
+                      }}
+                    >
                       <div className="flex w-full items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <HashIcon
@@ -224,6 +239,7 @@ export function AppSidebar({
       </SidebarContent>
       {currentUser ? (
         <SidebarFooter>
+          <LatestChangesDialog />
           <NavUser user={currentUser} />
         </SidebarFooter>
       ) : null}

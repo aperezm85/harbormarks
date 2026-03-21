@@ -11,6 +11,7 @@ import {
   ArrowsCounterClockwiseIcon,
   HeartStraightIcon,
   PencilSimpleIcon,
+  SparkleIcon,
   SpinnerIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
@@ -391,15 +392,15 @@ export const HarborCard = ({
           <div className="h-full w-full bg-linear-to-br from-sky-500/25 via-cyan-400/15 to-indigo-500/30" />
         )}
       </div>
-      <CardHeader>
-        <div className="flex w-full items-center justify-between">
+      <CardHeader className="min-w-0">
+        <div className="flex w-full min-w-0 items-center justify-between gap-2">
           <img
             src={favicon}
             alt={`${title} favicon`}
             className="size-8 rounded-md bg-accent p-1"
           />
           <div
-            className="flex items-center gap-2"
+            className="flex shrink-0 items-center gap-2"
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
           >
@@ -501,71 +502,75 @@ export const HarborCard = ({
             </AlertDialog>
           </div>
         </div>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{url}</CardDescription>
+        <CardTitle className="min-w-0 wrap-break-word">{title}</CardTitle>
+        <CardDescription className="min-w-0 break-all">{url}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="mt-auto flex flex-1 flex-col justify-between">
         <p>{description}</p>
-        <div
-          className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <span>
-            Opened <strong>{visitCount}</strong>{" "}
-            {visitCount === 1 ? "time" : "times"}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            disabled={isResettingVisit || isDeleting}
-            onClick={(event) => {
-              event.stopPropagation()
-              resetVisitCount()
-            }}
-          >
-            {isResettingVisit ? (
-              <SpinnerIcon className="size-4 animate-spin" />
-            ) : (
-              <ArrowsCounterClockwiseIcon className="size-4" />
-            )}
-            {isResettingVisit ? "Resetting..." : "Reset"}
-          </Button>
-        </div>
-        {isSummarizerSupported && (
+        <div>
           <div
-            className="mt-3"
+            className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
           >
+            <span>
+              Opened <strong>{visitCount}</strong>{" "}
+              {visitCount === 1 ? "time" : "times"}
+            </span>
             <Button
               variant="outline"
               size="sm"
               type="button"
-              disabled={isSummarizing || isDeleting}
+              disabled={isResettingVisit || isDeleting}
               onClick={(event) => {
                 event.stopPropagation()
-                void summarizeWithAi()
+                resetVisitCount()
               }}
             >
-              {isSummarizing ? (
-                <>
-                  <SpinnerIcon className="size-4 animate-spin" />
-                  Summarizing...
-                </>
+              {isResettingVisit ? (
+                <SpinnerIcon className="size-4 animate-spin" />
               ) : (
-                "Summarize with AI"
+                <ArrowsCounterClockwiseIcon className="size-4" />
               )}
+              {isResettingVisit ? "Resetting..." : "Reset"}
             </Button>
           </div>
-        )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {tags.map((tag) => (
-            <Badge variant="default" key={tag}>
-              {tag}
-            </Badge>
-          ))}
+          {isSummarizerSupported && (
+            <div
+              className="mt-3"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={isSummarizing || isDeleting}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void summarizeWithAi()
+                }}
+                className="flex items-center justify-center gap-2 align-middle"
+              >
+                {isSummarizing ? (
+                  <>
+                    <SpinnerIcon className="size-4 animate-spin" />
+                    Summarizing...
+                  </>
+                ) : (
+                  "Summarize with AI"
+                )}
+                <SparkleIcon className="size-4 text-yellow-500" />
+              </Button>
+            </div>
+          )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <Badge variant="default" key={tag}>
+                {tag}
+              </Badge>
+            ))}
+          </div>
         </div>
       </CardContent>
       <Dialog
