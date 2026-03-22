@@ -1,5 +1,5 @@
 # 1. Build stage
-FROM node:lts AS build
+FROM node:lts-alpine AS build
 WORKDIR /app
 
 ARG HARBOR_CHECK_ORIGIN=false
@@ -12,7 +12,7 @@ COPY . .
 RUN pnpm run build
 
 # 2. Runtime stage
-FROM node:lts AS runner
+FROM node:lts-alpine AS runner
 WORKDIR /app
 
 # Copy only the built output + necessary files
