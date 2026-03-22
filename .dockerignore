@@ -1,14 +1,14 @@
 node_modules
-npm - debug.log
-pnpm - debug.log
-  .git
-  .gitignore
-  .env
-  .env.*.local
+npm-debug.log
+pnpm-debug.log
+.git
+.gitignore
+.env
+.env.*.local
 dist
-  .astro
-  .vscode
-  .idea
-  *.md
-  *.log
-    .DS_Store
+.astro
+.vscode
+.idea
+*.md
+*.log
+.DS_Store
