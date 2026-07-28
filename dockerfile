@@ -21,8 +21,11 @@ COPY package.json ./
 COPY pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
 
-# Install only production deps (Astro preview needs them)
-RUN corepack enable && pnpm install --prod --frozen-lockfile
+# Install only production deps, then remove package-manager caches to keep the image lean.
+RUN corepack enable \
+	&& pnpm install --prod --frozen-lockfile \
+	&& pnpm store prune \
+	&& rm -rf /root/.cache /root/.local/share/pnpm
 
 ENV HOST=0.0.0.0
 ENV PORT=3000
