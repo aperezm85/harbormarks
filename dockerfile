@@ -5,7 +5,7 @@ WORKDIR /app
 ARG HARBOR_CHECK_ORIGIN=false
 ENV HARBOR_CHECK_ORIGIN=$HARBOR_CHECK_ORIGIN
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 
 COPY . .
@@ -19,6 +19,7 @@ WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml ./
 
 # Install only production deps (Astro preview needs them)
 RUN corepack enable && pnpm install --prod --frozen-lockfile
