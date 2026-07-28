@@ -1,56 +1,16 @@
 import { BrowsersIcon, MoonIcon, SunIcon } from "@phosphor-icons/react"
-import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { setThemeMode } from "@/lib/theme-client"
 
 export function ModeToggle() {
-  const [theme, setThemeState] = React.useState<"light" | "dark" | "system">(
-    () => {
-      if (typeof window === "undefined") {
-        return "system"
-      }
-
-      const savedTheme = localStorage.getItem("theme")
-      if (
-        savedTheme === "dark" ||
-        savedTheme === "light" ||
-        savedTheme === "system"
-      ) {
-        return savedTheme
-      }
-
-      return "system"
-    }
-  )
-
-  React.useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-
-    const applyTheme = () => {
-      const isDark =
-        theme === "dark" || (theme === "system" && mediaQuery.matches)
-      document.documentElement.classList[isDark ? "add" : "remove"]("dark")
-    }
-
-    applyTheme()
-    localStorage.setItem("theme", theme)
-
-    if (theme !== "system") {
-      return
-    }
-
-    mediaQuery.addEventListener("change", applyTheme)
-    return () => {
-      mediaQuery.removeEventListener("change", applyTheme)
-    }
-  }, [theme])
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -61,15 +21,17 @@ export function ModeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setThemeState("light")}>
-          <SunIcon /> Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setThemeState("dark")}>
-          <MoonIcon /> Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setThemeState("system")}>
-          <BrowsersIcon /> System
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => setThemeMode("light")}>
+            <SunIcon /> Light
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setThemeMode("dark")}>
+            <MoonIcon /> Dark
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setThemeMode("system")}>
+            <BrowsersIcon /> System
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import type { BookmarkCardData, BookmarkView } from "@/lib/bookmarks"
 
 import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
+import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { HarborCard } from "@/components/ui/HarborCard"
 import { ModeToggle } from "@/components/ui/ModeToggle"
 import { Separator } from "@/components/ui/separator"
@@ -291,129 +292,131 @@ export const DashboardLayout = ({
   const hasActiveSearch = debouncedSearch.length > 0
 
   return (
-    <SidebarProvider>
-      <AppSidebar currentUser={currentUser ?? null} />
-      <SidebarInset>
-        <DashboardTopBar
-          searchInput={searchInput}
-          setSearchInput={setSearchInput}
-          setDebouncedSearch={setDebouncedSearch}
-          isRefreshingBookmarks={isRefreshingBookmarks}
-          hasActiveSearch={hasActiveSearch}
-          onBookmarkSaved={applyBookmarkUpdate}
-          preselectedTags={routeTagFilter ? [routeTagFilter] : undefined}
-          defaultFavorite={routeOnlyFavorites}
-        />
-        <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
-            <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {hasActiveSearch ? (
-                <div className="text-md pt-4 font-medium text-muted-foreground">
-                  Looking at results for "{debouncedSearch}".
-                </div>
-              ) : routeOnlyFavorites ? (
-                <>
-                  <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
-                    Favorite Bookmarks
-                  </h2>
-                  <h3 className="col-span-full text-sm font-medium text-muted-foreground">
-                    {visibleBookmarks.length} favorite links
-                  </h3>
-                </>
-              ) : routeTagFilter ? (
-                <>
-                  <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
-                    Tag: {routeTagFilter}
-                  </h2>
-                  <h3 className="col-span-full text-sm font-medium text-muted-foreground">
-                    {visibleBookmarks.length} links with this tag
-                  </h3>
-                </>
-              ) : (
-                <>
-                  <div className="col-span-full flex flex-wrap gap-2">
-                    <Tabs defaultValue={activeView} className="w-auto">
-                      <TabsList variant="line">
-                        <TabsTrigger
-                          value="recent"
-                          onClick={() => setActiveView("recent")}
-                        >
-                          Recent
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="mostVisited"
-                          onClick={() => setActiveView("mostVisited")}
-                        >
-                          Most visited
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="unorganized"
-                          onClick={() => setActiveView("unorganized")}
-                        >
-                          Unorganized
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
+    <AppErrorBoundary>
+      <SidebarProvider>
+        <AppSidebar currentUser={currentUser ?? null} />
+        <SidebarInset>
+          <DashboardTopBar
+            searchInput={searchInput}
+            setSearchInput={setSearchInput}
+            setDebouncedSearch={setDebouncedSearch}
+            isRefreshingBookmarks={isRefreshingBookmarks}
+            hasActiveSearch={hasActiveSearch}
+            onBookmarkSaved={applyBookmarkUpdate}
+            preselectedTags={routeTagFilter ? [routeTagFilter] : undefined}
+            defaultFavorite={routeOnlyFavorites}
+          />
+          <div className="flex flex-1 flex-col gap-4 p-4">
+            <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
+              <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {hasActiveSearch ? (
+                  <div className="text-md pt-4 font-medium text-muted-foreground">
+                    Looking at results for "{debouncedSearch}".
                   </div>
-                  <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
-                    {activeView === "recent" && "Recent Bookmarks"}
-                    {activeView === "mostVisited" && "Most Visited Bookmarks"}
-                    {activeView === "unorganized" && "Unorganized Bookmarks"}
-                  </h2>
-                  <h3 className="col-span-full text-sm font-medium text-muted-foreground">
-                    {activeView === "recent" &&
-                      `${visibleBookmarks.length} links sorted by creation date`}
-                    {activeView === "mostVisited" &&
-                      `${visibleBookmarks.length} links sorted by total visits`}
-                    {activeView === "unorganized" &&
-                      `${visibleBookmarks.length} links without tags`}
-                  </h3>
-                </>
-              )}
+                ) : routeOnlyFavorites ? (
+                  <>
+                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
+                      Favorite Bookmarks
+                    </h2>
+                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+                      {visibleBookmarks.length} favorite links
+                    </h3>
+                  </>
+                ) : routeTagFilter ? (
+                  <>
+                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
+                      Tag: {routeTagFilter}
+                    </h2>
+                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+                      {visibleBookmarks.length} links with this tag
+                    </h3>
+                  </>
+                ) : (
+                  <>
+                    <div className="col-span-full flex flex-wrap gap-2">
+                      <Tabs defaultValue={activeView} className="w-auto">
+                        <TabsList variant="line">
+                          <TabsTrigger
+                            value="recent"
+                            onClick={() => setActiveView("recent")}
+                          >
+                            Recent
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="mostVisited"
+                            onClick={() => setActiveView("mostVisited")}
+                          >
+                            Most visited
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="unorganized"
+                            onClick={() => setActiveView("unorganized")}
+                          >
+                            Unorganized
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
+                      {activeView === "recent" && "Recent Bookmarks"}
+                      {activeView === "mostVisited" && "Most Visited Bookmarks"}
+                      {activeView === "unorganized" && "Unorganized Bookmarks"}
+                    </h2>
+                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+                      {activeView === "recent" &&
+                        `${visibleBookmarks.length} links sorted by creation date`}
+                      {activeView === "mostVisited" &&
+                        `${visibleBookmarks.length} links sorted by total visits`}
+                      {activeView === "unorganized" &&
+                        `${visibleBookmarks.length} links without tags`}
+                    </h3>
+                  </>
+                )}
 
-              {visibleBookmarks.map((bookmark) => (
-                <HarborCard
-                  key={bookmark.id}
-                  {...bookmark}
-                  onSaved={applyBookmarkUpdate}
-                  onVisit={() => incrementVisitCount(bookmark.id)}
-                  onVisitRollback={() => decrementVisitCount(bookmark.id)}
-                  onVisitReset={() => resetVisitCount(bookmark.id)}
-                  onVisitResetRollback={(previousCount) =>
-                    setVisibleBookmarks((current) =>
-                      current.map((currentBookmark) =>
-                        currentBookmark.id === bookmark.id
-                          ? {
-                              ...currentBookmark,
-                              visitCount: previousCount,
-                            }
-                          : currentBookmark
+                {visibleBookmarks.map((bookmark) => (
+                  <HarborCard
+                    key={bookmark.id}
+                    {...bookmark}
+                    onSaved={applyBookmarkUpdate}
+                    onVisit={() => incrementVisitCount(bookmark.id)}
+                    onVisitRollback={() => decrementVisitCount(bookmark.id)}
+                    onVisitReset={() => resetVisitCount(bookmark.id)}
+                    onVisitResetRollback={(previousCount) =>
+                      setVisibleBookmarks((current) =>
+                        current.map((currentBookmark) =>
+                          currentBookmark.id === bookmark.id
+                            ? {
+                                ...currentBookmark,
+                                visitCount: previousCount,
+                              }
+                            : currentBookmark
+                        )
                       )
-                    )
-                  }
-                  onFavoriteToggle={(nextIsFavorite) =>
-                    setFavoriteState(bookmark.id, nextIsFavorite)
-                  }
-                  onDeleted={removeBookmark}
-                  onDeleteRollback={restoreBookmark}
-                />
-              ))}
-              {visibleBookmarks.length === 0 && (
-                <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  {hasActiveSearch
-                    ? `Your harbor doesn't contain any results for "${debouncedSearch}".`
-                    : routeOnlyFavorites
-                      ? "No favorite bookmarks yet. Mark a bookmark as favorite to see it here."
-                      : routeTagFilter
-                        ? `No bookmarks found with the tag "${routeTagFilter}".`
-                        : "No bookmarks yet. Add your first bookmark to start building your harbor."}
-                </div>
-              )}
+                    }
+                    onFavoriteToggle={(nextIsFavorite) =>
+                      setFavoriteState(bookmark.id, nextIsFavorite)
+                    }
+                    onDeleted={removeBookmark}
+                    onDeleteRollback={restoreBookmark}
+                  />
+                ))}
+                {visibleBookmarks.length === 0 && (
+                  <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    {hasActiveSearch
+                      ? `Your harbor doesn't contain any results for "${debouncedSearch}".`
+                      : routeOnlyFavorites
+                        ? "No favorite bookmarks yet. Mark a bookmark as favorite to see it here."
+                        : routeTagFilter
+                          ? `No bookmarks found with the tag "${routeTagFilter}".`
+                          : "No bookmarks yet. Add your first bookmark to start building your harbor."}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </SidebarInset>
-      <Toaster position="top-center" />
-    </SidebarProvider>
+        </SidebarInset>
+        <Toaster position="top-center" />
+      </SidebarProvider>
+    </AppErrorBoundary>
   )
 }

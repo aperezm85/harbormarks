@@ -372,6 +372,7 @@ export const HarborCard = ({
       className="group h-full cursor-pointer border pt-0 transition-colors hover:bg-muted/50"
       role="link"
       tabIndex={0}
+      aria-label={`Open bookmark: ${title}`}
       onClick={openBookmark}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -399,16 +400,13 @@ export const HarborCard = ({
             alt={`${title} favicon`}
             className="size-8 rounded-md bg-accent p-1"
           />
-          <div
-            className="flex shrink-0 items-center gap-2"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-          >
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               className="group/heart hover:cursor-pointer"
               type="button"
+              aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
               disabled={isTogglingFavorite || isDeleting}
               onClick={(event) => {
                 event.stopPropagation()
@@ -452,6 +450,7 @@ export const HarborCard = ({
                   variant="outline"
                   size="icon"
                   aria-label="Edit bookmark"
+                  title="Edit bookmark"
                   disabled={isDeleting}
                 >
                   <PencilSimpleIcon />
@@ -461,7 +460,14 @@ export const HarborCard = ({
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="icon" disabled={isDeleting}>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  type="button"
+                  aria-label="Delete bookmark"
+                  title="Delete bookmark"
+                  disabled={isDeleting}
+                >
                   <TrashIcon weight="fill" />
                 </Button>
               </AlertDialogTrigger>
@@ -508,11 +514,7 @@ export const HarborCard = ({
       <CardContent className="mt-auto flex flex-1 flex-col justify-between">
         <p>{description}</p>
         <div>
-          <div
-            className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-          >
+          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
             <span>
               Opened <strong>{visitCount}</strong>{" "}
               {visitCount === 1 ? "time" : "times"}
@@ -521,6 +523,7 @@ export const HarborCard = ({
               variant="outline"
               size="sm"
               type="button"
+              aria-label="Reset visit count"
               disabled={isResettingVisit || isDeleting}
               onClick={(event) => {
                 event.stopPropagation()
@@ -536,11 +539,7 @@ export const HarborCard = ({
             </Button>
           </div>
           {isSummarizerSupported && (
-            <div
-              className="mt-3"
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-            >
+            <div className="mt-3">
               <Button
                 variant="outline"
                 size="sm"
@@ -551,6 +550,7 @@ export const HarborCard = ({
                   void summarizeWithAi()
                 }}
                 className="flex items-center justify-center gap-2 align-middle"
+                aria-label="Summarize bookmark with AI"
               >
                 {isSummarizing ? (
                   <>
@@ -560,7 +560,10 @@ export const HarborCard = ({
                 ) : (
                   "Summarize with AI"
                 )}
-                <SparkleIcon className="size-4 text-yellow-500" />
+                <SparkleIcon
+                  className="size-4 text-yellow-500"
+                  data-icon="inline-end"
+                />
               </Button>
             </div>
           )}

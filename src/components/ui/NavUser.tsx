@@ -18,9 +18,10 @@ import {
   CaretUpDownIcon,
   SealCheckIcon,
   SignOutIcon,
+  SpinnerIcon,
   UsersIcon,
 } from "@phosphor-icons/react"
-import { Button } from "./button"
+import { useState } from "react"
 
 export type SidebarUser = {
   id: number
@@ -32,6 +33,32 @@ export type SidebarUser = {
 
 export const NavUser = ({ user }: { user: SidebarUser }) => {
   const { isMobile } = useSidebar()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (isSigningOut) {
+      return
+    }
+
+    setIsSigningOut(true)
+
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      })
+
+      if (!response.ok) {
+        throw new Error("Logout failed")
+      }
+
+      window.location.assign(response.redirected ? response.url : "/login")
+    } catch {
+      setIsSigningOut(false)
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
 
   return (
     <SidebarMenu>
@@ -109,18 +136,28 @@ export const NavUser = ({ user }: { user: SidebarUser }) => {
               </DropdownMenuGroup>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <form method="POST" action="/api/auth/logout">
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant="ghost"
-                  className="w-full"
-                >
-                  <SignOutIcon className="mr-2" />
-                  Logout
-                </Button>
-              </form>
+            <DropdownMenuItem disabled={isSigningOut}>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
+                onClick={() => {
+                  void handleSignOut()
+                }}
+                disabled={isSigningOut}
+                aria-busy={isSigningOut}
+              >
+                {isSigningOut ? (
+                  <>
+                    <SpinnerIcon className="size-4 animate-spin" />
+                    Signing out...
+                  </>
+                ) : (
+                  <>
+                    <SignOutIcon className="size-4" />
+                    Logout
+                  </>
+                )}
+              </button>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

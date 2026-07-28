@@ -1,8 +1,8 @@
-import * as React from "react"
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
+import * as React from "react"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 function AlertDialog({
   ...props
@@ -152,11 +152,15 @@ function AlertDialogAction({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  const ariaLabel =
+    props["aria-label"] ?? (size === "icon" ? "Confirm action" : undefined)
+
   return (
-    <Button variant={variant} size={size} asChild>
+    <Button variant={variant} size={size} asChild aria-label={ariaLabel}>
       <AlertDialogPrimitive.Action
         data-slot="alert-dialog-action"
         className={cn(className)}
+        aria-label={ariaLabel}
         {...props}
       />
     </Button>
@@ -170,11 +174,15 @@ function AlertDialogCancel({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  const ariaLabel =
+    props["aria-label"] ?? (size === "icon" ? "Cancel" : undefined)
+
   return (
-    <Button variant={variant} size={size} asChild>
+    <Button variant={variant} size={size} asChild aria-label={ariaLabel}>
       <AlertDialogPrimitive.Cancel
         data-slot="alert-dialog-cancel"
         className={cn(className)}
+        aria-label={ariaLabel}
         {...props}
       />
     </Button>

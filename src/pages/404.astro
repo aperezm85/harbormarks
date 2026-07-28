@@ -1,0 +1,26 @@
+---
+import { Button } from "@/components/ui/button"
+import Layout from "@/layouts/main.astro"
+---
+
+<Layout page="Page not found | HarborMarks">
+  <main class="flex min-h-screen items-center justify-center p-6">
+    <section
+      class="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm"
+    >
+      <p class="text-sm font-medium text-muted-foreground">Error 404</p>
+      <h1 class="mt-2 text-2xl font-semibold tracking-tight">Page not found</h1>
+      <p class="mt-2 text-sm text-muted-foreground">
+        The page you requested does not exist or may have moved.
+      </p>
+      <div class="mt-6 flex items-center justify-center gap-2">
+        <a href="/">
+          <Button type="button">Go to dashboard</Button>
+        </a>
+        <a href="/login">
+          <Button type="button" variant="outline">Go to login</Button>
+        </a>
+      </div>
+    </section>
+  </main>
+</Layout>

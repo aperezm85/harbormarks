@@ -1,5 +1,7 @@
 ---
 import { ModeToggle } from "@/components/ui/ModeToggle"
+import { ThemeHotkey } from "@/components/ui/ThemeHotkey"
+import { ThemeProvider } from "@/components/ui/theme-provider"
 import "@/styles/global.css"
 import { Toaster } from "sonner"
 
@@ -8,6 +10,9 @@ interface Props {
 }
 
 const { page = "HarborMarks" } = Astro.props
+const description =
+  "Access your HarborMarks account to save, edit, and organize bookmarks across your devices."
+const socialPreviewUrl = "/favicon.ico"
 ---
 
 <script is:inline>
@@ -61,10 +66,27 @@ const { page = "HarborMarks" } = Astro.props
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={page} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={socialPreviewUrl} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={page} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialPreviewUrl} />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <title>{page}</title>
   </head>
   <body>
+    <ThemeProvider
+      client:load
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    />
+    <ThemeHotkey client:load />
     <div class="fixed top-4 right-4 z-50 flex items-center gap-2">
       <ModeToggle client:load />
       <Toaster client:load />

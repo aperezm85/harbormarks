@@ -74,7 +74,9 @@ export const CreateBookmarkDialog = ({
   const [isSaving, setIsSaving] = useState(false)
   const [metadataError, setMetadataError] = useState("")
   const [submitError, setSubmitError] = useState("")
+  const [statusMessage, setStatusMessage] = useState("")
   const isEditMode = Boolean(bookmark)
+  const isPending = isFetchingMetadata || isSaving
 
   function hasTag(tag: string) {
     const normalized = tag.toLowerCase()
@@ -163,6 +165,7 @@ export const CreateBookmarkDialog = ({
 
   function resetForm() {
     applyBookmarkValues(bookmark)
+    setStatusMessage("")
   }
 
   useEffect(() => {
@@ -185,11 +188,13 @@ export const CreateBookmarkDialog = ({
   async function handleFetchMetadata() {
     if (!url.trim()) {
       setMetadataError("Enter a URL first.")
+      setStatusMessage("Enter a URL first.")
       return
     }
 
     setIsFetchingMetadata(true)
     setMetadataError("")
+    setStatusMessage("Fetching page metadata...")
 
     try {
       const response = await fetch(
@@ -226,18 +231,53 @@ export const CreateBookmarkDialog = ({
           ? metadata.previewImage
           : null
       )
+
+      setStatusMessage("Metadata fetched and fields updated.")
     } catch (error) {
-      setMetadataError(
+      const message =
         error instanceof Error ? error.message : "Unable to fetch metadata."
-      )
+      setMetadataError(message)
+      setStatusMessage(message)
     } finally {
       setIsFetchingMetadata(false)
     }
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(form?: HTMLFormElement) {
+    if (isSaving) {
+      return
+    }
+
+    if (form && !form.reportValidity()) {
+      return
+    }
+
+    const trimmedUrl = url.trim()
+    if (!trimmedUrl) {
+      setSubmitError("URL is required.")
+      setStatusMessage("URL is required.")
+      return
+    }
+
+    try {
+      new URL(trimmedUrl)
+    } catch {
+      setSubmitError("Enter a valid URL including protocol, like https://.")
+      setStatusMessage("Enter a valid URL including protocol, like https://.")
+      return
+    }
+
+    if (!title.trim()) {
+      setSubmitError("Title is required.")
+      setStatusMessage("Title is required.")
+      return
+    }
+
     setSubmitError("")
     setIsSaving(true)
+    setStatusMessage(
+      isEditMode ? "Saving bookmark changes..." : "Saving bookmark..."
+    )
 
     const pendingTag = tagInput.trim()
     const tagsPayload = pendingTag
@@ -257,9 +297,9 @@ export const CreateBookmarkDialog = ({
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          url,
-          title,
-          description,
+          url: trimmedUrl,
+          title: title.trim(),
+          description: description.trim(),
           favicon,
           previewImage,
           tags: tagsPayload,
@@ -284,15 +324,17 @@ export const CreateBookmarkDialog = ({
 
       applyBookmarkValues(bookmark)
       setIsOpen(false)
+      setStatusMessage(isEditMode ? "Bookmark updated." : "Bookmark created.")
       if (onSaved) {
         onSaved(savedBookmark)
       } else {
         window.location.reload()
       }
     } catch (error) {
-      setSubmitError(
+      const message =
         error instanceof Error ? error.message : "Unable to save bookmark."
-      )
+      setSubmitError(message)
+      setStatusMessage(message)
     } finally {
       setIsSaving(false)
     }
@@ -310,10 +352,10 @@ export const CreateBookmarkDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
+      <DialogTrigger asChild disabled={isPending}>
         {trigger ?? (
-          <Button>
-            <BookmarkSimpleIcon className="size-4" />
+          <Button disabled={isPending}>
+            <BookmarkSimpleIcon className="size-4" data-icon="inline-start" />
             <span className="hidden sm:block">Add Bookmark</span>
           </Button>
         )}
@@ -322,9 +364,10 @@ export const CreateBookmarkDialog = ({
         <form
           method="POST"
           className="flex flex-col gap-4 sm:max-w-sm"
+          aria-busy={isPending}
           onSubmit={(event) => {
             event.preventDefault()
-            void handleSubmit()
+            void handleSubmit(event.currentTarget)
           }}
         >
           <DialogHeader>
@@ -349,6 +392,7 @@ export const CreateBookmarkDialog = ({
                   <InputGroupInput
                     id="input-group-url"
                     name="url"
+                    type="url"
                     placeholder="https://example.com"
                     required
                     value={url}
@@ -359,14 +403,16 @@ export const CreateBookmarkDialog = ({
                   type="button"
                   variant="outline"
                   onClick={handleFetchMetadata}
-                  disabled={isFetchingMetadata || isSaving}
+                  disabled={isPending}
                 >
-                  <ArrowsClockwiseIcon />
+                  <ArrowsClockwiseIcon data-icon="inline-start" />
                   {isFetchingMetadata ? "Fetching..." : "Fetch"}
                 </Button>
               </ButtonGroup>
               {metadataError ? (
-                <p className="text-sm text-destructive">{metadataError}</p>
+                <p className="text-sm text-destructive" role="alert">
+                  {metadataError}
+                </p>
               ) : null}
             </Field>
             <Field>
@@ -375,6 +421,7 @@ export const CreateBookmarkDialog = ({
                 id="title"
                 name="title"
                 placeholder="Enter title"
+                required
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
@@ -488,16 +535,40 @@ export const CreateBookmarkDialog = ({
             <input type="hidden" name="favicon" value={favicon} />
           </FieldGroup>
           {submitError ? (
-            <p className="text-sm text-destructive">{submitError}</p>
+            <p className="text-sm text-destructive" role="alert">
+              {submitError}
+            </p>
           ) : null}
+          <p className="sr-only" role="status" aria-live="polite">
+            {statusMessage}
+          </p>
+          {isPending && (
+            <p
+              className="text-xs text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {isSaving ? "Saving bookmark..." : "Fetching metadata..."}
+            </p>
+          )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" disabled={isSaving}>
+              <Button type="button" variant="outline" disabled={isSaving}>
                 Cancel
               </Button>
             </DialogClose>
             <Button type="submit" disabled={isSaving}>
-              <BookmarkSimpleIcon className="size-4" />
+              {isSaving ? (
+                <ArrowsClockwiseIcon
+                  className="size-4 animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <BookmarkSimpleIcon
+                  className="size-4"
+                  data-icon="inline-start"
+                />
+              )}
               {isSaving
                 ? "Saving..."
                 : isEditMode

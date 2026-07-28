@@ -24,3 +24,8 @@ docker-compose.override.yml
 
 # jetbrains setting folder
 .idea/
+
+.tmp/
+
+shadscan-after.json
+shadscan-before.json

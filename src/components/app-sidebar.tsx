@@ -137,7 +137,7 @@ export function AppSidebar({
     <Sidebar {...props}>
       <SidebarHeader>
         <div className="flex h-12 w-full items-center justify-start">
-          <img src={Logo.src} className="mr-2 h-6 w-6" />
+          <img src={Logo.src} alt="HarborMarks logo" className="mr-2 h-6 w-6" />
           <h1 className="text-2xl font-bold">
             Harbor<span className="text-primary">Marks</span>
           </h1>

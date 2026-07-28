@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.1",
+    date: "2026-07-28",
+    changes: [
+      "Refined the current bookmark and sidebar workflows for the 0.9.1 release.",
+      "Kept the app aligned with the latest accessibility and interaction polish.",
+      "Updated the changelog to reflect the current version metadata.",
+    ],
+  },
+  {
     version: "v0.9.0",
     date: "2026-03-21",
     changes: [
