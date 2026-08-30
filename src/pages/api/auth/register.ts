@@ -7,12 +7,27 @@ import {
   getSessionCookieName,
   isSignupEnabled,
 } from "@/lib/auth"
+import {
+  getRequestClientIp,
+  isRequestSecure,
+  rateLimitRequest,
+} from "@/lib/request-security"
 
 function isJsonRequest(contentType: string | null) {
   return contentType?.includes("application/json") === true
 }
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
+  const clientIp = getRequestClientIp(request)
+  const rateLimit = rateLimitRequest(`auth:register:ip:${clientIp}`, {
+    limit: 4,
+    windowMs: 15 * 60 * 1000,
+  })
+
+  if (!rateLimit.allowed) {
+    return redirect("/register?error=rate_limited")
+  }
+
   if (!isSignupEnabled()) {
     if (isJsonRequest(request.headers.get("content-type"))) {
       return new Response(JSON.stringify({ error: "Sign up is disabled" }), {
@@ -68,13 +83,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect(`/register?error=${encodeURIComponent(created.error)}`)
   }
 
-  const isHttps = new URL(request.url).protocol === "https:"
   const sessionToken = await createSessionForUser(created.data.id)
 
   cookies.set(getSessionCookieName(), sessionToken, {
     path: "/",
     httpOnly: true,
-    secure: isHttps,
+    secure: isRequestSecure(request),
     sameSite: "lax",
     maxAge: getSessionCookieMaxAge(),
   })

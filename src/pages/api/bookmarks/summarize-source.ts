@@ -1,5 +1,7 @@
 import type { APIRoute } from "astro"
 
+import { fetchTextSafely } from "@/lib/safe-fetch"
+
 type SummarizeSourceResponse = {
   data?: {
     url: string
@@ -134,12 +136,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
     return jsonResponse({ error: "Invalid URL." }, 400)
   }
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10000)
-
   try {
-    const response = await fetch(targetUrl.toString(), {
-      signal: controller.signal,
+    const response = await fetchTextSafely(targetUrl.toString(), {
+      timeoutMs: 10000,
+      maxBytes: 256 * 1024,
+      maxRedirects: 3,
       headers: {
         "user-agent": "HarborMarksBot/1.0 (+summary-fetch)",
         accept: "text/html, text/plain;q=0.9, */*;q=0.2",
@@ -150,8 +151,19 @@ export const GET: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ error: "Unable to fetch page content." }, 502)
     }
 
-    const contentType = response.headers.get("content-type") ?? ""
-    const rawContent = await response.text()
+    const contentType = response.contentType.toLowerCase()
+    const rawContent = response.text
+
+    if (
+      !contentType.includes("text/html") &&
+      !contentType.includes("text/plain") &&
+      !contentType.includes("application/xhtml+xml")
+    ) {
+      return jsonResponse(
+        { error: "No readable content found on this page." },
+        422
+      )
+    }
 
     const plainText = contentType.includes("text/plain")
       ? rawContent.trim()
@@ -174,7 +186,5 @@ export const GET: APIRoute = async ({ request, locals }) => {
     })
   } catch {
     return jsonResponse({ error: "Unable to fetch page content." }, 502)
-  } finally {
-    clearTimeout(timeout)
   }
 }

@@ -1,13 +1,21 @@
 ---
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
 import Layout from "@/layouts/main.astro"
-import { listBookmarks } from "@/lib/bookmarks"
+import { DEFAULT_BOOKMARK_PAGE_SIZE, listBookmarks } from "@/lib/bookmarks"
 
 const userId = Astro.locals.userId
 const user = Astro.locals.user
 const selectedTag = Astro.url.searchParams.get("tag")?.trim() ?? ""
-const bookmarks =
-  userId && selectedTag ? await listBookmarks(userId, { tag: selectedTag }) : []
+const rawBookmarks =
+  userId && selectedTag
+    ? await listBookmarks(userId, {
+        tag: selectedTag,
+        page: 1,
+        pageSize: DEFAULT_BOOKMARK_PAGE_SIZE + 1,
+      })
+    : []
+const bookmarks = rawBookmarks.slice(0, DEFAULT_BOOKMARK_PAGE_SIZE)
+const hasMore = rawBookmarks.length > DEFAULT_BOOKMARK_PAGE_SIZE
 ---
 
 <Layout
@@ -17,6 +25,7 @@ const bookmarks =
     client:load
     transition:persist
     bookmarks={bookmarks}
+    hasMore={hasMore}
     currentUser={user}
     tagFilter={selectedTag}
   />

@@ -16,7 +16,7 @@ services:
     build:
       context: .
       args:
-        HARBOR_CHECK_ORIGIN: "false"
+        HARBOR_CHECK_ORIGIN: "true"
     container_name: harbormarks-app
     restart: unless-stopped
     environment:
@@ -26,8 +26,7 @@ services:
       HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
       HARBOR_BOOTSTRAP_ADMIN_PASSWORD: change_this_now
       HARBOR_ALLOW_SIGNUP: "true"
-      HARBOR_CHECK_ORIGIN: "false"
-      SESSION_SECRET: use_a_long_random_secret
+      HARBOR_CHECK_ORIGIN: "true"
       HOST: 0.0.0.0
       PORT: 3000
     ports:

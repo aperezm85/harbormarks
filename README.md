@@ -22,6 +22,7 @@ It helps you save links, enrich them with metadata, organize them with tags, and
 - Per-user bookmark isolation across list, tags, favorites, updates, and visits.
 - URL normalization on create and metadata fetch (`https://` is auto-added when missing).
 - Metadata extraction (title, description, favicon, preview image).
+- Local proxying and caching for bookmark favicons and preview images to avoid hotlinking.
 - Favorite bookmarks support with a dedicated Favorites page.
 - Tag support with:
   - autocomplete in create/edit dialog,
@@ -77,7 +78,6 @@ DATABASE_URL=postgresql://astro:astro@db:5432/harbormarks
 HARBOR_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
 HARBOR_BOOTSTRAP_ADMIN_NAME=Harbor Admin
 HARBOR_BOOTSTRAP_ADMIN_PASSWORD=change_me
-SESSION_SECRET=change_me
 ```
 
 For local non-Docker development, you can still use a `.env` file.
@@ -92,10 +92,10 @@ Optional / deployment-specific:
 ```bash
 NODE_ENV=production
 HARBOR_ALLOW_SIGNUP=true
-HARBOR_CHECK_ORIGIN=false
+HARBOR_CHECK_ORIGIN=true
 ```
 
-`HARBOR_CHECK_ORIGIN=false` helps when HarborMarks runs behind a reverse proxy or alternate external port (for example NAS UI port mapping) and login POST requests otherwise fail with `403 Forbidden`.
+Keep `HARBOR_CHECK_ORIGIN` enabled. If a reverse proxy causes origin mismatches, fix the forwarded host/proto headers instead of disabling the check globally.
 
 ## Run With Docker Compose
 
@@ -118,6 +118,12 @@ docker compose down
 ```
 
 ## Recent Changes
+
+### 2026-08-30
+
+- Added local caching and proxying for bookmark favicons and preview images.
+- Fixed sidebar tag navigation and dashboard route syncing on Astro client-side swaps.
+- Brought the README, changelog, and package version back in sync for the release.
 
 ### 2026-03-16
 

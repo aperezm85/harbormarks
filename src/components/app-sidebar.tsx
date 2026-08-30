@@ -94,21 +94,28 @@ export function AppSidebar({
 
     void loadTags()
 
+    const handleTagsChanged = () => {
+      void loadTags()
+    }
+
+    window.addEventListener("harbormarks:tags-changed", handleTagsChanged)
+
     return () => {
       abortController.abort()
+      window.removeEventListener("harbormarks:tags-changed", handleTagsChanged)
     }
   }, [])
 
   React.useEffect(() => {
     syncRouteState()
 
-    window.addEventListener("astro:after-swap", syncRouteState)
-    window.addEventListener("astro:page-load", syncRouteState)
+    document.addEventListener("astro:after-swap", syncRouteState)
+    document.addEventListener("astro:page-load", syncRouteState)
     window.addEventListener("popstate", syncRouteState)
 
     return () => {
-      window.removeEventListener("astro:after-swap", syncRouteState)
-      window.removeEventListener("astro:page-load", syncRouteState)
+      document.removeEventListener("astro:after-swap", syncRouteState)
+      document.removeEventListener("astro:page-load", syncRouteState)
       window.removeEventListener("popstate", syncRouteState)
     }
   }, [syncRouteState])

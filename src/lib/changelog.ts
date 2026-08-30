@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.3",
+    date: "2026-08-30",
+    changes: [
+      "Proxied and cached bookmark favicons and preview images locally to avoid hotlinking on dashboard load.",
+      "Fixed tag navigation and dashboard route syncing for Astro client-side swaps.",
+      "Removed stale SESSION_SECRET documentation and aligned the release metadata.",
+    ],
+  },
+  {
     version: "v0.9.1",
     date: "2026-07-28",
     changes: [

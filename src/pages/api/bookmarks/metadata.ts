@@ -1,5 +1,8 @@
 import type { APIRoute } from "astro"
 
+import { normalizeBookmarkAssetUrl } from "@/lib/bookmark-assets"
+import { fetchTextSafely } from "@/lib/safe-fetch"
+
 type BookmarkMetadata = {
   title: string
   description: string
@@ -41,7 +44,7 @@ function buildFallbackMetadata(pageUrl: URL): BookmarkMetadata {
   return {
     title: humanizePathname(pageUrl.pathname),
     description: "",
-    favicon: new URL("/favicon.ico", pageUrl).toString(),
+    favicon: "/favicon.ico",
     previewImage: null,
   }
 }
@@ -129,19 +132,19 @@ function buildMetadataFromFallbacks(
   return {
     title,
     description,
-    favicon,
-    previewImage,
+    favicon: normalizeBookmarkAssetUrl(favicon) ?? fallback.favicon,
+    previewImage: normalizeBookmarkAssetUrl(previewImage),
   }
 }
 
 async function fetchMetadataFromFeed(pageUrl: URL) {
   const feedUrl = new URL("/feed", pageUrl)
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 5000)
 
   try {
-    const response = await fetch(feedUrl.toString(), {
-      signal: controller.signal,
+    const response = await fetchTextSafely(feedUrl.toString(), {
+      timeoutMs: 5000,
+      maxBytes: 256 * 1024,
+      maxRedirects: 3,
       headers: {
         "user-agent": "HarborMarksBot/1.0 (+metadata-fetch)",
       },
@@ -151,7 +154,7 @@ async function fetchMetadataFromFeed(pageUrl: URL) {
       return null
     }
 
-    const xml = await response.text()
+    const xml = response.text
     const items = xml.match(/<item>[\s\S]*?<\/item>/gi) ?? []
     const targetPathname = normalizePathname(pageUrl.pathname)
     const targetId = extractPostId(pageUrl.pathname)
@@ -204,8 +207,6 @@ async function fetchMetadataFromFeed(pageUrl: URL) {
     return null
   } catch {
     return null
-  } finally {
-    clearTimeout(timeout)
   }
 }
 
@@ -287,13 +288,13 @@ export const GET: APIRoute = async ({ request }) => {
     return createJsonResponse({ error: "Invalid or missing url" }, 400)
   }
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
   const fallbackMetadata = buildFallbackMetadata(url)
 
   try {
-    const response = await fetch(url.toString(), {
-      signal: controller.signal,
+    const response = await fetchTextSafely(url.toString(), {
+      timeoutMs: 8000,
+      maxBytes: 256 * 1024,
+      maxRedirects: 3,
       headers: {
         "user-agent": "HarborMarksBot/1.0 (+metadata-fetch)",
       },
@@ -306,7 +307,20 @@ export const GET: APIRoute = async ({ request }) => {
       })
     }
 
-    const html = await response.text()
+    const contentType = response.contentType.toLowerCase()
+    if (
+      !contentType.includes("text/html") &&
+      !contentType.includes("text/plain") &&
+      !contentType.includes("application/xhtml+xml") &&
+      !contentType.includes("xml")
+    ) {
+      const feedMetadata = await fetchMetadataFromFeed(url)
+      return createJsonResponse({
+        data: buildMetadataFromFallbacks(fallbackMetadata, feedMetadata),
+      })
+    }
+
+    const html = response.text
     if (isBotChallengePage(html)) {
       const feedMetadata = await fetchMetadataFromFeed(url)
       return createJsonResponse({
@@ -317,8 +331,10 @@ export const GET: APIRoute = async ({ request }) => {
     const metadata: BookmarkMetadata = {
       title: extractTitle(html) || fallbackMetadata.title,
       description: extractDescription(html),
-      favicon: extractFavicon(html, url) || fallbackMetadata.favicon,
-      previewImage: extractPreviewImage(html, url),
+      favicon:
+        normalizeBookmarkAssetUrl(extractFavicon(html, url)) ??
+        fallbackMetadata.favicon,
+      previewImage: normalizeBookmarkAssetUrl(extractPreviewImage(html, url)),
     }
 
     return createJsonResponse({ data: metadata })
@@ -327,7 +343,5 @@ export const GET: APIRoute = async ({ request }) => {
     return createJsonResponse({
       data: buildMetadataFromFallbacks(fallbackMetadata, feedMetadata),
     })
-  } finally {
-    clearTimeout(timeout)
   }
 }

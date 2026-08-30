@@ -2,7 +2,7 @@
 FROM node:lts-alpine AS build
 WORKDIR /app
 
-ARG HARBOR_CHECK_ORIGIN=false
+ARG HARBOR_CHECK_ORIGIN=true
 ENV HARBOR_CHECK_ORIGIN=$HARBOR_CHECK_ORIGIN
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -20,6 +20,8 @@ COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
+COPY migrations ./migrations
+COPY scripts ./scripts
 
 # Install only production deps, then remove package-manager caches to keep the image lean.
 RUN corepack enable \
@@ -31,4 +33,4 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 
 EXPOSE 3000
-CMD ["node", "./dist/server/entry.mjs"]
+CMD ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]

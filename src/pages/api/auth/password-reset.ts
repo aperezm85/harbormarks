@@ -1,12 +1,23 @@
 import type { APIRoute } from "astro"
 
 import { getMinPasswordLength, resetPasswordByToken } from "@/lib/auth"
+import { getRequestClientIp, rateLimitRequest } from "@/lib/request-security"
 
 function isJsonRequest(contentType: string | null) {
   return contentType?.includes("application/json") === true
 }
 
 export const POST: APIRoute = async ({ request, redirect }) => {
+  const clientIp = getRequestClientIp(request)
+  const rateLimit = rateLimitRequest(`auth:password-reset:ip:${clientIp}`, {
+    limit: 6,
+    windowMs: 15 * 60 * 1000,
+  })
+
+  if (!rateLimit.allowed) {
+    return redirect("/reset-password?error=rate_limited")
+  }
+
   const wantsJson = isJsonRequest(request.headers.get("content-type"))
   const bodyValues = wantsJson ? await request.json() : await request.formData()
 

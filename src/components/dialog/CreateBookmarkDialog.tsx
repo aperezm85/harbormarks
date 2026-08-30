@@ -1,4 +1,4 @@
-import type { BookmarkCardData } from "@/lib/bookmarks"
+import type { BookmarkCardData } from "@/lib/bookmark-types"
 import { useCallback, useEffect, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -360,7 +360,11 @@ export const CreateBookmarkDialog = ({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent
+        className="sm:max-w-sm"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <form
           method="POST"
           className="flex flex-col gap-4 sm:max-w-sm"

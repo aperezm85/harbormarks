@@ -65,6 +65,6 @@ export const bookmarks = pgTable("bookmarks", {
   previewImage: text("preview_image"),
   isFavorite: boolean("is_favorite").notNull().default(false),
   visitCount: integer("visit_count").notNull().default(0),
-  tags: text("tags"),
+  tags: text("tags").array(),
   createdAt: timestamp("created_at").defaultNow(),
 })

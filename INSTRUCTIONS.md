@@ -33,18 +33,17 @@ HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
 HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
 HARBOR_BOOTSTRAP_ADMIN_PASSWORD: change_this_now
 HARBOR_ALLOW_SIGNUP: "true"
-HARBOR_CHECK_ORIGIN: "false"
-SESSION_SECRET: use_a_long_random_secret
+HARBOR_CHECK_ORIGIN: "true"
 ```
 
 Notes:
 
 - In this repository, `docker-compose.yml` already sets the internal database URL to the `db` service.
 - `HOST` and `PORT` are also forced by Compose for container runtime.
-- `HARBOR_CHECK_ORIGIN` can be set to `"false"` to avoid login `403 Forbidden` when requests pass through reverse proxies or alternate external ports.
+- Keep `HARBOR_CHECK_ORIGIN` enabled by default. If a proxy causes an origin mismatch, fix the forwarded host/proto headers instead of disabling the check globally.
 - Bootstrap admin values are used only when the users table is empty.
 - Always replace any example/default bootstrap credentials before starting in shared or production environments.
-- You usually only need to set bootstrap admin values and `SESSION_SECRET` in `docker-compose.yml`.
+- You usually only need to set bootstrap admin values in `docker-compose.yml`.
 
 ## 4. Build And Start
 

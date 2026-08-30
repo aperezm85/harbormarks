@@ -37,15 +37,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import type { BookmarkCardData } from "@/lib/bookmarks"
+import type { BookmarkCardData } from "@/lib/bookmark-types"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 type SummarizerAvailability =
-  | "available"
-  | "downloadable"
-  | "downloading"
-  | "unavailable"
+  "available" | "downloadable" | "downloading" | "unavailable"
 
 type SummarizerSession = {
   summarize: (
@@ -191,8 +188,6 @@ export const HarborCard = ({
       onVisitRollback?.()
       toast.error("Unable to track bookmark visit. Counter was restored.")
     })
-
-    window.open(url, "_blank", "noopener,noreferrer")
   }
 
   const resetVisitCount = () => {
@@ -368,25 +363,27 @@ export const HarborCard = ({
   }
 
   return (
-    <Card
-      className="group h-full cursor-pointer border pt-0 transition-colors hover:bg-muted/50"
-      role="link"
-      tabIndex={0}
-      aria-label={`Open bookmark: ${title}`}
-      onClick={openBookmark}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault()
+    <Card className="group relative h-full border pt-0 transition-colors hover:bg-muted/50">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open bookmark: ${title}`}
+        className="absolute inset-0 z-10 rounded-[inherit] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+        onClick={() => {
           openBookmark()
-        }
-      }}
-    >
-      <div className="relative z-20 aspect-video w-full overflow-hidden">
+        }}
+      >
+        <span className="sr-only">Open bookmark: {title}</span>
+      </a>
+      <div className="relative z-0 aspect-video w-full overflow-hidden">
         {previewImage && isPreviewImageVisible ? (
           <img
             src={previewImage}
             alt={`${title} preview`}
             className="h-full w-full object-cover brightness-60 grayscale dark:brightness-40"
+            loading="lazy"
+            decoding="async"
             onError={() => setIsPreviewImageVisible(false)}
           />
         ) : (
@@ -400,7 +397,7 @@ export const HarborCard = ({
             alt={`${title} favicon`}
             className="size-8 rounded-md bg-accent p-1"
           />
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="relative z-20 flex shrink-0 items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
@@ -452,6 +449,9 @@ export const HarborCard = ({
                   aria-label="Edit bookmark"
                   title="Edit bookmark"
                   disabled={isDeleting}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                  }}
                 >
                   <PencilSimpleIcon />
                 </Button>
@@ -467,11 +467,17 @@ export const HarborCard = ({
                   aria-label="Delete bookmark"
                   title="Delete bookmark"
                   disabled={isDeleting}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                  }}
                 >
                   <TrashIcon weight="fill" />
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
                 <AlertDialogHeader>
                   <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
                     <TrashIcon weight="fill" />
@@ -483,7 +489,11 @@ export const HarborCard = ({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel variant="outline" disabled={isDeleting}>
+                  <AlertDialogCancel
+                    variant="outline"
+                    disabled={isDeleting}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     Cancel
                   </AlertDialogCancel>
                   <AlertDialogAction

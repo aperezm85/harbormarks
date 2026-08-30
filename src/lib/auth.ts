@@ -1,10 +1,11 @@
-import { and, eq, gt, isNull, sql } from "drizzle-orm"
+import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm"
 import {
   createHash,
   randomBytes,
-  scryptSync,
+  scrypt as scryptCallback,
   timingSafeEqual,
 } from "node:crypto"
+import { promisify } from "node:util"
 
 import { db } from "@/db/client"
 import {
@@ -20,6 +21,15 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
 const MIN_PASSWORD_LENGTH = 8
 const VERIFICATION_TOKEN_TTL_SECONDS = 60 * 60 * 24
 const PASSWORD_RESET_TOKEN_TTL_SECONDS = 60 * 30
+const scrypt = promisify(scryptCallback) as (
+  password: string,
+  salt: string,
+  keylen: number
+) => Promise<Buffer>
+const DUMMY_PASSWORD_HASH = `${"0".repeat(32)}:${"0".repeat(128)}`
+const AUTH_CLEANUP_INTERVAL_MS = 15 * 60 * 1000
+
+let authCleanupTimer: ReturnType<typeof setInterval> | null = null
 
 let isAuthSchemaReady = false
 let authSchemaReadyPromise: Promise<void> | null = null
@@ -49,8 +59,7 @@ export type AdminUserSummary = {
 type AuthenticationFailure = "invalid_credentials" | "account_disabled"
 
 type AuthenticationResult =
-  | { data: AuthenticatedUser }
-  | { error: AuthenticationFailure }
+  { data: AuthenticatedUser } | { error: AuthenticationFailure }
 
 function parseRole(role: string): "admin" | "user" {
   return role === "admin" ? "admin" : "user"
@@ -128,20 +137,20 @@ function resolveAvatarUrl(email: string, avatarUrl?: string | null) {
   return candidate
 }
 
-function hashPassword(password: string, salt?: string) {
+async function hashPassword(password: string, salt?: string) {
   const passwordSalt = salt ?? randomBytes(16).toString("hex")
-  const hash = scryptSync(password, passwordSalt, 64).toString("hex")
+  const hash = (await scrypt(password, passwordSalt, 64)).toString("hex")
   return `${passwordSalt}:${hash}`
 }
 
-function verifyPassword(password: string, storedHash: string) {
+async function verifyPassword(password: string, storedHash: string) {
   const [salt, expectedHash] = storedHash.split(":")
 
   if (!salt || !expectedHash) {
     return false
   }
 
-  const computedHash = scryptSync(password, salt, 64).toString("hex")
+  const computedHash = (await scrypt(password, salt, 64)).toString("hex")
 
   try {
     return timingSafeEqual(
@@ -159,6 +168,63 @@ function hashSessionToken(token: string) {
 
 function sessionExpiryDate() {
   return expirationDate(SESSION_TTL_SECONDS)
+}
+
+async function cleanupExpiredAuthArtifacts() {
+  const now = new Date()
+
+  await db
+    .delete(sessions)
+    .where(
+      or(
+        and(isNull(sessions.revokedAt), lt(sessions.expiresAt, now)),
+        and(isNull(sessions.revokedAt), isNull(sessions.expiresAt))
+      )
+    )
+
+  await db
+    .delete(emailVerificationTokens)
+    .where(
+      or(
+        and(
+          isNull(emailVerificationTokens.usedAt),
+          lt(emailVerificationTokens.expiresAt, now)
+        ),
+        and(
+          isNull(emailVerificationTokens.usedAt),
+          isNull(emailVerificationTokens.expiresAt)
+        )
+      )
+    )
+
+  await db
+    .delete(passwordResetTokens)
+    .where(
+      or(
+        and(
+          isNull(passwordResetTokens.usedAt),
+          lt(passwordResetTokens.expiresAt, now)
+        ),
+        and(
+          isNull(passwordResetTokens.usedAt),
+          isNull(passwordResetTokens.expiresAt)
+        )
+      )
+    )
+}
+
+function scheduleAuthCleanup() {
+  if (authCleanupTimer) {
+    return
+  }
+
+  authCleanupTimer = setInterval(() => {
+    void cleanupExpiredAuthArtifacts().catch((error) => {
+      console.error("[auth] cleanup failed", error)
+    })
+  }, AUTH_CLEANUP_INTERVAL_MS)
+
+  authCleanupTimer.unref?.()
 }
 
 export function isEmailVerificationRequired() {
@@ -226,7 +292,7 @@ async function maybeBootstrapAdminUser() {
     role: "admin",
     isActive: true,
     emailVerifiedAt: new Date(),
-    passwordHash: hashPassword(password),
+    passwordHash: await hashPassword(password),
   })
 }
 
@@ -274,104 +340,10 @@ export async function ensureAuthSchema() {
 
   authSchemaReadyPromise = (async () => {
     try {
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          email TEXT NOT NULL UNIQUE,
-          password_hash TEXT NOT NULL,
-          display_name TEXT,
-          avatar_url TEXT,
-          role TEXT NOT NULL DEFAULT 'user',
-          is_active BOOLEAN NOT NULL DEFAULT TRUE,
-          email_verified_at TIMESTAMP,
-          created_at TIMESTAMP DEFAULT NOW(),
-          updated_at TIMESTAMP DEFAULT NOW()
-        )
-      `)
-
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS sessions (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          token_hash TEXT NOT NULL UNIQUE,
-          expires_at TIMESTAMP NOT NULL,
-          revoked_at TIMESTAMP,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `)
-
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS email_verification_tokens (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          token_hash TEXT NOT NULL UNIQUE,
-          expires_at TIMESTAMP NOT NULL,
-          used_at TIMESTAMP,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `)
-
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS password_reset_tokens (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          token_hash TEXT NOT NULL UNIQUE,
-          expires_at TIMESTAMP NOT NULL,
-          used_at TIMESTAMP,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `)
-
-      await db.execute(sql`
-        ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
-      `)
-
-      await db.execute(sql`
-        ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE
-      `)
-
-      await db.execute(sql`
-        ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP
-      `)
-
-      await db.execute(sql`
-        DO $$
-        BEGIN
-          IF to_regclass('public.bookmarks') IS NOT NULL THEN
-            ALTER TABLE bookmarks
-            ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
-          END IF;
-        END
-        $$
-      `)
-
-      await db.execute(sql`
-        DO $$
-        BEGIN
-          IF to_regclass('public.bookmarks') IS NOT NULL THEN
-            CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
-          END IF;
-        END
-        $$
-      `)
-
-      await db.execute(sql`
-        CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
-      `)
-
-      await db.execute(sql`
-        CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id)
-      `)
-
-      await db.execute(sql`
-        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)
-      `)
-
       await maybeBootstrapAdminUser()
       await backfillLegacyBookmarks()
+      await cleanupExpiredAuthArtifacts()
+      scheduleAuthCleanup()
 
       isAuthSchemaReady = true
     } finally {
@@ -433,7 +405,7 @@ export async function createUser(input: {
       role: input.role ?? "user",
       isActive: input.isActive ?? true,
       emailVerifiedAt: input.markVerified ? new Date() : null,
-      passwordHash: hashPassword(password),
+      passwordHash: await hashPassword(password),
     })
     .returning({
       id: users.id,
@@ -474,10 +446,11 @@ export async function authenticateUser(
     .limit(1)
 
   if (!user) {
+    await verifyPassword(password, DUMMY_PASSWORD_HASH)
     return { error: "invalid_credentials" }
   }
 
-  if (!verifyPassword(password, user.passwordHash)) {
+  if (!(await verifyPassword(password, user.passwordHash))) {
     return { error: "invalid_credentials" }
   }
 
@@ -720,7 +693,10 @@ export async function resetPasswordByToken(
 
   await db
     .update(users)
-    .set({ passwordHash: hashPassword(nextPassword), updatedAt: new Date() })
+    .set({
+      passwordHash: await hashPassword(nextPassword),
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, tokenRow.userId))
 
   await db
@@ -782,13 +758,16 @@ export async function updateProfilePassword(
     .where(eq(users.id, userId))
     .limit(1)
 
-  if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
+  if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
     return { error: "Current password is incorrect" as const }
   }
 
   await db
     .update(users)
-    .set({ passwordHash: hashPassword(nextPassword), updatedAt: new Date() })
+    .set({
+      passwordHash: await hashPassword(nextPassword),
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, userId))
 
   await revokeAllSessionsByUserId(userId)

@@ -1,13 +1,14 @@
 {
   "name": "harbormarks",
   "type": "module",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "private": true,
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview --host 0.0.0.0 --port 3000",
     "astro": "astro",
+    "db:migrate": "node ./scripts/migrate.mjs",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,astro}\"",
     "typecheck": "astro check"

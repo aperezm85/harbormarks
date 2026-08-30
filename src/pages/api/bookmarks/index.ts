@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 
 import {
   createBookmark,
+  DEFAULT_BOOKMARK_PAGE_SIZE,
   listBookmarks,
   type BookmarkView,
 } from "@/lib/bookmarks"
@@ -16,6 +17,16 @@ function parseBookmarkView(rawValue: string | null): BookmarkView {
   }
 
   return "recent"
+}
+
+function parsePositiveInteger(rawValue: string | null, fallback: number) {
+  const parsed = Number(rawValue)
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback
+  }
+
+  return parsed
 }
 
 function isJsonRequest(contentType: string | null) {
@@ -62,15 +73,28 @@ export const GET: APIRoute = async ({ request, locals }) => {
   const tag = url.searchParams.get("tag") ?? undefined
   const onlyFavorites = url.searchParams.get("favorites") === "1"
   const view = parseBookmarkView(url.searchParams.get("view"))
+  const page = parsePositiveInteger(url.searchParams.get("page"), 1)
+  const pageSize = Math.min(
+    parsePositiveInteger(
+      url.searchParams.get("pageSize"),
+      DEFAULT_BOOKMARK_PAGE_SIZE
+    ),
+    100
+  )
 
-  const data = await listBookmarks(locals.userId, {
+  const rows = await listBookmarks(locals.userId, {
     search,
     tag,
     onlyFavorites,
     view,
+    page,
+    pageSize: pageSize + 1,
   })
 
-  return new Response(JSON.stringify({ data }), {
+  const hasMore = rows.length > pageSize
+  const data = hasMore ? rows.slice(0, pageSize) : rows
+
+  return new Response(JSON.stringify({ data, hasMore, page, pageSize }), {
     status: 200,
     headers: {
       "content-type": "application/json",

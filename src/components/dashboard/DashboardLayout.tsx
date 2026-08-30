@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import type { BookmarkCardData, BookmarkView } from "@/lib/bookmarks"
+import {
+  DEFAULT_BOOKMARK_PAGE_SIZE,
+  type BookmarkCardData,
+  type BookmarkView,
+} from "@/lib/bookmark-types"
 
 import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
+import { Button } from "@/components/ui/button"
 import { HarborCard } from "@/components/ui/HarborCard"
 import { ModeToggle } from "@/components/ui/ModeToggle"
 import { Separator } from "@/components/ui/separator"
@@ -94,10 +99,12 @@ export const DashboardLayout = ({
   tagFilter,
   onlyFavorites,
   currentUser,
+  hasMore: initialHasMore = false,
 }: {
   bookmarks: BookmarkCardData[]
   tagFilter?: string
   onlyFavorites?: boolean
+  hasMore?: boolean
   currentUser?: {
     id: number
     email: string
@@ -114,7 +121,11 @@ export const DashboardLayout = ({
     useState<BookmarkCardData[]>(bookmarks)
   const [activeView, setActiveView] = useState<BookmarkView>("recent")
   const [isRefreshingBookmarks, setIsRefreshingBookmarks] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(initialHasMore)
+  const [page, setPage] = useState(1)
   const requestIdRef = useRef(0)
+  const skipInitialRefreshRef = useRef(true)
 
   useEffect(() => {
     function syncRouteFilters() {
@@ -125,26 +136,31 @@ export const DashboardLayout = ({
         const nextTag = searchParams.get("tag")?.trim() ?? ""
         setRouteTagFilter(nextTag || undefined)
         setRouteOnlyFavorites(false)
+        setPage(1)
         return
       }
 
       if (pathname === "/favorites") {
         setRouteTagFilter(undefined)
         setRouteOnlyFavorites(true)
+        setPage(1)
         return
       }
 
       setRouteTagFilter(undefined)
       setRouteOnlyFavorites(false)
+      setPage(1)
     }
 
     syncRouteFilters()
 
-    window.addEventListener("astro:page-load", syncRouteFilters)
+    document.addEventListener("astro:after-swap", syncRouteFilters)
+    document.addEventListener("astro:page-load", syncRouteFilters)
     window.addEventListener("popstate", syncRouteFilters)
 
     return () => {
-      window.removeEventListener("astro:page-load", syncRouteFilters)
+      document.removeEventListener("astro:after-swap", syncRouteFilters)
+      document.removeEventListener("astro:page-load", syncRouteFilters)
       window.removeEventListener("popstate", syncRouteFilters)
     }
   }, [])
@@ -163,6 +179,7 @@ export const DashboardLayout = ({
       next[existingIndex] = updatedBookmark
       return next
     })
+    window.dispatchEvent(new CustomEvent("harbormarks:tags-changed"))
   }
 
   const incrementVisitCount = (id: string) => {
@@ -210,6 +227,7 @@ export const DashboardLayout = ({
     setVisibleBookmarks((current) =>
       current.filter((bookmark) => bookmark.id !== bookmarkToRemove.id)
     )
+    window.dispatchEvent(new CustomEvent("harbormarks:tags-changed"))
   }
 
   const restoreBookmark = (bookmarkToRestore: BookmarkCardData) => {
@@ -233,6 +251,11 @@ export const DashboardLayout = ({
   }, [searchInput])
 
   useEffect(() => {
+    if (skipInitialRefreshRef.current) {
+      skipInitialRefreshRef.current = false
+      return
+    }
+
     const abortController = new AbortController()
     const requestId = requestIdRef.current + 1
     requestIdRef.current = requestId
@@ -252,8 +275,12 @@ export const DashboardLayout = ({
       query.set("favorites", "1")
     }
 
+    query.set("page", String(page))
+    query.set("pageSize", String(DEFAULT_BOOKMARK_PAGE_SIZE))
+
     async function refreshBookmarks() {
       setIsRefreshingBookmarks(true)
+      setIsLoadingMore(page > 1)
 
       try {
         const response = await fetch(`/api/bookmarks?${query.toString()}`, {
@@ -266,9 +293,17 @@ export const DashboardLayout = ({
 
         const payload = (await response.json()) as {
           data?: BookmarkCardData[]
+          hasMore?: boolean
         }
 
-        setVisibleBookmarks(payload.data ?? [])
+        setVisibleBookmarks((current) => {
+          if (page === 1) {
+            return payload.data ?? []
+          }
+
+          return [...current, ...(payload.data ?? [])]
+        })
+        setHasMore(Boolean(payload.hasMore))
       } catch (error) {
         if (abortController.signal.aborted) {
           return
@@ -278,6 +313,7 @@ export const DashboardLayout = ({
       } finally {
         if (requestId === requestIdRef.current) {
           setIsRefreshingBookmarks(false)
+          setIsLoadingMore(false)
         }
       }
     }
@@ -287,7 +323,7 @@ export const DashboardLayout = ({
     return () => {
       abortController.abort()
     }
-  }, [activeView, debouncedSearch, routeTagFilter, routeOnlyFavorites])
+  }, [activeView, debouncedSearch, page, routeTagFilter, routeOnlyFavorites])
 
   const hasActiveSearch = debouncedSearch.length > 0
 
@@ -298,8 +334,14 @@ export const DashboardLayout = ({
         <SidebarInset>
           <DashboardTopBar
             searchInput={searchInput}
-            setSearchInput={setSearchInput}
-            setDebouncedSearch={setDebouncedSearch}
+            setSearchInput={(value) => {
+              setPage(1)
+              setSearchInput(value)
+            }}
+            setDebouncedSearch={(value) => {
+              setPage(1)
+              setDebouncedSearch(value)
+            }}
             isRefreshingBookmarks={isRefreshingBookmarks}
             hasActiveSearch={hasActiveSearch}
             onBookmarkSaved={applyBookmarkUpdate}
@@ -338,19 +380,28 @@ export const DashboardLayout = ({
                         <TabsList variant="line">
                           <TabsTrigger
                             value="recent"
-                            onClick={() => setActiveView("recent")}
+                            onClick={() => {
+                              setPage(1)
+                              setActiveView("recent")
+                            }}
                           >
                             Recent
                           </TabsTrigger>
                           <TabsTrigger
                             value="mostVisited"
-                            onClick={() => setActiveView("mostVisited")}
+                            onClick={() => {
+                              setPage(1)
+                              setActiveView("mostVisited")
+                            }}
                           >
                             Most visited
                           </TabsTrigger>
                           <TabsTrigger
                             value="unorganized"
-                            onClick={() => setActiveView("unorganized")}
+                            onClick={() => {
+                              setPage(1)
+                              setActiveView("unorganized")
+                            }}
                           >
                             Unorganized
                           </TabsTrigger>
@@ -400,6 +451,20 @@ export const DashboardLayout = ({
                     onDeleteRollback={restoreBookmark}
                   />
                 ))}
+                {hasMore ? (
+                  <div className="col-span-full flex justify-center pt-2 pb-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setPage((current) => current + 1)}
+                      disabled={isRefreshingBookmarks || isLoadingMore}
+                    >
+                      {isLoadingMore
+                        ? "Loading more..."
+                        : "Load more bookmarks"}
+                    </Button>
+                  </div>
+                ) : null}
                 {visibleBookmarks.length === 0 && (
                   <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                     {hasActiveSearch

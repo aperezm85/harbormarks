@@ -9,7 +9,6 @@ interface ImportMetaEnv {
   readonly HARBOR_BOOTSTRAP_ADMIN_NAME?: string
   readonly HARBOR_ALLOW_SIGNUP?: string
   readonly HARBOR_REQUIRE_EMAIL_VERIFICATION?: string
-  readonly SESSION_SECRET?: string
 }
 
 declare namespace App {
