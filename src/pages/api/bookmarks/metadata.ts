@@ -84,7 +84,7 @@ function stripHtmlTags(value: string) {
 function extractXmlTagValue(xml: string, tagName: string) {
   const match = xml.match(
     new RegExp(
-      `<${tagName}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\/${tagName}>`,
+      `<${tagName}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tagName}>`,
       "i"
     )
   )

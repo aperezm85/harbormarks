@@ -20,9 +20,14 @@ It helps you save links, enrich them with metadata, organize them with tags, and
 - Sidebar account menu with profile, admin users (for admins), and logout actions.
 - Bookmark CRUD (create, edit, delete).
 - Per-user bookmark isolation across list, tags, favorites, updates, and visits.
-- URL normalization on create and metadata fetch (`https://` is auto-added when missing).
+- Soft delete with a Trash view: deleted bookmarks can be restored from the card
+  or the undo toast, or deleted permanently from Trash.
+- URL canonicalization on write (host, trailing slash, and tracking parameters)
+  with duplicate detection per user on create and edit.
 - Metadata extraction (title, description, favicon, preview image).
 - Local proxying and caching for bookmark favicons and preview images to avoid hotlinking.
+- Indexed PostgreSQL full-text search with relevance ranking.
+- Paged bookmark lists with a "load more" control.
 - Favorite bookmarks support with a dedicated Favorites page.
 - Tag support with:
   - autocomplete in create/edit dialog,
@@ -31,14 +36,21 @@ It helps you save links, enrich them with metadata, organize them with tags, and
   - dedicated tag filter page (`/tag?tag=...`).
 - Dashboard browse modes:
   - Recent,
-  - Most visited,
-  - Unorganized.
+  - Most visited (recency-weighted, so old counts decay),
+  - Unorganized,
+  - Trash.
 - Visit tracking with reset action per bookmark.
 - Preview image rendering in cards, with gradient fallback when unavailable.
 - Persistent UI behavior:
   - client-side route transitions,
   - sidebar active state updates,
   - theme persistence (light, dark, and system).
+- Operational and security baseline:
+  - schema managed by versioned SQL migrations applied at startup,
+  - origin checking on by default, with proxy-aware `Secure` cookies,
+  - SSRF-guarded outbound fetches for metadata, summaries, and assets,
+  - rate limiting on login, registration, and recovery endpoints,
+  - automatic cleanup of expired sessions and tokens.
 
 ## Tech Stack
 
@@ -119,6 +131,21 @@ docker compose down
 
 ## Recent Changes
 
+### 2026-08-31 (v0.9.4)
+
+- Added permanent delete from Trash, so a bookmark can be removed for good after
+  a second, explicit confirmation.
+- Moved search onto an indexed full-text column; it previously rebuilt the search
+  index on every row of every query.
+- Fixed the sidebar tag list returning a 500 on databases upgraded from an
+  earlier release, where `tags` was still a scalar text column.
+- Made the tags migration convert existing data instead of dropping the column.
+  **Anyone upgrading from 0.9.2 or earlier should read the upgrade note below.**
+- Fixed favicons and preview images 404ing when the origin serves them with an
+  empty or generic content type.
+- Fixed four React state-in-effect bugs and cleared the remaining lint errors, so
+  `pnpm lint`, `pnpm typecheck`, and `pnpm build` all pass.
+
 ### 2026-08-30
 
 - Added local caching and proxying for bookmark favicons and preview images.
@@ -136,6 +163,29 @@ docker compose down
 - Updated Docker env conventions to bootstrap-admin variables under Compose.
 - Added GHCR publish workflow and image-based deploy compose file.
 
+## Upgrading
+
+Migrations run automatically at container start (`node ./scripts/migrate.mjs`
+before the server boots) and are tracked in the `schema_migrations` table.
+
+Before upgrading to 0.9.4, take a database dump. See the backup commands in
+`INSTRUCTIONS.md`.
+
+Two migrations in this release touch the `bookmarks` table:
+
+- `0002_tags_array.sql` converts `tags` from scalar `TEXT` to `TEXT[]`. It now
+  preserves existing values, parsing both the JSON-array and comma-separated
+  forms. It is a no-op where `tags` is already `TEXT[]`.
+- `0004_bookmark_search_vector.sql` adds a generated `search_vector` column and
+  a GIN index. Adding a stored generated column rewrites the table and takes a
+  brief exclusive lock, so expect the startup migration step to take a moment on
+  a large collection.
+
+If you ran a build between 30 and 31 August 2026, an earlier version of
+`0002_tags_array.sql` dropped the `tags` column instead of converting it. That
+version cannot restore the lost tags; restore from a dump if you hit it.
+
 ## Product Roadmap
 
-See `ROADMAP.md` for planned features and delivery phases.
+See `ROADMAP.md` for planned features and delivery phases, and `IMPLEMENTATION.md`
+for the detailed specifications of the work that is queued next.

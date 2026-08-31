@@ -141,12 +141,37 @@ Warning: `-v` deletes stored bookmarks.
 
 ## 8. Updating HarborMarks
 
+**Take a database dump before upgrading.** See section 9 for the command.
+
 From project directory:
 
 ```bash
 git pull
 docker compose up -d --build
 ```
+
+Schema migrations run automatically when the app container starts, before the
+server accepts requests, and are recorded in the `schema_migrations` table. If a
+migration fails the container stops rather than starting against a half-migrated
+database, so check the app logs if the container will not come up:
+
+```bash
+docker compose logs app | tail -50
+```
+
+### Upgrading to 0.9.4
+
+This release adds a generated search column and a GIN index to the `bookmarks`
+table. Adding a stored generated column rewrites the table under a brief
+exclusive lock, so the startup migration can take a moment on a large
+collection. Nothing else is required.
+
+If your database was created before migrations existed, this upgrade also
+converts `tags` from a text column to a text array. Existing tags are preserved.
+
+> If you built an image between 30 and 31 August 2026, that build shipped a
+> version of `0002_tags_array.sql` that dropped the `tags` column instead of
+> converting it. Restore from a dump if your tags disappeared.
 
 ## 9. Backup Recommendation
 
@@ -165,6 +190,14 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 ```
 
 ## Recent Changes
+
+### 2026-08-31 (v0.9.4)
+
+- Documented that schema migrations run automatically at container start and are
+  tracked in `schema_migrations`.
+- Added an upgrade note for the 0.9.4 table rewrite and the tags conversion.
+- Removed the stale `SESSION_SECRET` entry from the Compose environment block in
+  section 3. The application has never read it; leave it out.
 
 ### 2026-03-16
 
@@ -208,7 +241,6 @@ HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
 HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
 HARBOR_BOOTSTRAP_ADMIN_PASSWORD: change_this_now
 HARBOR_ALLOW_SIGNUP: "true"
-SESSION_SECRET: use_a_long_random_secret
 ```
 
 In `docker-compose.deploy.yml`, set your image reference (default shown here is GHCR):

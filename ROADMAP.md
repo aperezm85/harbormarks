@@ -8,6 +8,29 @@ This roadmap turns the current ideas into an execution plan with clear phases, o
 - Reduce friction for organizing large bookmark collections.
 - Improve portability and ownership of user data.
 
+## Shipped (0.9.3 - 0.9.4)
+
+The hardening and correctness pass is complete. These were not on the original
+roadmap; they came out of the code survey and are done:
+
+- Versioned SQL migrations applied at startup, replacing request-time DDL.
+- Tags stored as `TEXT[]`, with a data-preserving conversion from the old text column.
+- Indexed PostgreSQL full-text search (generated `tsvector` column + GIN index),
+  replacing wildcard scans.
+- Indexes for every sort the UI offers.
+- Paged bookmark lists; the duplicate first-paint fetch is gone.
+- Soft delete with a Trash view, restore, undo, and permanent delete.
+- Recency-weighted "Most visited" ranking backed by `last_visited_at`.
+- URL canonicalization on write with per-user duplicate rejection.
+- Local proxying and caching of favicons and preview images.
+- Origin checking on by default; proxy-aware `Secure` cookies.
+- SSRF-guarded outbound fetches with DNS-rebinding protection and size caps.
+- Rate limiting on login, registration, and recovery; async `scrypt`.
+- Automatic cleanup of expired sessions and tokens.
+- Zero lint and typecheck errors.
+
+Detailed specifications for everything below live in `IMPLEMENTATION.md`.
+
 ## Prioritization Framework
 
 Each item is prioritized by:
@@ -19,6 +42,8 @@ Each item is prioritized by:
 ## Phase 1: Core Reliability and Retrieval (High Impact, Low-Medium Effort)
 
 ### 1) Duplicate Detection
+
+**Status: partially shipped.** Canonicalization and per-user duplicate rejection are done. The duplicate *resolution* UX (open existing / merge tags / create anyway) is not - the API returns an error instead. See IMPLEMENTATION.md story 6.
 
 Why:
 
@@ -38,6 +63,8 @@ Acceptance criteria:
 
 ### 2) Advanced Sorting and Filtering
 
+**Status: partially shipped.** Recent, Most visited, Unorganized, Favorites, Trash, and tag filtering exist. Domain and has-image filters, and full URL-driven filter state, do not. See IMPLEMENTATION.md story 9.
+
 Why:
 
 - Retrieval speed matters most once collections grow.
@@ -54,6 +81,8 @@ Acceptance criteria:
 - Combined filters produce expected result sets.
 
 ### 3) Better Search Operators
+
+**Status: not started, now unblocked.** Full-text search with ranking landed in 0.9.4, which was the prerequisite. See IMPLEMENTATION.md story 8.
 
 Why:
 
@@ -73,6 +102,8 @@ Acceptance criteria:
 
 ### 4) Tag Management Screen
 
+**Status: not started.** See IMPLEMENTATION.md story 10.
+
 Why:
 
 - Tags become hard to maintain without global operations.
@@ -90,6 +121,8 @@ Acceptance criteria:
 - Merge preserves bookmarks from both source and target tags.
 
 ### 5) Bulk Actions on Bookmarks
+
+**Status: not started.** See IMPLEMENTATION.md story 11.
 
 Why:
 
@@ -109,6 +142,8 @@ Acceptance criteria:
 
 ### 6) Pinning and Priority
 
+**Status: not started.** Lowest priority item on this roadmap; `is_favorite` already covers most of the need.
+
 Why:
 
 - Keeps important references visible.
@@ -125,6 +160,8 @@ Acceptance criteria:
 ## Phase 3: Content Quality and Trust (Medium-High Impact, Medium Effort)
 
 ### 7) Broken Link Monitoring
+
+**Status: not started.** The SSRF-guarded fetch helper it needs already exists in `src/lib/safe-fetch.ts`.
 
 Why:
 
@@ -143,6 +180,8 @@ Acceptance criteria:
 
 ### 8) Notes and Highlights
 
+**Status: not started.** See IMPLEMENTATION.md story 12.
+
 Why:
 
 - Captures user intent and improves recall.
@@ -159,6 +198,8 @@ Acceptance criteria:
 - Existing bookmarks unaffected when note is empty.
 
 ### 9) Metadata Enrichment Expansion
+
+**Status: not started.** Blocked behind replacing the regex HTML parser. See IMPLEMENTATION.md story 7.
 
 Why:
 
@@ -178,6 +219,8 @@ Acceptance criteria:
 
 ### 10) Import and Export
 
+**Status: not started. This is the highest-priority item on the roadmap.** An app that cannot hand back its data has not earned the word self-hosted. See IMPLEMENTATION.md stories 4 and 5.
+
 Why:
 
 - Critical for onboarding and user trust.
@@ -195,6 +238,8 @@ Acceptance criteria:
 
 ### 11) Keyboard-first Workflow
 
+**Status: not started.**
+
 Why:
 
 - Power users benefit from fast navigation and capture.
@@ -211,21 +256,33 @@ Acceptance criteria:
 
 ## Suggested Delivery Timeline
 
-- Week 1: Duplicate detection + enhanced filters/search operators.
-- Week 2: Tag management + bulk actions.
-- Week 3: Broken link monitoring + notes/highlights.
-- Week 4: Import/export + keyboard workflows.
+Resequenced after the 0.9.4 survey. Import/export moved to the front: it is what
+makes the app trustworthy, and it is what lets people migrate *to* it.
+
+- 0.9.5: Close the hardening phase - CI gates, remove the SEO scaffolding, add
+  `/healthz`, and land a first test suite.
+- 0.10: Export, then import. Duplicate resolution UX.
+- 0.11: Search operators, richer filters, tag management.
+- 0.12: Notes, metadata enrichment, broken-link monitoring.
+- 0.13: Bulk actions, keyboard workflow, command palette.
 
 ## Engineering Notes
 
 - Keep all new filters URL-driven for persistence and sharing.
 - Reuse existing API patterns under pages/api/bookmarks for consistency.
 - Extend BookmarkCardData incrementally to avoid large breaking changes.
-- Add migration-safe schema updates (ADD COLUMN IF NOT EXISTS style as used now).
+- Schema changes go in a new numbered file under `migrations/`, applied at startup
+  by `scripts/migrate.mjs` and recorded in `schema_migrations`. Never edit a
+  migration that has already shipped, and never write one that drops a column
+  holding user data.
+- Keep `src/db/schema.ts` in step with the migrations; nothing reconciles them.
 
 ## Definition of Done per Feature
 
 - API implemented with validation and error responses.
+- Every query scoped by `user_id`.
 - UI integrated in dashboard/sidebar/dialog flows.
-- Typecheck passes.
+- `pnpm lint`, `pnpm typecheck`, and `pnpm build` all pass.
+- Migrations tested against both a fresh database and an upgrade from the
+  previous release.
 - Basic happy-path and error-path manual tests documented in PR.

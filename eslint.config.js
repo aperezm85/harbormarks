@@ -20,4 +20,14 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Ambient declaration files must stay scripts rather than modules, so that
+    // `declare namespace App` augments the global scope. An `import` would turn
+    // env.d.ts into a module and break that, so the triple-slash path reference
+    // to Astro's generated types is the correct mechanism here.
+    files: ["**/*.d.ts"],
+    rules: {
+      "@typescript-eslint/triple-slash-reference": ["error", { path: "always" }],
+    },
+  },
 ])

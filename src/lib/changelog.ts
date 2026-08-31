@@ -6,6 +6,18 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.4",
+    date: "2026-08-31",
+    changes: [
+      "Bookmarks in Trash can now be deleted permanently, so Trash is a decision instead of a one-way archive.",
+      "Search now runs against an indexed full-text column instead of rebuilding the index on every query.",
+      "Fixed the sidebar tag list failing to load on databases upgraded from an earlier release.",
+      "Fixed favicons and preview images being dropped when a site serves them without a content type.",
+      "Upgrades from older releases now convert existing tags instead of discarding them.",
+      "Fixed several interface state bugs that could cause extra renders in the sidebar, bookmark cards, and the add/edit dialog.",
+    ],
+  },
+  {
     version: "v0.9.3",
     date: "2026-08-30",
     changes: [

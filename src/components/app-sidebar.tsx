@@ -30,6 +30,59 @@ type SidebarTagSummary = {
   count: number
 }
 
+// A tiny store over the current route. Sidebar links write the route they are
+// navigating to before the view transition completes, so the active item updates
+// on click rather than after the swap; the router events then clear that guess
+// and fall back to the real location.
+const routeListeners = new Set<() => void>()
+let optimisticRoute: string | null = null
+
+function notifyRouteListeners() {
+  for (const listener of routeListeners) {
+    listener()
+  }
+}
+
+function clearOptimisticRoute() {
+  optimisticRoute = null
+  notifyRouteListeners()
+}
+
+function setOptimisticRoute(route: string) {
+  optimisticRoute = route
+  notifyRouteListeners()
+}
+
+function subscribeToRoute(onChange: () => void) {
+  routeListeners.add(onChange)
+
+  if (routeListeners.size === 1) {
+    document.addEventListener("astro:after-swap", clearOptimisticRoute)
+    document.addEventListener("astro:page-load", clearOptimisticRoute)
+    window.addEventListener("popstate", clearOptimisticRoute)
+  }
+
+  return () => {
+    routeListeners.delete(onChange)
+
+    if (routeListeners.size === 0) {
+      document.removeEventListener("astro:after-swap", clearOptimisticRoute)
+      document.removeEventListener("astro:page-load", clearOptimisticRoute)
+      window.removeEventListener("popstate", clearOptimisticRoute)
+    }
+  }
+}
+
+function getRouteSnapshot() {
+  return (
+    optimisticRoute ?? `${window.location.pathname}${window.location.search}`
+  )
+}
+
+function getServerRouteSnapshot() {
+  return ""
+}
+
 export function AppSidebar({
   currentUser,
   ...props
@@ -38,21 +91,20 @@ export function AppSidebar({
 }) {
   const [tags, setTags] = React.useState<SidebarTagSummary[]>([])
   const [isLoadingTags, setIsLoadingTags] = React.useState(true)
-  const [activeTag, setActiveTag] = React.useState<string | null>(null)
-  const [pathname, setPathname] = React.useState("")
 
-  const syncRouteState = React.useCallback(() => {
-    const { pathname: currentPathname, search } = window.location
-    setPathname(currentPathname)
-
-    if (currentPathname !== "/tag") {
-      setActiveTag(null)
-      return
-    }
-
-    const nextTag = new URLSearchParams(search).get("tag")?.trim() ?? ""
-    setActiveTag(nextTag || null)
-  }, [])
+  // The URL is an external store: subscribe to it instead of copying it into
+  // state from an effect. The server snapshot is empty so the first client
+  // render matches the server-rendered markup.
+  const route = React.useSyncExternalStore(
+    subscribeToRoute,
+    getRouteSnapshot,
+    getServerRouteSnapshot
+  )
+  const [pathname, search = ""] = route.split("?")
+  const activeTag =
+    pathname === "/tag"
+      ? new URLSearchParams(search).get("tag")?.trim() || null
+      : null
 
   React.useEffect(() => {
     const abortController = new AbortController()
@@ -106,20 +158,6 @@ export function AppSidebar({
       window.removeEventListener("harbormarks:tags-changed", handleTagsChanged)
     }
   }, [])
-
-  React.useEffect(() => {
-    syncRouteState()
-
-    document.addEventListener("astro:after-swap", syncRouteState)
-    document.addEventListener("astro:page-load", syncRouteState)
-    window.addEventListener("popstate", syncRouteState)
-
-    return () => {
-      document.removeEventListener("astro:after-swap", syncRouteState)
-      document.removeEventListener("astro:page-load", syncRouteState)
-      window.removeEventListener("popstate", syncRouteState)
-    }
-  }, [syncRouteState])
 
   const navigationGroups = React.useMemo(() => {
     return [
@@ -175,8 +213,7 @@ export function AppSidebar({
                       <a
                         href={item.url}
                         onClick={() => {
-                          setPathname(item.url)
-                          setActiveTag(null)
+                          setOptimisticRoute(item.url)
                         }}
                       >
                         <div className="flex items-center gap-2">
@@ -218,8 +255,9 @@ export function AppSidebar({
                     <a
                       href={`/tag?tag=${encodeURIComponent(tag.tag)}`}
                       onClick={() => {
-                        setPathname("/tag")
-                        setActiveTag(tag.tag)
+                        setOptimisticRoute(
+                          `/tag?tag=${encodeURIComponent(tag.tag)}`
+                        )
                       }}
                     >
                       <div className="flex w-full items-center justify-between gap-2">

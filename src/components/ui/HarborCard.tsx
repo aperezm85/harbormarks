@@ -98,6 +98,7 @@ export const HarborCard = ({
   onDeleted,
   onDeleteRollback,
   onRestored,
+  onPurged,
   isTrashItem,
 }: {
   id: string
@@ -121,6 +122,7 @@ export const HarborCard = ({
   onDeleted?: (bookmark: BookmarkCardData) => void
   onDeleteRollback?: (bookmark: BookmarkCardData) => void
   onRestored?: (bookmark: BookmarkCardData) => void
+  onPurged?: (bookmark: BookmarkCardData) => void
   isTrashItem?: boolean
 }) => {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
@@ -129,21 +131,25 @@ export const HarborCard = ({
   const [isPreviewImageVisible, setIsPreviewImageVisible] = useState(
     Boolean(previewImage)
   )
+  const [renderedPreviewImage, setRenderedPreviewImage] = useState(previewImage)
   const [isSummarizerSupported, setIsSummarizerSupported] = useState(false)
   const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false)
   const [isSummarizing, setIsSummarizing] = useState(false)
   const [summaryText, setSummaryText] = useState("")
   const [summaryError, setSummaryError] = useState("")
 
-  useEffect(() => {
+  // A new previewImage means any earlier load failure no longer applies, so the
+  // image is shown again. Adjusting state during render is React's documented
+  // pattern for this; an effect would render the stale state first.
+  if (renderedPreviewImage !== previewImage) {
+    setRenderedPreviewImage(previewImage)
     setIsPreviewImageVisible(Boolean(previewImage))
-  }, [previewImage])
+  }
 
   useEffect(() => {
     const summarizerApi = getSummarizerApi()
 
     if (!summarizerApi) {
-      setIsSummarizerSupported(false)
       return
     }
 
@@ -339,6 +345,35 @@ export const HarborCard = ({
       })
   }
 
+  const purgeBookmark = () => {
+    if (isDeleting) {
+      return
+    }
+
+    setIsDeleting(true)
+
+    void fetch(`/api/bookmarks/${id}/purge`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Unable to delete bookmark permanently")
+        }
+
+        onPurged?.(bookmarkData)
+        toast.success("Bookmark permanently deleted.")
+      })
+      .catch(() => {
+        toast.error("Unable to delete bookmark permanently.")
+      })
+      .finally(() => {
+        setIsDeleting(false)
+      })
+  }
+
   const summarizeWithAi = async () => {
     if (isSummarizing || isDeleting) {
       return
@@ -526,24 +561,87 @@ export const HarborCard = ({
             />
 
             {isTrashItem ? (
-              <Button
-                variant="outline"
-                size="icon"
-                type="button"
-                aria-label="Restore bookmark"
-                title="Restore bookmark"
-                disabled={isDeleting}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  restoreBookmark()
-                }}
-              >
-                {isDeleting ? (
-                  <SpinnerIcon className="size-4 animate-spin" />
-                ) : (
-                  <ArrowCounterClockwiseIcon />
-                )}
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  aria-label="Restore bookmark"
+                  title="Restore bookmark"
+                  disabled={isDeleting}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    restoreBookmark()
+                  }}
+                >
+                  {isDeleting ? (
+                    <SpinnerIcon className="size-4 animate-spin" />
+                  ) : (
+                    <ArrowCounterClockwiseIcon />
+                  )}
+                </Button>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      type="button"
+                      aria-label="Delete bookmark permanently"
+                      title="Delete permanently"
+                      disabled={isDeleting}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                      }}
+                    >
+                      <TrashIcon weight="fill" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <AlertDialogHeader>
+                      <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                        <TrashIcon weight="fill" />
+                      </AlertDialogMedia>
+                      <AlertDialogTitle>
+                        Delete this bookmark permanently?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes &ldquo;{title}&rdquo; from your harbor for
+                        good. It cannot be restored, and there is no undo.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel
+                        variant="outline"
+                        disabled={isDeleting}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Keep in Trash
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        variant="destructive"
+                        disabled={isDeleting}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          purgeBookmark()
+                        }}
+                      >
+                        {isDeleting ? (
+                          <>
+                            <SpinnerIcon className="size-4 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          "Delete permanently"
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             ) : (
               <AlertDialog>
                 <AlertDialogTrigger asChild>

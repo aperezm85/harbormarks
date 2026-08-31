@@ -1,5 +1,5 @@
 import type { BookmarkCardData } from "@/lib/bookmark-types"
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useCallback, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -169,21 +169,19 @@ export const CreateBookmarkDialog = ({
     setStatusMessage("")
   }
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    applyBookmarkValues(bookmark)
-    void fetchExistingTags()
-  }, [applyBookmarkValues, bookmark, isOpen])
-
+  // Seeding the fields and loading tag suggestions both happen because the user
+  // opened the dialog, so they belong in the event handler rather than an effect
+  // that re-derives them from isOpen. The dialog is only ever opened through here.
   function handleOpenChange(nextOpen: boolean) {
     setIsOpen(nextOpen)
 
-    if (!nextOpen) {
-      resetForm()
+    if (nextOpen) {
+      applyBookmarkValues(bookmark)
+      void fetchExistingTags()
+      return
     }
+
+    resetForm()
   }
 
   async function handleFetchMetadata() {

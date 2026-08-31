@@ -14,18 +14,11 @@ import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 
 export { DEFAULT_BOOKMARK_PAGE_SIZE }
 export type { BookmarkCardData, BookmarkTagSummary, BookmarkView }
-const BOOKMARK_SEARCH_VECTOR = sql`
-  to_tsvector(
-    'simple',
-    concat_ws(
-      ' ',
-      bookmarks.url,
-      coalesce(bookmarks.title, ''),
-      coalesce(bookmarks.description, ''),
-      coalesce(array_to_string(bookmarks.tags, ' '), '')
-    )
-  )
-`
+// Maintained by Postgres as a STORED generated column and backed by a GIN index
+// (migrations/0004_bookmark_search_vector.sql). Computing the tsvector inline here
+// instead would force a sequential scan on every search: the concat_ws() and
+// array_to_string() calls it needs are STABLE, so the expression cannot be indexed.
+const BOOKMARK_SEARCH_VECTOR = sql`bookmarks.search_vector`
 
 const DEFAULT_FAVICON = "/favicon.ico"
 
@@ -421,6 +414,25 @@ export async function deleteBookmarkById(userId: number, id: number) {
     .returning({ id: bookmarks.id })
 
   return deleted.length > 0
+}
+
+// Permanent removal is deliberately restricted to bookmarks that are already in
+// Trash: a bookmark can only be destroyed by a second, explicit decision.
+export async function purgeBookmarkById(userId: number, id: number) {
+  await ensureBookmarksTable()
+
+  const purged = await db
+    .delete(bookmarks)
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        sql`${bookmarks.deletedAt} is not null`
+      )
+    )
+    .returning({ id: bookmarks.id })
+
+  return purged.length > 0
 }
 
 export async function restoreBookmarkById(userId: number, id: number) {

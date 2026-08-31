@@ -18,8 +18,8 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar"
+import { useSidebar } from "@/components/ui/sidebar-context"
 
 import { Toaster } from "@/components/ui/sonner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -488,6 +488,7 @@ export const DashboardLayout = ({
                     onDeleted={removeBookmark}
                     onDeleteRollback={restoreBookmark}
                     onRestored={removeTrashBookmark}
+                    onPurged={removeTrashBookmark}
                     isTrashItem={routeTrashOnly}
                   />
                 ))}
