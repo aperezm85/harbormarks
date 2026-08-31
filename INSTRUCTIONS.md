@@ -40,7 +40,15 @@ Notes:
 
 - In this repository, `docker-compose.yml` already sets the internal database URL to the `db` service.
 - `HOST` and `PORT` are also forced by Compose for container runtime.
-- Keep `HARBOR_CHECK_ORIGIN` enabled by default. If a proxy causes an origin mismatch, fix the forwarded host/proto headers instead of disabling the check globally.
+- Keep `HARBOR_CHECK_ORIGIN: "true"`. This is the CSRF origin check and turning it
+  off on an internet-reachable deployment removes a real protection. If a reverse
+  proxy causes an origin mismatch, the cause is the proxy dropping the original
+  host: the app sees an internal host such as `172.27.0.2:3000` while the browser
+  sends `Origin: https://your-domain`. Forward the real host instead
+  (`proxy_set_header Host $host` in nginx, or the equivalent) rather than
+  disabling the check.
+- Do not add `SESSION_SECRET`. The application has never read it. Sessions are
+  opaque random tokens stored in the database.
 - Bootstrap admin values are used only when the users table is empty.
 - Always replace any example/default bootstrap credentials before starting in shared or production environments.
 - You usually only need to set bootstrap admin values in `docker-compose.yml`.
@@ -118,6 +126,48 @@ docker compose exec -T app sh -lc 'echo "$DATABASE_URL"'
 ```
 
 Expected host in URL is `db`, not `localhost`.
+
+### Every page returns 500 after an upgrade
+
+Symptom: `/login` renders, but every page after signing in returns 500. The app
+log shows `Failed query: select ... from "bookmarks"` naming a column such as
+`updated_at` or `deleted_at`.
+
+Cause: the schema migrations did not run, so the code is newer than the database.
+
+Check whether the migrator has ever run:
+
+```bash
+docker exec harbormarks-db psql -U astro -d harbormarks -c "select name from schema_migrations order by name"
+```
+
+`relation "schema_migrations" does not exist` means it never has. Take a dump
+first (section 9), then run it by hand and restart:
+
+```bash
+docker exec harbormarks-app node ./scripts/migrate.mjs
+docker restart harbormarks-app
+```
+
+If the database was hand-patched before the migrator was introduced, its schema
+can be ahead of what `schema_migrations` records. Compare before running:
+
+```bash
+docker exec harbormarks-db psql -U astro -d harbormarks -c "\d bookmarks"
+```
+
+If `tags` is already `text[]` while `schema_migrations` is missing, record the
+first two migrations as applied so the runner does not try to recreate a text
+index on an array column:
+
+```bash
+docker exec harbormarks-db psql -U astro -d harbormarks -c "
+CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT NOW());
+INSERT INTO schema_migrations (name) VALUES ('0001_initial.sql'), ('0002_tags_array.sql') ON CONFLICT DO NOTHING;"
+```
+
+The permanent fix is to make sure the stack does not override the container
+startup command. See section 11.
 
 ### Rebuild after code or env changes
 
@@ -198,6 +248,16 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 - Added an upgrade note for the 0.9.4 table rewrite and the tags conversion.
 - Removed the stale `SESSION_SECRET` entry from the Compose environment block in
   section 3. The application has never read it; leave it out.
+- Added section 11 with a known-good Portainer stack definition. Portainer stacks
+  are edited in the browser and drift from this repository; a stack that loses the
+  container startup command skips migrations and takes the app down after any
+  release that adds a column.
+- Added a troubleshooting entry for "every page returns 500 after an upgrade",
+  which is what missing migrations look like from the outside.
+- Added database healthchecks and `condition: service_healthy` to both Compose
+  files, so the app no longer races Postgres on a cold start.
+- Strengthened the guidance on `HARBOR_CHECK_ORIGIN`: fix the proxy's forwarded
+  host rather than disabling the CSRF origin check.
 
 ### 2026-03-16
 
@@ -239,9 +299,15 @@ Edit `docker-compose.deploy.yml` and set these values under `services.app.enviro
 ```yaml
 HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
 HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
-HARBOR_BOOTSTRAP_ADMIN_PASSWORD: change_this_now
-HARBOR_ALLOW_SIGNUP: "true"
+HARBOR_BOOTSTRAP_ADMIN_PASSWORD: use_a_long_unique_password
+HARBOR_ALLOW_SIGNUP: "false"
+HARBOR_CHECK_ORIGIN: "true"
 ```
+
+The `app` service must also keep the `command:`, `healthcheck:`, and
+`depends_on: db: condition: service_healthy` entries from
+`docker-compose.deploy.yml`. If you are pasting a stack into Portainer rather than
+using the file, paste all of it — see section 11.
 
 In `docker-compose.deploy.yml`, set your image reference (default shown here is GHCR):
 
@@ -262,3 +328,81 @@ Rollback example:
 
 1. Change image tag in `docker-compose.deploy.yml` to previous version.
 2. Run `docker compose -f docker-compose.deploy.yml up -d`.
+
+## 11. Deploying As A Portainer Stack
+
+Portainer stacks are edited in the browser, so they drift from the files in this
+repository. Two things matter most, and both have caused outages:
+
+1. **The startup command must run the migrator.** The image's `CMD` is
+   `sh -c "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"`. A stack
+   that overrides `command:` or `entrypoint:`, or a container created from an
+   older image definition, silently skips migrations. The app then starts against
+   a schema that is older than the code and every authenticated page returns 500.
+   State the command explicitly in the stack so it cannot be lost.
+2. **The app must wait for the database.** `depends_on: - db` alone does not wait
+   for Postgres to accept connections, so on a cold start the migrator can fail
+   with connection-refused before the database is up.
+
+Paste this as the stack definition, replacing the bootstrap password and the
+published port:
+
+```yaml
+services:
+  db:
+    image: postgres:17
+    container_name: harbormarks-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: astro
+      POSTGRES_PASSWORD: astro
+      POSTGRES_DB: harbormarks
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astro -d harbormarks"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  app:
+    image: ghcr.io/aperezm85/harbormarks:latest
+    container_name: harbormarks-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://astro:astro@db:5432/harbormarks
+      # Used only for first-start bootstrap when the users table is empty.
+      HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
+      HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
+      HARBOR_BOOTSTRAP_ADMIN_PASSWORD: use_a_long_unique_password
+      HARBOR_ALLOW_SIGNUP: "false"
+      HARBOR_CHECK_ORIGIN: "true"
+      HOST: 0.0.0.0
+      PORT: 3000
+    command: ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/login >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "7878:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
+```
+
+Notes:
+
+- **Do not add `SESSION_SECRET`.** The application has never read it.
+- **Do not set `HARBOR_CHECK_ORIGIN: "false"`.** See section 3 for the proxy fix.
+- After updating the stack, use Portainer's **Update the stack** with
+  *Re-pull image* enabled, so the container is recreated rather than restarted.
+  A restarted container keeps its old definition, including a missing `command:`.
+- Confirm migrations ran by checking the app log for `Applied migration ...`
+  lines, or that `schema_migrations` is populated.

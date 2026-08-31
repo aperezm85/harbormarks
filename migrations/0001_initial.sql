@@ -103,5 +103,22 @@ CREATE INDEX IF NOT EXISTS idx_bookmarks_title_trgm
 CREATE INDEX IF NOT EXISTS idx_bookmarks_description_trgm
   ON bookmarks USING gin (description gin_trgm_ops);
 
-CREATE INDEX IF NOT EXISTS idx_bookmarks_tags_trgm
-  ON bookmarks USING gin (tags gin_trgm_ops);
+-- Only meaningful while tags is a scalar TEXT column; 0002 converts it to TEXT[]
+-- and drops this index. Guarded because gin_trgm_ops rejects text[], which would
+-- abort this migration on a database whose tags column was converted by hand
+-- before the migration runner was ever used.
+DO $tags_trgm$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'bookmarks'
+       AND column_name = 'tags'
+       AND data_type = 'text'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_tags_trgm
+      ON bookmarks USING gin (tags gin_trgm_ops);
+  END IF;
+END
+$tags_trgm$;
