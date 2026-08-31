@@ -11,29 +11,10 @@ type CachedAssetRecord = {
   contentType: string
 }
 
+import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
+
 function parseAndValidateUrl(value: string | null) {
-  if (!value) {
-    return null
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)
-  const normalizedValue = hasProtocol ? trimmed : `https://${trimmed}`
-
-  try {
-    const parsed = new URL(normalizedValue)
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null
-    }
-
-    return parsed.toString()
-  } catch {
-    return null
-  }
+  return normalizeBookmarkUrl(value)
 }
 
 function createCacheKey(url: string) {

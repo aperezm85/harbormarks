@@ -1,8 +1,10 @@
 import type { APIRoute } from "astro"
 
+import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 import {
   createBookmark,
   DEFAULT_BOOKMARK_PAGE_SIZE,
+  hasDuplicateBookmarkUrl,
   listBookmarks,
   type BookmarkView,
 } from "@/lib/bookmarks"
@@ -14,6 +16,10 @@ function parseBookmarkView(rawValue: string | null): BookmarkView {
 
   if (rawValue === "unorganized") {
     return "unorganized"
+  }
+
+  if (rawValue === "trash") {
+    return "trash"
   }
 
   return "recent"
@@ -34,28 +40,7 @@ function isJsonRequest(contentType: string | null) {
 }
 
 function parseAndValidateUrl(value: string | null) {
-  if (!value) {
-    return null
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)
-  const normalizedValue = hasProtocol ? trimmed : `https://${trimmed}`
-
-  try {
-    const parsed = new URL(normalizedValue)
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null
-    }
-
-    return parsed.toString()
-  } catch {
-    return null
-  }
+  return normalizeBookmarkUrl(value)
 }
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -175,6 +160,22 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     }
 
     return redirect("/?error=invalid_bookmark_url")
+  }
+
+  if (await hasDuplicateBookmarkUrl(locals.userId, url)) {
+    if (isJsonRequest(contentType)) {
+      return new Response(
+        JSON.stringify({ error: "A bookmark with this URL already exists" }),
+        {
+          status: 409,
+          headers: {
+            "content-type": "application/json",
+          },
+        }
+      )
+    }
+
+    return redirect("/?error=duplicate_bookmark_url")
   }
 
   const bookmark = await createBookmark(locals.userId, {

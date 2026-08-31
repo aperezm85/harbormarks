@@ -22,6 +22,7 @@ import {
   BookmarkIcon,
   HashIcon,
   HeartStraightIcon,
+  TrashIcon,
 } from "@phosphor-icons/react"
 
 type SidebarTagSummary = {
@@ -134,6 +135,11 @@ export function AppSidebar({
             title: "Favorites",
             url: "/favorites",
             icon: <HeartStraightIcon className="size-4" weight="fill" />,
+          },
+          {
+            title: "Trash",
+            url: "/trash",
+            icon: <TrashIcon className="size-4" weight="fill" />,
           },
         ],
       },

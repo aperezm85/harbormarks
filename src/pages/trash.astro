@@ -1,0 +1,28 @@
+---
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import Layout from "@/layouts/main.astro"
+import { DEFAULT_BOOKMARK_PAGE_SIZE, listBookmarks } from "@/lib/bookmarks"
+
+const userId = Astro.locals.userId
+const user = Astro.locals.user
+const rawBookmarks = userId
+  ? await listBookmarks(userId, {
+      view: "trash",
+      page: 1,
+      pageSize: DEFAULT_BOOKMARK_PAGE_SIZE + 1,
+    })
+  : []
+const bookmarks = rawBookmarks.slice(0, DEFAULT_BOOKMARK_PAGE_SIZE)
+const hasMore = rawBookmarks.length > DEFAULT_BOOKMARK_PAGE_SIZE
+---
+
+<Layout page="Trash | HarborMarks">
+  <DashboardLayout
+    client:load
+    transition:persist
+    bookmarks={bookmarks}
+    hasMore={hasMore}
+    currentUser={user}
+    view="trash"
+  />
+</Layout>

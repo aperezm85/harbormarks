@@ -10,6 +10,7 @@ import {
   type BookmarkView,
   DEFAULT_BOOKMARK_PAGE_SIZE,
 } from "@/lib/bookmark-types"
+import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 
 export { DEFAULT_BOOKMARK_PAGE_SIZE }
 export type { BookmarkCardData, BookmarkTagSummary, BookmarkView }
@@ -92,9 +93,56 @@ function toCardData(bookmark: typeof bookmarks.$inferSelect): BookmarkCardData {
     createdAt: bookmark.createdAt
       ? bookmark.createdAt.toISOString()
       : new Date().toISOString(),
+    updatedAt: bookmark.updatedAt ? bookmark.updatedAt.toISOString() : null,
+    lastVisitedAt: bookmark.lastVisitedAt
+      ? bookmark.lastVisitedAt.toISOString()
+      : null,
     isFavorite: bookmark.isFavorite,
     visitCount: bookmark.visitCount,
   }
+}
+
+async function findBookmarkByCanonicalUrl(
+  userId: number,
+  url: string,
+  excludedBookmarkId?: number
+) {
+  const normalizedUrl = normalizeBookmarkUrl(url)
+
+  if (!normalizedUrl) {
+    return null
+  }
+
+  const rows = await db
+    .select()
+    .from(bookmarks)
+    .where(eq(bookmarks.userId, userId))
+
+  return (
+    rows.find((bookmark) => {
+      if (excludedBookmarkId && bookmark.id === excludedBookmarkId) {
+        return false
+      }
+
+      if (bookmark.deletedAt) {
+        return false
+      }
+
+      return normalizeBookmarkUrl(bookmark.url) === normalizedUrl
+    }) ?? null
+  )
+}
+
+export async function hasDuplicateBookmarkUrl(
+  userId: number,
+  url: string,
+  excludedBookmarkId?: number
+) {
+  await ensureBookmarksTable()
+
+  return (
+    (await findBookmarkByCanonicalUrl(userId, url, excludedBookmarkId)) !== null
+  )
 }
 
 export async function listBookmarks(
@@ -116,22 +164,40 @@ export async function listBookmarks(
   const searchQuery = search
     ? sql`websearch_to_tsquery('simple', ${search})`
     : null
+  const viewSort =
+    options?.view === "mostVisited"
+      ? desc(
+          sql<number>`
+            ${bookmarks.visitCount} * exp(
+              -extract(epoch from (now() - coalesce(${bookmarks.lastVisitedAt}, ${bookmarks.createdAt}))) / 2592000.0
+            )
+          `
+        )
+      : options?.view === "trash"
+        ? desc(bookmarks.deletedAt)
+        : desc(sql`coalesce(${bookmarks.updatedAt}, ${bookmarks.createdAt})`)
+  const viewSecondarySort =
+    options?.view === "mostVisited"
+      ? desc(bookmarks.visitCount)
+      : options?.view === "trash"
+        ? desc(sql`coalesce(${bookmarks.updatedAt}, ${bookmarks.createdAt})`)
+        : desc(sql`coalesce(${bookmarks.updatedAt}, ${bookmarks.createdAt})`)
   const orderByClauses = searchQuery
     ? [
         desc(sql<number>`ts_rank(${BOOKMARK_SEARCH_VECTOR}, ${searchQuery})`),
-        options?.view === "mostVisited"
-          ? desc(bookmarks.visitCount)
-          : desc(bookmarks.createdAt),
+        viewSort,
+        viewSecondarySort,
         desc(bookmarks.createdAt),
       ]
-    : [
-        options?.view === "mostVisited"
-          ? desc(bookmarks.visitCount)
-          : desc(bookmarks.createdAt),
-        desc(bookmarks.createdAt),
-      ]
+    : [viewSort, viewSecondarySort, desc(bookmarks.createdAt)]
 
   filters.push(eq(bookmarks.userId, userId))
+
+  if (options?.view === "trash") {
+    filters.push(sql<boolean>`${bookmarks.deletedAt} is not null`)
+  } else {
+    filters.push(isNull(bookmarks.deletedAt))
+  }
 
   if (options?.onlyFavorites) {
     filters.push(eq(bookmarks.isFavorite, true))
@@ -190,6 +256,7 @@ export async function listBookmarkTags(userId: number, query?: string) {
     from bookmarks
     cross join lateral unnest(coalesce(bookmarks.tags, ARRAY[]::text[])) as tag
     where bookmarks.user_id = ${userId}
+      and bookmarks.deleted_at is null
     ${queryFilter}
     group by tag
     order by count desc, tag asc
@@ -234,11 +301,17 @@ export async function createBookmark(
 ) {
   await ensureBookmarksTable()
 
+  const normalizedUrl = normalizeBookmarkUrl(input.url)
+
+  if (!normalizedUrl) {
+    throw new Error("Invalid bookmark URL")
+  }
+
   const [created] = await db
     .insert(bookmarks)
     .values({
       userId,
-      url: input.url,
+      url: normalizedUrl,
       title: input.title?.trim() || null,
       description: input.description?.trim() || null,
       favicon: normalizeBookmarkAssetUrl(input.favicon?.trim() || null),
@@ -247,6 +320,7 @@ export async function createBookmark(
       ),
       tags: normalizeTags(input.tags),
       isFavorite: input.isFavorite ?? false,
+      updatedAt: new Date(),
     })
     .returning()
 
@@ -267,10 +341,16 @@ export async function updateBookmarkById(
 ) {
   await ensureBookmarksTable()
 
+  const normalizedUrl = normalizeBookmarkUrl(input.url)
+
+  if (!normalizedUrl) {
+    return null
+  }
+
   const [updated] = await db
     .update(bookmarks)
     .set({
-      url: input.url,
+      url: normalizedUrl,
       title: input.title?.trim() || null,
       description: input.description?.trim() || null,
       favicon: normalizeBookmarkAssetUrl(input.favicon?.trim() || null),
@@ -278,8 +358,15 @@ export async function updateBookmarkById(
         input.previewImage?.trim() || null
       ),
       tags: normalizeTags(input.tags),
+      updatedAt: new Date(),
     })
-    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.deletedAt)
+      )
+    )
     .returning()
 
   return updated ? toCardData(updated) : null
@@ -291,7 +378,13 @@ export async function toggleFavoriteById(userId: number, id: number) {
   const [existing] = await db
     .select({ isFavorite: bookmarks.isFavorite })
     .from(bookmarks)
-    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.deletedAt)
+      )
+    )
     .limit(1)
 
   if (!existing) {
@@ -300,8 +393,14 @@ export async function toggleFavoriteById(userId: number, id: number) {
 
   await db
     .update(bookmarks)
-    .set({ isFavorite: !existing.isFavorite })
-    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .set({ isFavorite: !existing.isFavorite, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.deletedAt)
+      )
+    )
 
   return true
 }
@@ -310,11 +409,36 @@ export async function deleteBookmarkById(userId: number, id: number) {
   await ensureBookmarksTable()
 
   const deleted = await db
-    .delete(bookmarks)
-    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .update(bookmarks)
+    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.deletedAt)
+      )
+    )
     .returning({ id: bookmarks.id })
 
   return deleted.length > 0
+}
+
+export async function restoreBookmarkById(userId: number, id: number) {
+  await ensureBookmarksTable()
+
+  const restored = await db
+    .update(bookmarks)
+    .set({ deletedAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        sql`${bookmarks.deletedAt} is not null`
+      )
+    )
+    .returning({ id: bookmarks.id })
+
+  return restored.length > 0
 }
 
 export async function incrementBookmarkVisitById(userId: number, id: number) {
@@ -324,8 +448,16 @@ export async function incrementBookmarkVisitById(userId: number, id: number) {
     .update(bookmarks)
     .set({
       visitCount: sql`${bookmarks.visitCount} + 1`,
+      lastVisitedAt: new Date(),
+      updatedAt: new Date(),
     })
-    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.deletedAt)
+      )
+    )
     .returning({ id: bookmarks.id })
 
   return updated.length > 0
@@ -336,8 +468,14 @@ export async function resetBookmarkVisitCountById(userId: number, id: number) {
 
   const updated = await db
     .update(bookmarks)
-    .set({ visitCount: 0 })
-    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .set({ visitCount: 0, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.deletedAt)
+      )
+    )
     .returning({ id: bookmarks.id })
 
   return updated.length > 0

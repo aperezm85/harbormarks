@@ -15,6 +15,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 import {
   ArrowsClockwiseIcon,
   BookmarkSimpleIcon,
@@ -259,11 +260,10 @@ export const CreateBookmarkDialog = ({
       return
     }
 
-    try {
-      new URL(trimmedUrl)
-    } catch {
-      setSubmitError("Enter a valid URL including protocol, like https://.")
-      setStatusMessage("Enter a valid URL including protocol, like https://.")
+    const normalizedUrl = normalizeBookmarkUrl(trimmedUrl)
+    if (!normalizedUrl) {
+      setSubmitError("Enter a valid http or https URL.")
+      setStatusMessage("Enter a valid http or https URL.")
       return
     }
 
@@ -297,7 +297,7 @@ export const CreateBookmarkDialog = ({
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          url: trimmedUrl,
+          url: normalizedUrl,
           title: title.trim(),
           description: description.trim(),
           favicon,

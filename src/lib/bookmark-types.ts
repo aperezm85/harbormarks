@@ -7,6 +7,8 @@ export type BookmarkCardData = {
   previewImage: string | null
   tags: string[]
   createdAt: string
+  updatedAt: string | null
+  lastVisitedAt: string | null
   isFavorite: boolean
   visitCount: number
 }
@@ -16,6 +18,6 @@ export type BookmarkTagSummary = {
   count: number
 }
 
-export type BookmarkView = "recent" | "mostVisited" | "unorganized"
+export type BookmarkView = "recent" | "mostVisited" | "unorganized" | "trash"
 
 export const DEFAULT_BOOKMARK_PAGE_SIZE = 50

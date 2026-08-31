@@ -98,12 +98,14 @@ export const DashboardLayout = ({
   bookmarks,
   tagFilter,
   onlyFavorites,
+  view,
   currentUser,
   hasMore: initialHasMore = false,
 }: {
   bookmarks: BookmarkCardData[]
   tagFilter?: string
   onlyFavorites?: boolean
+  view?: "recent" | "mostVisited" | "unorganized" | "trash"
   hasMore?: boolean
   currentUser?: {
     id: number
@@ -115,11 +117,12 @@ export const DashboardLayout = ({
 }) => {
   const [routeTagFilter, setRouteTagFilter] = useState(tagFilter)
   const [routeOnlyFavorites, setRouteOnlyFavorites] = useState(onlyFavorites)
+  const [routeTrashOnly, setRouteTrashOnly] = useState(view === "trash")
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [visibleBookmarks, setVisibleBookmarks] =
     useState<BookmarkCardData[]>(bookmarks)
-  const [activeView, setActiveView] = useState<BookmarkView>("recent")
+  const [activeView, setActiveView] = useState<BookmarkView>(view ?? "recent")
   const [isRefreshingBookmarks, setIsRefreshingBookmarks] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(initialHasMore)
@@ -136,6 +139,7 @@ export const DashboardLayout = ({
         const nextTag = searchParams.get("tag")?.trim() ?? ""
         setRouteTagFilter(nextTag || undefined)
         setRouteOnlyFavorites(false)
+        setRouteTrashOnly(false)
         setPage(1)
         return
       }
@@ -143,12 +147,22 @@ export const DashboardLayout = ({
       if (pathname === "/favorites") {
         setRouteTagFilter(undefined)
         setRouteOnlyFavorites(true)
+        setRouteTrashOnly(false)
+        setPage(1)
+        return
+      }
+
+      if (pathname === "/trash") {
+        setRouteTagFilter(undefined)
+        setRouteOnlyFavorites(false)
+        setRouteTrashOnly(true)
         setPage(1)
         return
       }
 
       setRouteTagFilter(undefined)
       setRouteOnlyFavorites(false)
+      setRouteTrashOnly(false)
       setPage(1)
     }
 
@@ -230,6 +244,12 @@ export const DashboardLayout = ({
     window.dispatchEvent(new CustomEvent("harbormarks:tags-changed"))
   }
 
+  const removeTrashBookmark = (bookmarkToRemove: BookmarkCardData) => {
+    setVisibleBookmarks((current) =>
+      current.filter((bookmark) => bookmark.id !== bookmarkToRemove.id)
+    )
+  }
+
   const restoreBookmark = (bookmarkToRestore: BookmarkCardData) => {
     setVisibleBookmarks((current) => {
       if (current.some((bookmark) => bookmark.id === bookmarkToRestore.id)) {
@@ -261,7 +281,9 @@ export const DashboardLayout = ({
     requestIdRef.current = requestId
     const query = new URLSearchParams()
 
-    if (debouncedSearch) {
+    if (routeTrashOnly) {
+      query.set("view", "trash")
+    } else if (debouncedSearch) {
       query.set("q", debouncedSearch)
     } else if (!routeTagFilter && !routeOnlyFavorites) {
       query.set("view", activeView)
@@ -323,7 +345,14 @@ export const DashboardLayout = ({
     return () => {
       abortController.abort()
     }
-  }, [activeView, debouncedSearch, page, routeTagFilter, routeOnlyFavorites])
+  }, [
+    activeView,
+    debouncedSearch,
+    page,
+    routeTagFilter,
+    routeOnlyFavorites,
+    routeTrashOnly,
+  ])
 
   const hasActiveSearch = debouncedSearch.length > 0
 
@@ -371,6 +400,15 @@ export const DashboardLayout = ({
                     </h2>
                     <h3 className="col-span-full text-sm font-medium text-muted-foreground">
                       {visibleBookmarks.length} links with this tag
+                    </h3>
+                  </>
+                ) : routeTrashOnly ? (
+                  <>
+                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
+                      Trash
+                    </h2>
+                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+                      {visibleBookmarks.length} deleted bookmarks
                     </h3>
                   </>
                 ) : (
@@ -449,6 +487,8 @@ export const DashboardLayout = ({
                     }
                     onDeleted={removeBookmark}
                     onDeleteRollback={restoreBookmark}
+                    onRestored={removeTrashBookmark}
+                    isTrashItem={routeTrashOnly}
                   />
                 ))}
                 {hasMore ? (

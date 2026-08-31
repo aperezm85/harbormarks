@@ -67,4 +67,7 @@ export const bookmarks = pgTable("bookmarks", {
   visitCount: integer("visit_count").notNull().default(0),
   tags: text("tags").array(),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  lastVisitedAt: timestamp("last_visited_at"),
+  deletedAt: timestamp("deleted_at"),
 })

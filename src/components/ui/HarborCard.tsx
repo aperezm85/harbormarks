@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  ArrowCounterClockwiseIcon,
   ArrowsCounterClockwiseIcon,
   HeartStraightIcon,
   PencilSimpleIcon,
@@ -84,6 +85,8 @@ export const HarborCard = ({
   previewImage,
   tags,
   createdAt,
+  updatedAt,
+  lastVisitedAt,
   isFavorite,
   visitCount,
   onSaved,
@@ -94,6 +97,8 @@ export const HarborCard = ({
   onFavoriteToggle,
   onDeleted,
   onDeleteRollback,
+  onRestored,
+  isTrashItem,
 }: {
   id: string
   url: string
@@ -103,6 +108,8 @@ export const HarborCard = ({
   previewImage: string | null
   tags: string[]
   createdAt: string
+  updatedAt: string | null
+  lastVisitedAt: string | null
   isFavorite: boolean
   visitCount: number
   onSaved?: (bookmark: BookmarkCardData) => void
@@ -113,6 +120,8 @@ export const HarborCard = ({
   onFavoriteToggle?: (nextIsFavorite: boolean) => void
   onDeleted?: (bookmark: BookmarkCardData) => void
   onDeleteRollback?: (bookmark: BookmarkCardData) => void
+  onRestored?: (bookmark: BookmarkCardData) => void
+  isTrashItem?: boolean
 }) => {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   const [isResettingVisit, setIsResettingVisit] = useState(false)
@@ -171,6 +180,8 @@ export const HarborCard = ({
     previewImage,
     tags,
     createdAt,
+    updatedAt,
+    lastVisitedAt,
     isFavorite,
     visitCount,
   }
@@ -264,10 +275,64 @@ export const HarborCard = ({
         if (!response.ok) {
           throw new Error("Unable to delete bookmark")
         }
+
+        toast.success("Bookmark moved to Trash.", {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void fetch(`/api/bookmarks/${id}/restore`, {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                },
+              })
+                .then((restoreResponse) => {
+                  if (!restoreResponse.ok) {
+                    throw new Error("Unable to restore bookmark")
+                  }
+
+                  onDeleteRollback?.(bookmarkData)
+                  toast.success("Bookmark restored.")
+                })
+                .catch(() => {
+                  toast.error("Unable to restore bookmark.")
+                })
+            },
+          },
+        })
       })
       .catch(() => {
         onDeleteRollback?.(bookmarkData)
-        toast.error("Unable to delete bookmark. Card was restored.")
+        toast.error("Unable to move bookmark to Trash. Card was restored.")
+      })
+      .finally(() => {
+        setIsDeleting(false)
+      })
+  }
+
+  const restoreBookmark = () => {
+    if (isDeleting) {
+      return
+    }
+
+    setIsDeleting(true)
+
+    void fetch(`/api/bookmarks/${id}/restore`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Unable to restore bookmark")
+        }
+
+        onRestored?.(bookmarkData)
+        toast.success("Bookmark restored from Trash.")
+      })
+      .catch(() => {
+        toast.error("Unable to restore bookmark.")
       })
       .finally(() => {
         setIsDeleting(false)
@@ -405,6 +470,7 @@ export const HarborCard = ({
               type="button"
               aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
               disabled={isTogglingFavorite || isDeleting}
+              hidden={isTrashItem}
               onClick={(event) => {
                 event.stopPropagation()
                 toggleFavorite()
@@ -449,6 +515,7 @@ export const HarborCard = ({
                   aria-label="Edit bookmark"
                   title="Edit bookmark"
                   disabled={isDeleting}
+                  hidden={isTrashItem}
                   onClick={(event) => {
                     event.stopPropagation()
                   }}
@@ -458,64 +525,87 @@ export const HarborCard = ({
               }
             />
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  type="button"
-                  aria-label="Delete bookmark"
-                  title="Delete bookmark"
-                  disabled={isDeleting}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                  }}
-                >
-                  <TrashIcon weight="fill" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
+            {isTrashItem ? (
+              <Button
+                variant="outline"
+                size="icon"
+                type="button"
+                aria-label="Restore bookmark"
+                title="Restore bookmark"
+                disabled={isDeleting}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  restoreBookmark()
+                }}
               >
-                <AlertDialogHeader>
-                  <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
-                    <TrashIcon weight="fill" />
-                  </AlertDialogMedia>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete
-                    your bookmark from our servers.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel
-                    variant="outline"
-                    disabled={isDeleting}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    Cancel
-                  </AlertDialogCancel>
-                  <AlertDialogAction
+                {isDeleting ? (
+                  <SpinnerIcon className="size-4 animate-spin" />
+                ) : (
+                  <ArrowCounterClockwiseIcon />
+                )}
+              </Button>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
                     variant="destructive"
+                    size="icon"
+                    type="button"
+                    aria-label="Delete bookmark"
+                    title="Delete bookmark"
                     disabled={isDeleting}
                     onClick={(event) => {
                       event.stopPropagation()
-                      deleteBookmark()
                     }}
                   >
-                    {isDeleting ? (
-                      <>
-                        <SpinnerIcon className="size-4 animate-spin" />
-                        Deleting...
-                      </>
-                    ) : (
-                      "Delete"
-                    )}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <TrashIcon weight="fill" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <AlertDialogHeader>
+                    <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                      <TrashIcon weight="fill" />
+                    </AlertDialogMedia>
+                    <AlertDialogTitle>
+                      Are you absolutely sure?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will move your bookmark to Trash. You can undo it
+                      from the toast after deletion.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel
+                      variant="outline"
+                      disabled={isDeleting}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      disabled={isDeleting}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        deleteBookmark()
+                      }}
+                    >
+                      {isDeleting ? (
+                        <>
+                          <SpinnerIcon className="size-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </div>
         <CardTitle className="min-w-0 wrap-break-word">{title}</CardTitle>
@@ -529,26 +619,28 @@ export const HarborCard = ({
               Opened <strong>{visitCount}</strong>{" "}
               {visitCount === 1 ? "time" : "times"}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              aria-label="Reset visit count"
-              disabled={isResettingVisit || isDeleting}
-              onClick={(event) => {
-                event.stopPropagation()
-                resetVisitCount()
-              }}
-            >
-              {isResettingVisit ? (
-                <SpinnerIcon className="size-4 animate-spin" />
-              ) : (
-                <ArrowsCounterClockwiseIcon className="size-4" />
-              )}
-              {isResettingVisit ? "Resetting..." : "Reset"}
-            </Button>
+            {!isTrashItem && (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                aria-label="Reset visit count"
+                disabled={isResettingVisit || isDeleting}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  resetVisitCount()
+                }}
+              >
+                {isResettingVisit ? (
+                  <SpinnerIcon className="size-4 animate-spin" />
+                ) : (
+                  <ArrowsCounterClockwiseIcon className="size-4" />
+                )}
+                {isResettingVisit ? "Resetting..." : "Reset"}
+              </Button>
+            )}
           </div>
-          {isSummarizerSupported && (
+          {!isTrashItem && isSummarizerSupported && (
             <div className="mt-3">
               <Button
                 variant="outline"

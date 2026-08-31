@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { normalizeBookmarkAssetUrl } from "@/lib/bookmark-assets"
+import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 import { fetchTextSafely } from "@/lib/safe-fetch"
 
 type BookmarkMetadata = {
@@ -58,28 +59,9 @@ function isBotChallengePage(html: string) {
 }
 
 function parseAndValidateUrl(value: string | null) {
-  if (!value) {
-    return null
-  }
+  const normalized = normalizeBookmarkUrl(value)
 
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)
-  const normalizedValue = hasProtocol ? trimmed : `https://${trimmed}`
-
-  try {
-    const parsed = new URL(normalizedValue)
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null
-    }
-
-    return parsed
-  } catch {
-    return null
-  }
+  return normalized ? new URL(normalized) : null
 }
 
 function decodeHtmlEntities(value: string) {
@@ -102,7 +84,7 @@ function stripHtmlTags(value: string) {
 function extractXmlTagValue(xml: string, tagName: string) {
   const match = xml.match(
     new RegExp(
-      `<${tagName}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tagName}>`,
+      `<${tagName}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\/${tagName}>`,
       "i"
     )
   )
