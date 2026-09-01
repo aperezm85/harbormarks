@@ -99,7 +99,7 @@ function readAscii(body: Buffer, start: number, end: number) {
 // Some origins serve images with an empty or generic content-type (a real example:
 // freedium-mirror.cfd returns `content-type:` with no value for its favicon), so
 // fall back to the file signature rather than rejecting the asset.
-function sniffImageContentType(body: Buffer) {
+export function sniffImageContentType(body: Buffer) {
   if (startsWithBytes(body, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
     return "image/png"
   }
@@ -150,10 +150,10 @@ function sniffImageContentType(body: Buffer) {
   return null
 }
 
-function resolveImageContentType(contentType: string, body: Buffer) {
+export function resolveImageContentType(contentType: string, body: Buffer) {
   if (contentType.trim().toLowerCase().startsWith("image/")) {
     return contentType
-  }
+     }
 
   return sniffImageContentType(body)
 }

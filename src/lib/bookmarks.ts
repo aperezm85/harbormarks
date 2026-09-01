@@ -4,6 +4,7 @@ import { db } from "@/db/client"
 import { bookmarks } from "@/db/schema"
 import { ensureAuthSchema } from "@/lib/auth"
 import { normalizeBookmarkAssetUrl } from "@/lib/bookmark-assets"
+import { normalizeTags, parseTags } from "@/lib/bookmark-tags"
 import {
   type BookmarkCardData,
   type BookmarkTagSummary,
@@ -46,30 +47,6 @@ async function ensureBookmarksTable() {
   })()
 
   await schemaReadyPromise
-}
-
-function parseTags(rawTags: string[] | string | null): string[] {
-  if (!rawTags) {
-    return []
-  }
-
-  if (Array.isArray(rawTags)) {
-    return rawTags.map((tag) => tag.trim()).filter((tag) => tag.length > 0)
-  }
-
-  try {
-    const parsed = JSON.parse(rawTags)
-    if (Array.isArray(parsed)) {
-      return parsed.filter((tag): tag is string => typeof tag === "string")
-    }
-  } catch {
-    // Fall through to comma-separated parsing.
-  }
-
-  return rawTags
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean)
 }
 
 function toCardData(bookmark: typeof bookmarks.$inferSelect): BookmarkCardData {
@@ -259,25 +236,6 @@ export async function listBookmarkTags(userId: number, query?: string) {
     tag: row.tag,
     count: Number(row.count),
   }))
-}
-
-function normalizeTags(tags?: string[] | string | null) {
-  if (!tags) {
-    return null
-  }
-
-  if (Array.isArray(tags)) {
-    const normalized = tags.map((tag) => tag.trim()).filter(Boolean)
-
-    return normalized.length > 0 ? normalized : null
-  }
-
-  const normalized = tags
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-
-  return normalized.length > 0 ? normalized : null
 }
 
 export async function createBookmark(
