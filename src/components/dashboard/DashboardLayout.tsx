@@ -127,8 +127,27 @@ export const DashboardLayout = ({
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [page, setPage] = useState(1)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const requestIdRef = useRef(0)
   const skipInitialRefreshRef = useRef(true)
+
+   // A successful import posts this event; reset to page 1 and re-fetch so the
+   // newly imported bookmarks appear without a full page reload.
+  useEffect(() => {
+    function handleBookmarksChanged() {
+      setPage(1)
+      setRefreshTrigger((current) => current + 1)
+     }
+
+    window.addEventListener("harbormarks:bookmarks-changed", handleBookmarksChanged)
+
+    return () => {
+      window.removeEventListener(
+        "harbormarks:bookmarks-changed",
+        handleBookmarksChanged
+        )
+      }
+    }, [])
 
   useEffect(() => {
     function syncRouteFilters() {
@@ -345,14 +364,15 @@ export const DashboardLayout = ({
     return () => {
       abortController.abort()
     }
-  }, [
-    activeView,
-    debouncedSearch,
-    page,
-    routeTagFilter,
-    routeOnlyFavorites,
-    routeTrashOnly,
-  ])
+    }, [
+      activeView,
+      debouncedSearch,
+      page,
+      routeTagFilter,
+      routeOnlyFavorites,
+      routeTrashOnly,
+      refreshTrigger,
+     ])
 
   const hasActiveSearch = debouncedSearch.length > 0
 

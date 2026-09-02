@@ -44,24 +44,43 @@ const EXPORT_FORMAT_OPTIONS: Array<{
 ]
 
 export const ExportBookmarksDialog = ({
-trigger,
+   trigger,
+   open,
+   onOpenChange,
 }: {
-    trigger?: ReactNode
+   trigger?: ReactNode
+   open?: boolean
+   onOpenChange?: (open: boolean) => void
 }) => {
-   const [format, setFormat] = useState<ExportFormat>("json")
+   const [internalOpen, setInternalOpen] = useState(false)
+    // When embedded in a menu, the parent controls open/close; otherwise the
+    // dialog owns its own state via the trigger.
+   const isControlled = open !== undefined
+   const isOpen = isControlled ? open : internalOpen
+    const [format, setFormat] = useState<ExportFormat>("json")
 
-   const downloadHref = `/api/bookmarks/export?format=${format}`
+    const downloadHref = `/api/bookmarks/export?format=${format}`
 
-   return (
-       <Dialog>
-         <DialogTrigger asChild>
-           {trigger ?? (
-             <Button variant="ghost" className="h-auto w-full justify-start">
-               <DownloadSimpleIcon className="size-4" />
-               <span className="ml-2">Export bookmarks</span>
-             </Button>
-           )}
-         </DialogTrigger>
+    function handleOpenChange(nextOpen: boolean) {
+     if (!isControlled) {
+       setInternalOpen(nextOpen)
+        }
+
+     onOpenChange?.(nextOpen)
+        }
+
+    return (
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+         {isControlled ? null : (
+             <DialogTrigger asChild>
+               {trigger ?? (
+                     <Button variant="ghost" className="h-auto w-full justify-start">
+                       <DownloadSimpleIcon className="size-4" />
+                       <span className="ml-2">Export bookmarks</span>
+                     </Button>
+                   )}
+               </DialogTrigger>
+             )}
          <DialogContent>
            <DialogHeader>
              <DialogTitle>Export bookmarks</DialogTitle>

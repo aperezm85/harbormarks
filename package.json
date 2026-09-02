@@ -1,7 +1,7 @@
 {
   "name": "harbormarks",
   "type": "module",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "private": true,
   "packageManager": "pnpm@11.23.0",
   "scripts": {
@@ -10,10 +10,10 @@
     "preview": "astro preview --host 0.0.0.0 --port 3000",
     "astro": "astro",
     "db:migrate": "node ./scripts/migrate.mjs",
-      "lint": "eslint .",
-      "format": "prettier --write \"**/*.{ts,tsx,astro}\"",
-      "typecheck": "astro check",
-      "test": "vitest run"
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,astro}\"",
+    "typecheck": "astro check",
+    "test": "vitest run"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "next-themes": "^0.4.6",
+    "node-html-parser": "^9.0.2",
     "pg": "^8.23.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
