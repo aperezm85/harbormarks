@@ -1,4 +1,5 @@
 import { ExportBookmarksDialog } from "@/components/dialog/ExportBookmarksDialog"
+import { ImportBookmarksDialog } from "@/components/dialog/ImportBookmarksDialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useSidebar } from "@/components/ui/sidebar-context"
 import {
+  ArrowSquareInIcon,
   CaretUpDownIcon,
   DownloadSimpleIcon,
   SealCheckIcon,
@@ -36,6 +38,8 @@ export type SidebarUser = {
 export const NavUser = ({ user }: { user: SidebarUser }) => {
   const { isMobile } = useSidebar()
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const handleSignOut = async () => {
     if (isSigningOut) {
@@ -62,10 +66,11 @@ export const NavUser = ({ user }: { user: SidebarUser }) => {
     }
   }
 
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
+   return (
+     <>
+       <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
@@ -140,22 +145,29 @@ export const NavUser = ({ user }: { user: SidebarUser }) => {
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <ExportBookmarksDialog
-                  trigger={
+             <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem>
+                      <button
+                        type="button"
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => setImportOpen(true)}
+                       >
+                        <ArrowSquareInIcon className="size-4" />
+                        Import bookmarks
+                      </button>
+                    </DropdownMenuItem>
+                  <DropdownMenuItem>
                     <button
                       type="button"
                       className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-                    >
-                      <DownloadSimpleIcon className="size-4" />
-                      Export bookmarks
-                    </button>
-                  }
-                />
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
+                      onClick={() => setExportOpen(true)}
+                       >
+                        <DownloadSimpleIcon className="size-4" />
+                        Export bookmarks
+                      </button>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={isSigningOut}>
               <button
@@ -180,9 +192,12 @@ export const NavUser = ({ user }: { user: SidebarUser }) => {
                 )}
               </button>
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  )
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+         </SidebarMenu>
+          <ImportBookmarksDialog open={importOpen} onOpenChange={setImportOpen} />
+          <ExportBookmarksDialog open={exportOpen} onOpenChange={setExportOpen} />
+         </>
+     )
 }

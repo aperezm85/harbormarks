@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { normalizeBookmarkUrl } from "./bookmark-url"
 import { runMigrations } from "../../test/support"
+import type { ParsedImportRow } from "./bookmark-import"
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL
 
@@ -320,3 +321,173 @@ describe.skipIf(!TEST_DATABASE_URL)("ownership isolation", () => {
     neverCrossOwner(byTag)
      })
 })
+
+describe.skipIf(!TEST_DATABASE_URL)("import behaviors", () => {
+  let raw: Client
+  let bm: typeof import("./bookmarks")
+  let ownerA = 0
+  let ownerB = 0
+
+  const controlUrl = TEST_DATABASE_URL!
+
+  function importRow(
+     partial: Partial<ParsedImportRow>
+    ): ParsedImportRow {
+    return {
+      url: partial.url ?? "https://example.com/new",
+      title: partial.title ?? null,
+      description: partial.description ?? null,
+      favicon: partial.favicon ?? null,
+      previewImage: partial.previewImage ?? null,
+      tags: partial.tags ?? [],
+      isFavorite: partial.isFavorite ?? false,
+      createdAt: partial.createdAt ?? null,
+      }
+    }
+
+  const BULK = Array.from({ length: 5000 }, (_, i) =>
+     importRow({ url: `https://bulk.example.com/${i}` })
+      )
+
+  beforeAll(async () => {
+    await runMigrations(controlUrl)
+
+    raw = new Client({ connectionString: controlUrl })
+    await raw.connect()
+
+    bm = await import("./bookmarks")
+       })
+
+  beforeEach(async () => {
+    await raw.query(
+        "TRUNCATE TABLE " +
+           "bookmarks, sessions, email_verification_tokens, password_reset_tokens, " +
+           "users RESTART IDENTITY CASCADE"
+            )
+
+    const a = await raw.query(
+        `INSERT INTO users (email, password_hash) VALUES ('imp-a@example.com', 'x') RETURNING id`
+          )
+    const b = await raw.query(
+        `INSERT INTO users (email, password_hash) VALUES ('imp-b@example.com', 'x') RETURNING id`
+          )
+
+    ownerA = Number(a.rows[0].id)
+    ownerB = Number(b.rows[0].id)
+         })
+
+  afterAll(async () => {
+    await raw.end()
+        })
+
+  const countFor = async (userId: number) => {
+      const { rows } = await raw.query(
+          "SELECT count(*)::int AS n FROM bookmarks WHERE user_id = $1 AND deleted_at IS NULL",
+          [userId]
+          )
+      return Number(rows[0].n)
+         }
+
+  it("imports a fresh collection and preserves createdAt", async () => {
+     const result = await bm.importBookmarks(ownerA, [
+       importRow({
+          url: "https://history.example.com/a",
+          title: "History",
+          tags: ["old"],
+          createdAt: "2020-01-02T00:00:00.000Z",
+          })
+        ])
+
+     expect(result.imported).toBe(1)
+     expect(result.skippedDuplicates).toBe(0)
+     expect(await countFor(ownerA)).toBe(1)
+
+     const { rows } = await raw.query(
+        "SELECT created_at FROM bookmarks WHERE user_id = $1",
+        [ownerA]
+         )
+     expect(rows[0].created_at.toISOString()).toBe("2020-01-02T00:00:00.000Z")
+       })
+
+  it("skips a duplicate URL on a second import with skip", async () => {
+     await bm.importBookmarks(ownerA, [
+       importRow({ url: "https://dup.example.com/a" })
+         ])
+
+     const second = await bm.importBookmarks(ownerA, [
+       importRow({ url: "https://dup.example.com/a" })
+         ])
+
+     expect(second.imported).toBe(0)
+     expect(second.skippedDuplicates).toBe(1)
+     expect(await countFor(ownerA)).toBe(1)
+       })
+
+  it("merge-tags adds only the new tags and changes nothing else", async () => {
+     await raw.query(
+         `INSERT INTO bookmarks (user_id, url, title, tags)
+          VALUES ($1, 'https://merge.example.com/a', 'Merged', ARRAY['Rust']::text[])`,
+         [ownerA]
+          )
+
+     const result = await bm.importBookmarks(
+        ownerA,
+         [importRow({ url: "https://merge.example.com/a", tags: ["rust", "go"] })],
+         { duplicates: "merge-tags" }
+          )
+
+     expect(result.mergedTags).toBe(1)
+
+     const { rows } = await raw.query(
+        "SELECT tags, title FROM bookmarks WHERE user_id = $1",
+        [ownerA]
+         )
+     // "rust" is a case-insensitive duplicate of the existing "Rust"; only "go"
+     // is added and the original casing is preserved. The title is untouched.
+     expect(rows[0].tags.sort()).toEqual(["Rust", "go"])
+     expect(rows[0].title).toBe("Merged")
+       })
+
+  it("reports a malformed row in failed and continues the import", async () => {
+     const result = await bm.importBookmarks(ownerA, [
+       importRow({ url: "not a url" }),
+       importRow({ url: "https://ok.example.com/1" }),
+       importRow({ url: "https://ok.example.com/2" })
+          ])
+
+     expect(result.imported).toBe(2)
+     expect(result.failed).toHaveLength(1)
+     expect(result.failed[0].reason).toBe("Invalid URL")
+     expect(await countFor(ownerA)).toBe(2)
+       })
+
+  it("never writes to another user's bookmarks", async () => {
+     await raw.query(
+         `INSERT INTO bookmarks (user_id, url, title, tags)
+          VALUES ($1, 'https://shared.example.com/x', 'B', ARRAY['mine']::text[])`,
+         [ownerB]
+          )
+
+     await bm.importBookmarks(
+        ownerA,
+         [importRow({ url: "https://shared.example.com/x", tags: ["theirs"] })],
+         { duplicates: "merge-tags" }
+          )
+
+     // ownerB's row is untouched by ownerA's import.
+     const { rows } = await raw.query(
+        "SELECT tags FROM bookmarks WHERE user_id = $1 AND url = $2",
+        [ownerB, "https://shared.example.com/x"]
+         )
+     expect(rows[0].tags).toEqual(["mine"])
+     expect(await countFor(ownerB)).toBe(1)
+     // ownerA got its own row carrying only its own tags.
+     expect(await countFor(ownerA)).toBe(1)
+       })
+
+  it("imports 5,000 bookmarks without exhausting memory", async () => {
+     const result = await bm.importBookmarks(ownerA, BULK)
+     expect(result.imported).toBe(5000)
+     expect(await countFor(ownerA)).toBe(5000)
+       })
+ })

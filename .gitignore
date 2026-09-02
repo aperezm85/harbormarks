@@ -37,3 +37,5 @@ design-qwen.html
 IMPLEMENTATION.md
 Modelfile.txt
 .harbormarks-cache/
+# Local skill registry cache (atl tooling)
+.atl/

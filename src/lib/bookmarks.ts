@@ -16,6 +16,11 @@ import {
   decodeAssetUrl,
 } from "@/lib/bookmark-export"
 import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
+import {
+  type ParsedImportRow,
+  type DuplicateStrategy,
+  type ImportFailure,
+} from "@/lib/bookmark-import"
 
 export { DEFAULT_BOOKMARK_PAGE_SIZE }
 export type { BookmarkCardData, BookmarkTagSummary, BookmarkView }
@@ -455,66 +460,275 @@ export async function resetBookmarkVisitCountById(userId: number, id: number) {
   return updated.length > 0
  }
 
- // Streams an export without ever loading the whole collection: it pages through
- // the user's rows in bounded batches and yields each one ready to serialize.
- // Trash is excluded by default; pass includeTrashed to also emit soft-deleted
- // rows. The row is mapped to the lossless export shape here so the route stays
- // thin and the database client never touches the asset-URL decoding.
- export async function* streamBookmarksForExport(
+// Reads an incoming asset value for import. A foreign file never carries the
+// proxy form, so this just normalizes to the local proxy, matching createBookmark.
+function incomingAsset(value: string | null): string | null {
+  return normalizeBookmarkAssetUrl(value?.trim() || null)
+}
+
+// Case-insensitive tag union that preserves the casing of an already-present tag,
+// so "rust" + "Rust" collapses to a single "Rust" rather than two copies.
+function unionTags(existingTags: string[], incomingTags: string[]): string[] {
+  const merged: string[] = []
+  const seen = new Set<string>()
+
+  for (const tag of [...existingTags, ...incomingTags]) {
+    const trimmed = tag.trim()
+
+    if (!trimmed) {
+      continue
+     }
+
+    const lower = trimmed.toLowerCase()
+
+    if (!seen.has(lower)) {
+      seen.add(lower)
+      merged.push(trimmed)
+     }
+   }
+
+  return merged
+}
+
+// Are two tag sets different, case-insensitively? A merge counts only when it
+// actually adds a tag, so re-importing the same tags is a no-op, not a merge.
+function tagSetsDiffer(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return true
+    }
+
+   const seen = new Set(a.map((tag) => tag.trim().toLowerCase()))
+
+  for (const tag of b) {
+    if (!seen.has(tag.trim().toLowerCase())) {
+      return true
+      }
+      }
+
+  return false
+}
+
+export type ImportResult = {
+  imported: number
+  skippedDuplicates: number
+  mergedTags: number
+  failed: ImportFailure[]
+}
+
+// Imports a parsed collection in one transaction. Duplicate detection is a
+// single up-front scan (not a query per row), so a 5,000-row file does not
+// issue 5,000 lookups. A malformed row fails that row, not the import, and no
+// metadata is fetched. The `duplicates` strategy decides what a canonical
+// collision does: skip leaves the existing row, merge-tags unions only the new
+// tags, and create-anyway inserts a true duplicate. The source's createdAt is
+// preserved so an imported collection keeps its history.
+export async function importBookmarks(
    userId: number,
-   options?: { includeTrashed?: boolean }
- ): AsyncIterable<BookmarkExportRow> {
+   rows: ParsedImportRow[],
+   options?: { duplicates?: DuplicateStrategy }
+ ): Promise<ImportResult> {
    await ensureBookmarksTable()
 
-   const filters = [eq(bookmarks.userId, userId)]
+   const strategy = options?.duplicates ?? "skip"
+  const failed: ImportFailure[] = []
+  let imported = 0
+  let skippedDuplicates = 0
+  let mergedTags = 0
 
-   if (!options?.includeTrashed) {
-     filters.push(isNull(bookmarks.deletedAt))
-     }
+    // Load the user's active rows once so canonicalization and dedupe stay in
+    // memory for the whole file. Comparison is on the canonical URL, so a row
+    // already stored under a non-canonical form is still recognized as a
+    // duplicate.
+  const activeRows = await db
+        .select({
+         id: bookmarks.id,
+         url: bookmarks.url,
+         tags: bookmarks.tags,
+          })
+        .from(bookmarks)
+        .where(and(eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt)))
 
-   const whereClause = filters.length === 1 ? filters[0] : and(...filters)
-   const pageSize = 200
+  const existingByCanonical = new Map<
+    string,
+    { id: number; tags: string[] }
+    >()
 
-   let offset = 0
+  for (const row of activeRows) {
+    const canonical = normalizeBookmarkUrl(row.url)
 
-   for (;;) {
-     const rows = await db
-       .select()
-       .from(bookmarks)
-       .where(whereClause)
-       .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
-       .limit(pageSize)
-       .offset(offset)
+    if (canonical) {
+      existingByCanonical.set(canonical, {
+        id: row.id,
+        tags: row.tags ?? [],
+         })
+         }
+      }
 
-     if (rows.length === 0) {
-       break
-        }
+       // A url the file repeats, so it is not inserted twice under skip/merge.
+  const handledInFile = new Set<string>()
+      // Per existing bookmark id, the tag union accumulated from every colliding
+      // row, applied once at the end. `base` keeps the original tags so a merge
+      // that adds nothing is not counted.
+  const pendingMerges = new Map<number, { base: string[]; merged: string[] }>()
+       // Rows that survive dedupe, classified up front so writes are one pass.
+  const inserts: Array<{ row: ParsedImportRow; canonical: string }> = []
 
-       for (const row of rows) {
-         yield {
-           url: row.url,
-           title: row.title,
-           description: row.description,
-            favicon: decodeAssetUrl(row.favicon),
-            previewImage: decodeAssetUrl(row.previewImage),
-           tags: parseTags(row.tags),
-           isFavorite: row.isFavorite,
-           visitCount: row.visitCount,
-           createdAt:
-             row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
-           updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
-           lastVisitedAt:
-             row.lastVisitedAt
-                ? row.lastVisitedAt.toISOString()
-                : null,
-           deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+  return await db.transaction(async (tx) => {
+     for (const [index, row] of rows.entries()) {
+      const canonical = normalizeBookmarkUrl(row.url)
+
+      if (!canonical) {
+        failed.push({ line: index + 1, url: row.url, reason: "Invalid URL" })
+        continue
+             }
+
+      const existing = existingByCanonical.get(canonical)
+      const handled = handledInFile.has(canonical)
+
+      if (strategy === "merge-tags" && existing) {
+             // Every colliding row unions its tags into the existing bookmark; the
+             // write happens once, so repeated rows all contribute.
+          const entry =
+            pendingMerges.get(existing.id) ?? {
+              base: existing.tags,
+             merged: existing.tags,
             }
-        }
 
-     if (rows.length < pageSize) {
-       break
-        }
+          pendingMerges.set(existing.id, {
+            base: entry.base,
+             merged: unionTags(entry.merged, row.tags),
+              })
+          handledInFile.add(canonical)
+          continue
+               }
 
-     offset += rows.length
+            // skip and create-anyway dedupe a url repeated within this same file.
+      if (handled) {
+        skippedDuplicates += 1
+        continue
+             }
+
+      if (existing && strategy === "skip") {
+        skippedDuplicates += 1
+        continue
+            }
+
+      handledInFile.add(canonical)
+      inserts.push({ row, canonical })
+         }
+
+        // Write phase: insert every surviving row, then apply the tag merges, all
+        // inside the transaction so a failure rolls the whole import back.
+     for (const { row, canonical } of inserts) {
+      const createdAt = row.createdAt ? new Date(row.createdAt) : null
+
+       await tx
+              .insert(bookmarks)
+              .values({
+             userId,
+             url: canonical,
+             title: row.title?.trim() || null,
+             description: row.description?.trim() || null,
+             favicon: incomingAsset(row.favicon),
+             previewImage: incomingAsset(row.previewImage),
+             tags: normalizeTags(row.tags),
+             isFavorite: row.isFavorite,
+                 ...(createdAt ? { createdAt } : {}),
+             updatedAt: new Date(),
+              })
+
+       imported += 1
+          }
+
+       for (const [id, entry] of pendingMerges) {
+             // A merge counts only when the union actually adds a tag.
+        if (tagSetsDiffer(entry.base, entry.merged)) {
+          await tx
+              .update(bookmarks)
+              .set({
+                 tags: entry.merged.length > 0 ? entry.merged : null,
+                 updatedAt: new Date(),
+             })
+               .where(
+                and(
+                  eq(bookmarks.id, id),
+                  eq(bookmarks.userId, userId),
+                  isNull(bookmarks.deletedAt)
+                   )
+                  )
+
+         mergedTags += 1
+          }
+         }
+
+      return {
+        imported,
+        skippedDuplicates,
+        mergedTags,
+        failed,
+           }
+         })
+        }
+// Streams an export without ever loading the whole collection: it pages through
+// the user's rows in bounded batches and yields each one ready to serialize.
+// Trash is excluded by default; pass includeTrashed to also emit soft-deleted
+// rows. The row is mapped to the lossless export shape here so the route stays
+// thin and the database client never touches the asset-URL decoding.
+export async function* streamBookmarksForExport(
+  userId: number,
+  options?: { includeTrashed?: boolean }
+): AsyncIterable<BookmarkExportRow> {
+  await ensureBookmarksTable()
+
+  const filters = [eq(bookmarks.userId, userId)]
+
+  if (!options?.includeTrashed) {
+    filters.push(isNull(bookmarks.deletedAt))
+    }
+
+  const whereClause = filters.length === 1 ? filters[0] : and(...filters)
+  const pageSize = 200
+
+  let offset = 0
+
+  for (;;) {
+    const rows = await db
+      .select()
+      .from(bookmarks)
+      .where(whereClause)
+      .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+      .limit(pageSize)
+      .offset(offset)
+
+    if (rows.length === 0) {
+      break
        }
-     }
+
+      for (const row of rows) {
+        yield {
+          url: row.url,
+          title: row.title,
+          description: row.description,
+           favicon: decodeAssetUrl(row.favicon),
+           previewImage: decodeAssetUrl(row.previewImage),
+          tags: parseTags(row.tags),
+          isFavorite: row.isFavorite,
+          visitCount: row.visitCount,
+          createdAt:
+            row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
+          updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+          lastVisitedAt:
+            row.lastVisitedAt
+               ? row.lastVisitedAt.toISOString()
+               : null,
+          deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+           }
+       }
+
+    if (rows.length < pageSize) {
+      break
+       }
+
+    offset += rows.length
+      }
+    }
