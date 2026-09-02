@@ -11,6 +11,10 @@ import {
   type BookmarkView,
   DEFAULT_BOOKMARK_PAGE_SIZE,
 } from "@/lib/bookmark-types"
+import {
+  type BookmarkExportRow,
+  decodeAssetUrl,
+} from "@/lib/bookmark-export"
 import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 
 export { DEFAULT_BOOKMARK_PAGE_SIZE }
@@ -440,13 +444,77 @@ export async function resetBookmarkVisitCountById(userId: number, id: number) {
     .update(bookmarks)
     .set({ visitCount: 0, updatedAt: new Date() })
     .where(
-      and(
-        eq(bookmarks.id, id),
-        eq(bookmarks.userId, userId),
-        isNull(bookmarks.deletedAt)
+       and(
+         eq(bookmarks.id, id),
+         eq(bookmarks.userId, userId),
+         isNull(bookmarks.deletedAt)
+        )
       )
-    )
-    .returning({ id: bookmarks.id })
+      .returning({ id: bookmarks.id })
 
   return updated.length > 0
-}
+ }
+
+ // Streams an export without ever loading the whole collection: it pages through
+ // the user's rows in bounded batches and yields each one ready to serialize.
+ // Trash is excluded by default; pass includeTrashed to also emit soft-deleted
+ // rows. The row is mapped to the lossless export shape here so the route stays
+ // thin and the database client never touches the asset-URL decoding.
+ export async function* streamBookmarksForExport(
+   userId: number,
+   options?: { includeTrashed?: boolean }
+ ): AsyncIterable<BookmarkExportRow> {
+   await ensureBookmarksTable()
+
+   const filters = [eq(bookmarks.userId, userId)]
+
+   if (!options?.includeTrashed) {
+     filters.push(isNull(bookmarks.deletedAt))
+     }
+
+   const whereClause = filters.length === 1 ? filters[0] : and(...filters)
+   const pageSize = 200
+
+   let offset = 0
+
+   for (;;) {
+     const rows = await db
+       .select()
+       .from(bookmarks)
+       .where(whereClause)
+       .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+       .limit(pageSize)
+       .offset(offset)
+
+     if (rows.length === 0) {
+       break
+        }
+
+       for (const row of rows) {
+         yield {
+           url: row.url,
+           title: row.title,
+           description: row.description,
+            favicon: decodeAssetUrl(row.favicon),
+            previewImage: decodeAssetUrl(row.previewImage),
+           tags: parseTags(row.tags),
+           isFavorite: row.isFavorite,
+           visitCount: row.visitCount,
+           createdAt:
+             row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
+           updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+           lastVisitedAt:
+             row.lastVisitedAt
+                ? row.lastVisitedAt.toISOString()
+                : null,
+           deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+            }
+        }
+
+     if (rows.length < pageSize) {
+       break
+        }
+
+     offset += rows.length
+       }
+     }

@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { useLocalStorageValue } from "@/hooks/use-local-storage"
 import { latestChanges } from "@/lib/changelog"
 import { MegaphoneIcon } from "@phosphor-icons/react"
 import { useState } from "react"
@@ -17,24 +18,32 @@ const CHANGELOG_SEEN_STORAGE_KEY = "harbormarks:last-seen-changelog-version"
 export const LatestChangesDialog = () => {
   const [isOpen, setIsOpen] = useState(false)
   const latestVersion = latestChanges[0]?.version ?? ""
-  const [seenVersion, setSeenVersion] = useState(() => {
-    if (typeof window === "undefined") {
-      return ""
-    }
 
-    return localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY) ?? ""
-  })
+  // The "last seen version" lives in localStorage, which is an external store.
+  // Reading it through useSyncExternalStore means the first client render uses
+  // the server snapshot (null) and matches the server HTML, so the persisted
+  // value syncs in after hydration instead of causing a mismatch.
+  const seenVersion = useLocalStorageValue(CHANGELOG_SEEN_STORAGE_KEY)
+
+  // A dismiss within this tab does not fire a `storage` event (those only
+  // cross tabs), so track it in a constant-initialized state that is identical
+  // on server and client and therefore hydration-safe.
+  const [isDismissedThisSession, setIsDismissedThisSession] = useState(false)
   const hasUnseenChanges =
-    Boolean(latestVersion) && seenVersion !== latestVersion
+    Boolean(latestVersion) &&
+    seenVersion !== latestVersion &&
+    !isDismissedThisSession
 
   function handleOpenChange(nextOpen: boolean) {
     setIsOpen(nextOpen)
 
     if (nextOpen && latestVersion) {
-      localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, latestVersion)
-      setSeenVersion(latestVersion)
+      // Opening the dialog is the user event that dismisses it, so persist and
+      // update locally there rather than in an effect.
+      window.localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, latestVersion)
+      setIsDismissedThisSession(true)
+      }
     }
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>

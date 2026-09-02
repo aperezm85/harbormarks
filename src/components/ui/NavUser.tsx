@@ -1,3 +1,4 @@
+import { ExportBookmarksDialog } from "@/components/dialog/ExportBookmarksDialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -16,6 +17,7 @@ import {
 import { useSidebar } from "@/components/ui/sidebar-context"
 import {
   CaretUpDownIcon,
+  DownloadSimpleIcon,
   SealCheckIcon,
   SignOutIcon,
   SpinnerIcon,
@@ -116,7 +118,10 @@ export const NavUser = ({ user }: { user: SidebarUser }) => {
 
             <DropdownMenuGroup>
               <DropdownMenuItem>
-                <a href={"/profile"} className="flex w-full items-center gap-2">
+                <a
+                  href={"/profile"}
+                  className="flex w-full items-center gap-2 px-2 py-1.5"
+                >
                   <SealCheckIcon />
                   Account
                 </a>
@@ -127,7 +132,7 @@ export const NavUser = ({ user }: { user: SidebarUser }) => {
                 <DropdownMenuItem>
                   <a
                     href={"/admin/users"}
-                    className="flex w-full items-center gap-2"
+                    className="flex w-full items-center gap-2 px-2 py-1.5"
                   >
                     <UsersIcon />
                     Users
@@ -135,6 +140,22 @@ export const NavUser = ({ user }: { user: SidebarUser }) => {
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem>
+                <ExportBookmarksDialog
+                  trigger={
+                    <button
+                      type="button"
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <DownloadSimpleIcon className="size-4" />
+                      Export bookmarks
+                    </button>
+                  }
+                />
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={isSigningOut}>
               <button
