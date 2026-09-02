@@ -241,6 +241,17 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 
 ## Recent Changes
 
+### 2026-09-02 (v0.9.5)
+
+- Added import, driven by a new `POST /api/bookmarks/import` route: JSON (this
+  app's export format) and Netscape HTML, auto-detected from the file,
+  authenticated per user, with duplicate URLs reconciled against existing data.
+- Documented that no schema migration ships in 0.9.5: upgrading to this version
+  runs no new migration, so it is a drop-in image swap with no restart-time table
+  rewrite. Take a dump before any upgrade as usual.
+- Fixed toasts rendering off-screen or unstyled by loading the Sonner stylesheet.
+- Brought the README, changelog, and package version back in sync for the release.
+
 ### 2026-08-31 (v0.9.4)
 
 - Documented that schema migrations run automatically at container start and are
