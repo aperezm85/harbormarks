@@ -8,7 +8,7 @@ This roadmap turns the current ideas into an execution plan with clear phases, o
 - Reduce friction for organizing large bookmark collections.
 - Improve portability and ownership of user data.
 
-## Shipped (0.9.3 - 0.9.4)
+## Shipped (0.9.3 - 0.9.5)
 
 The hardening and correctness pass is complete. These were not on the original
 roadmap; they came out of the code survey and are done:
@@ -22,6 +22,9 @@ roadmap; they came out of the code survey and are done:
 - Soft delete with a Trash view, restore, undo, and permanent delete.
 - Recency-weighted "Most visited" ranking backed by `last_visited_at`.
 - URL canonicalization on write with per-user duplicate rejection.
+- Export (`json`/`csv`/Netscape HTML) and import (JSON + Netscape HTML), reconciling
+  against the user's own bookmarks on import.
+- Toasts render floating and styled (Sonner stylesheet loaded).
 - Local proxying and caching of favicons and preview images.
 - Origin checking on by default; proxy-aware `Secure` cookies.
 - SSRF-guarded outbound fetches with DNS-rebinding protection and size caps.

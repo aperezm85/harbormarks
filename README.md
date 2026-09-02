@@ -131,6 +131,19 @@ docker compose down
 
 ## Recent Changes
 
+### 2026-09-02 (v0.9.5)
+
+- Added import, so a bookmark collection can come in instead of one URL at a
+  time. A new "Import bookmarks" item in the sidebar account menu accepts a
+  dropped or chosen file, auto-detects JSON (this app's export format) and
+  Netscape HTML, and imports against the user's own existing bookmarks,
+  reconciling duplicate URLs rather than creating dupes.
+- Fixed toasts rendering off-screen or pushing the page content: the Sonner
+  stylesheet is now loaded, so toasts render floating in place and styled.
+- Brought the README, changelog, and package version back in sync for the release.
+- No new schema migration ships in this release, so upgrading is a drop-in image
+  swap with no restart-time table rewrite.
+
 ### 2026-08-31 (v0.9.4)
 
 - Added permanent delete from Trash, so a bookmark can be removed for good after

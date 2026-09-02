@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.5",
+    date: "2026-09-02",
+    changes: [
+      "Add bookmarks from a JSON or Netscape HTML file, via a new menu item in the sidebar account area, next to export.",
+      "Links that already exist by URL are reconciled with your saved bookmark instead of duplicated.",
+      "Fixed notifications (toasts) that were shifting the page content instead of floating over it.",
+      "Brought the in-app changelog, README, and ROADMAP back in sync for the 0.9.5 release.",
+    ],
+  },
+  {
     version: "v0.9.4",
     date: "2026-08-31",
     changes: [
