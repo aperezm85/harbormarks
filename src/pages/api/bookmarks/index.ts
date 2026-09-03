@@ -110,6 +110,14 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   let previewImage: string | null
   let tags: string[] | string | null
   let isFavorite: boolean
+  // Story 7 enrichments. JSON-only: initialized to null so the form path (which
+  // never reads them) keeps this route's prior behavior, and the JSON path
+  // overwrites with the submitted body. createBookmark applies `trim() || null`.
+  let siteName: string | null = null
+  let author: string | null = null
+  let publishedAt: string | null = null
+  let language: string | null = null
+  let canonicalUrl: string | null = null
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -122,10 +130,18 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
       typeof body?.previewImage === "string" ? body.previewImage : null
     tags =
       Array.isArray(body?.tags) || typeof body?.tags === "string"
-        ? body.tags
-        : null
+          ? body.tags
+          : null
     isFavorite = body?.isFavorite === true
-  } else {
+    // Pass through as-is (string or null): createBookmark applies `trim() || null`.
+    siteName = typeof body?.siteName === "string" ? body.siteName : null
+    author = typeof body?.author === "string" ? body.author : null
+    publishedAt =
+      typeof body?.publishedAt === "string" ? body.publishedAt : null
+    language = typeof body?.language === "string" ? body.language : null
+    canonicalUrl =
+      typeof body?.canonicalUrl === "string" ? body.canonicalUrl : null
+    } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
       typeof form.get("url") === "string" ? String(form.get("url")) : null
@@ -186,7 +202,12 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     previewImage,
     tags,
     isFavorite,
-  })
+    siteName,
+    author,
+    publishedAt,
+    language,
+    canonicalUrl,
+    })
 
   if (isJsonRequest(contentType)) {
     return new Response(JSON.stringify({ data: bookmark }), {

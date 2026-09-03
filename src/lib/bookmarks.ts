@@ -74,12 +74,22 @@ function toCardData(bookmark: typeof bookmarks.$inferSelect): BookmarkCardData {
       : new Date().toISOString(),
     updatedAt: bookmark.updatedAt ? bookmark.updatedAt.toISOString() : null,
     lastVisitedAt: bookmark.lastVisitedAt
-      ? bookmark.lastVisitedAt.toISOString()
-      : null,
+       ? bookmark.lastVisitedAt.toISOString()
+       : null,
     isFavorite: bookmark.isFavorite,
     visitCount: bookmark.visitCount,
-  }
-}
+    // Story 7 enrichments: carried through verbatim. publishedAt is a DB
+    // timestamp, so it is normalized to an ISO string like the other timestamps;
+    // the remaining four are plain text and pass through as-is.
+    siteName: bookmark.siteName,
+    author: bookmark.author,
+    publishedAt: bookmark.publishedAt
+       ? bookmark.publishedAt.toISOString()
+       : null,
+    language: bookmark.language,
+    canonicalUrl: bookmark.canonicalUrl,
+   }
+ }
 
 async function findBookmarkByCanonicalUrl(
   userId: number,
@@ -247,45 +257,78 @@ export async function listBookmarkTags(userId: number, query?: string) {
   }))
 }
 
+// `published_at` is a timestamp column, but the JSON API and the metadata
+// extractor hand it over as a date string (and an export round-trip also keeps it
+// as a string, per the Story 4 lossless contract). Parse it back to a Date; an
+// empty or unparseable value stays null rather than a broken instant.
+function parseEnrichmentDate(
+  value: string | null | undefined
+): Date | null {
+  const raw = value?.trim()
+
+  if (!raw) {
+    return null
+   }
+
+  const time = Date.parse(raw)
+  return Number.isNaN(time) ? null : new Date(time)
+   }
+
 export async function createBookmark(
-  userId: number,
-  input: {
-    url: string
+   userId: number,
+   input: {
+     url: string
     title?: string | null
     description?: string | null
     favicon?: string | null
     previewImage?: string | null
     tags?: string[] | string | null
     isFavorite?: boolean
-  }
-) {
-  await ensureBookmarksTable()
+    // Story 7 enrichments. Optional on input and nullable on the columns:
+    // written per call, never backfilled onto existing rows.
+    siteName?: string | null
+    author?: string | null
+    publishedAt?: string | null
+    language?: string | null
+    canonicalUrl?: string | null
+    }
+ ) {
+   await ensureBookmarksTable()
 
-  const normalizedUrl = normalizeBookmarkUrl(input.url)
+   const normalizedUrl = normalizeBookmarkUrl(input.url)
 
-  if (!normalizedUrl) {
+   if (!normalizedUrl) {
     throw new Error("Invalid bookmark URL")
+   }
+
+   const [created] = await db
+      .insert(bookmarks)
+      .values({
+        userId,
+        url: normalizedUrl,
+        title: input.title?.trim() || null,
+        description: input.description?.trim() || null,
+        favicon: normalizeBookmarkAssetUrl(input.favicon?.trim() || null),
+        previewImage: normalizeBookmarkAssetUrl(
+          input.previewImage?.trim() || null
+        ),
+        tags: normalizeTags(input.tags),
+        isFavorite: input.isFavorite ?? false,
+         // Each enrichment is trimmed like title/description: empty collapses to
+         // null so a "not populated" field is stored as NULL, not an empty string.
+         // publishedAt is a timestamp column, so the incoming date string is
+         // parsed back to a Date like exported values are.
+         siteName: input.siteName?.trim() || null,
+         author: input.author?.trim() || null,
+         publishedAt: parseEnrichmentDate(input.publishedAt),
+         language: input.language?.trim() || null,
+         canonicalUrl: input.canonicalUrl?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .returning()
+
+   return toCardData(created)
   }
-
-  const [created] = await db
-    .insert(bookmarks)
-    .values({
-      userId,
-      url: normalizedUrl,
-      title: input.title?.trim() || null,
-      description: input.description?.trim() || null,
-      favicon: normalizeBookmarkAssetUrl(input.favicon?.trim() || null),
-      previewImage: normalizeBookmarkAssetUrl(
-        input.previewImage?.trim() || null
-      ),
-      tags: normalizeTags(input.tags),
-      isFavorite: input.isFavorite ?? false,
-      updatedAt: new Date(),
-    })
-    .returning()
-
-  return toCardData(created)
-}
 
 export async function updateBookmarkById(
   userId: number,
@@ -297,40 +340,79 @@ export async function updateBookmarkById(
     favicon?: string | null
     previewImage?: string | null
     tags?: string[] | string | null
-  }
-) {
-  await ensureBookmarksTable()
+    // Story 7 enrichments. Optional on input: the JSON route passes real values,
+    // the form route passes `undefined`, which leaves the column untouched.
+    siteName?: string | null
+    author?: string | null
+    publishedAt?: string | null
+    language?: string | null
+    canonicalUrl?: string | null
+   }
+ ) {
+   await ensureBookmarksTable()
 
-  const normalizedUrl = normalizeBookmarkUrl(input.url)
+   const normalizedUrl = normalizeBookmarkUrl(input.url)
 
-  if (!normalizedUrl) {
+   if (!normalizedUrl) {
     return null
-  }
+    }
 
-  const [updated] = await db
-    .update(bookmarks)
-    .set({
-      url: normalizedUrl,
-      title: input.title?.trim() || null,
-      description: input.description?.trim() || null,
-      favicon: normalizeBookmarkAssetUrl(input.favicon?.trim() || null),
-      previewImage: normalizeBookmarkAssetUrl(
-        input.previewImage?.trim() || null
-      ),
-      tags: normalizeTags(input.tags),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(bookmarks.id, id),
-        eq(bookmarks.userId, userId),
-        isNull(bookmarks.deletedAt)
+    // The enrichment fields are only written when the caller passed a value. The
+    // JSON route always passes them; the form route passes `undefined`, so the
+    // conditional spreads omit the column entirely and leave the stored value in
+    // place. The form branch therefore keeps its current behavior byte-for-byte,
+    // while the JSON branch overwrites with the submitted values (empty string
+    // collapses to NULL via trim, just like title and description).
+    const enrichment: {
+     siteName?: string | null
+     author?: string | null
+     publishedAt?: Date | null
+     language?: string | null
+     canonicalUrl?: string | null
+        } = {
+       siteName:
+         input.siteName !== undefined ? input.siteName?.trim() || null : undefined,
+       author:
+         input.author !== undefined ? input.author?.trim() || null : undefined,
+       publishedAt:
+         input.publishedAt !== undefined
+               ? parseEnrichmentDate(input.publishedAt)
+               : undefined,
+       language:
+         input.language !== undefined
+               ? input.language?.trim() || null
+               : undefined,
+       canonicalUrl:
+         input.canonicalUrl !== undefined
+               ? input.canonicalUrl?.trim() || null
+               : undefined,
+         }
+
+   const [updated] = await db
+      .update(bookmarks)
+      .set({
+       url: normalizedUrl,
+       title: input.title?.trim() || null,
+       description: input.description?.trim() || null,
+       favicon: normalizeBookmarkAssetUrl(input.favicon?.trim() || null),
+       previewImage: normalizeBookmarkAssetUrl(
+         input.previewImage?.trim() || null
+        ),
+       tags: normalizeTags(input.tags),
+        ...enrichment,
+       updatedAt: new Date(),
+       })
+      .where(
+       and(
+         eq(bookmarks.id, id),
+         eq(bookmarks.userId, userId),
+         isNull(bookmarks.deletedAt)
+        )
       )
-    )
-    .returning()
+      .returning()
 
-  return updated ? toCardData(updated) : null
-}
+   return updated ? toCardData(updated) : null
+   }
 
 export async function toggleFavoriteById(userId: number, id: number) {
   await ensureBookmarksTable()
@@ -719,11 +801,20 @@ export async function* streamBookmarksForExport(
           updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
           lastVisitedAt:
             row.lastVisitedAt
-               ? row.lastVisitedAt.toISOString()
-               : null,
+                ? row.lastVisitedAt.toISOString()
+                : null,
           deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
-           }
-       }
+          // Story 7 enrichments, mapped for a lossless export round-trip.
+          // publishedAt is a DB timestamp (ISO-ized like the others); the
+          // remaining four are plain text and pass through as-is.
+          siteName: row.siteName,
+          author: row.author,
+          publishedAt:
+            row.publishedAt ? row.publishedAt.toISOString() : null,
+          language: row.language,
+          canonicalUrl: row.canonicalUrl,
+            }
+        }
 
     if (rows.length < pageSize) {
       break

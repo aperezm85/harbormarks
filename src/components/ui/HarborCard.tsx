@@ -89,6 +89,11 @@ export const HarborCard = ({
   lastVisitedAt,
   isFavorite,
   visitCount,
+  siteName,
+  author,
+  publishedAt,
+  language,
+  canonicalUrl,
   onSaved,
   onVisit,
   onVisitRollback,
@@ -113,6 +118,11 @@ export const HarborCard = ({
   lastVisitedAt: string | null
   isFavorite: boolean
   visitCount: number
+  siteName: string | null
+  author: string | null
+  publishedAt: string | null
+  language: string | null
+  canonicalUrl: string | null
   onSaved?: (bookmark: BookmarkCardData) => void
   onVisit?: () => void
   onVisitRollback?: () => void
@@ -190,7 +200,12 @@ export const HarborCard = ({
     lastVisitedAt,
     isFavorite,
     visitCount,
-  }
+    siteName,
+    author,
+    publishedAt,
+    language,
+    canonicalUrl,
+      }
 
   const openBookmark = () => {
     onVisit?.()
@@ -532,16 +547,21 @@ export const HarborCard = ({
               )}
             </Button>
 
-            <CreateBookmarkDialog
-              bookmark={{
-                id,
-                url,
-                title,
-                description,
-                favicon,
-                previewImage,
-                tags,
-              }}
+          <CreateBookmarkDialog
+            bookmark={{
+              id,
+              url,
+              title,
+              description,
+              favicon,
+              previewImage,
+              tags,
+              siteName,
+              author,
+              publishedAt,
+              language,
+              canonicalUrl,
+           }}
               onSaved={onSaved}
               trigger={
                 <Button
@@ -708,8 +728,20 @@ export const HarborCard = ({
         </div>
         <CardTitle className="min-w-0 wrap-break-word">{title}</CardTitle>
         <CardDescription className="min-w-0 break-all">{url}</CardDescription>
-      </CardHeader>
-      <CardContent className="mt-auto flex flex-1 flex-col justify-between">
+         </CardHeader>
+       {siteName ? (
+         <div className="flex min-w-0 items-center justify-between px-4 pt-2">
+           <Badge
+            variant="secondary"
+            className="max-w-full truncate font-medium"
+            title={siteName}
+            aria-label={`Site: ${siteName}`}
+            >
+             {siteName}
+           </Badge>
+         </div>
+       ) : null}
+       <CardContent className="mt-auto flex flex-1 flex-col justify-between">
         <p>{description}</p>
         <div>
           <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
