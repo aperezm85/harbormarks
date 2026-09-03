@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.6",
+    date: "2026-09-03",
+    changes: [
+      "Bookmark cards now show the site name, and the edit dialog surfaces the author, publish date, language, and canonical URL when a page provides them.",
+      "Metadata is read with a real HTML parser, so titles, descriptions, and images come through more reliably — including on pages that sit behind bot protection.",
+      "Pages served in a non-UTF-8 encoding (for example Latin-1) now show their accents correctly instead of arriving as garbled text.",
+    ],
+  },
+  {
     version: "v0.9.5",
     date: "2026-09-02",
     changes: [

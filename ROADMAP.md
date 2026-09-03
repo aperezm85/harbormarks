@@ -202,7 +202,7 @@ Acceptance criteria:
 
 ### 9) Metadata Enrichment Expansion
 
-**Status: not started.** Blocked behind replacing the regex HTML parser. See IMPLEMENTATION.md story 7.
+**Status: done — shipped in 0.9.6.** The regex HTML parser was replaced with `node-html-parser` and the five enrichment columns (site name, author, published date, language, canonical URL) landed. See IMPLEMENTATION.md story 7.
 
 Why:
 
@@ -264,9 +264,10 @@ makes the app trustworthy, and it is what lets people migrate *to* it.
 
 - 0.9.5: Close the hardening phase - CI gates, remove the SEO scaffolding, add
   `/healthz`, and land a first test suite.
+- 0.9.6: Replace the regex HTML parser and land metadata enrichment.
 - 0.10: Export, then import. Duplicate resolution UX.
 - 0.11: Search operators, richer filters, tag management.
-- 0.12: Notes, metadata enrichment, broken-link monitoring.
+- 0.12: Notes, broken-link monitoring.
 - 0.13: Bulk actions, keyboard workflow, command palette.
 
 ## Engineering Notes
