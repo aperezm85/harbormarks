@@ -11,6 +11,12 @@ export type BookmarkCardData = {
   lastVisitedAt: string | null
   isFavorite: boolean
   visitCount: number
+  // Story 7 enrichment columns (nullable, best-effort extraction).
+  siteName: string | null
+  author: string | null
+  publishedAt: string | null
+  language: string | null
+  canonicalUrl: string | null
 }
 
 export type BookmarkTagSummary = {

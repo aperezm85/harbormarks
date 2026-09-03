@@ -15,6 +15,12 @@ export type BookmarkExportRow = {
   updatedAt: string | null
   lastVisitedAt: string | null
   deletedAt: string | null
+  // Story 7 enrichment columns (null where not extracted).
+  siteName: string | null
+  author: string | null
+  publishedAt: string | null
+  language: string | null
+  canonicalUrl: string | null
 }
 
 export const EXPORT_FORMATS = ["json", "csv", "html"] as const
@@ -219,5 +225,13 @@ function rowToExportRecord(row: BookmarkExportRow) {
      updatedAt: row.updatedAt,
      lastVisitedAt: row.lastVisitedAt,
      deletedAt: row.deletedAt,
-    }
+      // Story 7 enrichments. The JSON export is the lossless format, so it must
+      // carry every enrichment column back to the importer. CSV/Netscape HTML
+      // intentionally omit them (see formatCsvRow / formatNetscapeEntry).
+     siteName: row.siteName,
+     author: row.author,
+     publishedAt: row.publishedAt,
+     language: row.language,
+     canonicalUrl: row.canonicalUrl,
+      }
 }

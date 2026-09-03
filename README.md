@@ -131,6 +131,18 @@ docker compose down
 
 ## Recent Changes
 
+### 2026-09-03 (v0.9.6)
+
+- Bookmark cards now show the site name, and the edit dialog surfaces the author,
+  publish date, language, and canonical URL when a page provides them.
+- Metadata is extracted with a real HTML parser instead of hand-rolled regexes, so
+  titles, descriptions, and images come through more reliably, including on pages
+  that sit behind bot protection.
+- Pages served in a non-UTF-8 encoding (for example Latin-1) now decode their
+  accents correctly instead of arriving as garbled text.
+- A new `0005` migration adds the enrichment columns; they are all nullable, so
+  upgrading is a drop-in swap that adds columns without rewriting existing rows.
+
 ### 2026-09-02 (v0.9.5)
 
 - Added import, so a bookmark collection can come in instead of one URL at a

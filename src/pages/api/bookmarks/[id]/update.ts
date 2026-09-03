@@ -58,6 +58,13 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
   let favicon: string | null
   let previewImage: string | null
   let tags: string[] | string | null
+  // Story 7 enrichments. JSON-only: left undefined on the form path, which the
+  // data layer then omits from the UPDATE, keeping the form branch byte-for-byte.
+  let siteName: string | null | undefined
+  let author: string | null | undefined
+  let publishedAt: string | null | undefined
+  let language: string | null | undefined
+  let canonicalUrl: string | null | undefined
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -70,9 +77,18 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
       typeof body?.previewImage === "string" ? body.previewImage : null
     tags =
       Array.isArray(body?.tags) || typeof body?.tags === "string"
-        ? body.tags
-        : null
-  } else {
+           ? body.tags
+           : null
+     // Pass through as-is (string or null): updateBookmarkById applies
+     // `trim() || null` when present and omits the column when undefined.
+    siteName = typeof body?.siteName === "string" ? body.siteName : null
+    author = typeof body?.author === "string" ? body.author : null
+    publishedAt =
+      typeof body?.publishedAt === "string" ? body.publishedAt : null
+    language = typeof body?.language === "string" ? body.language : null
+    canonicalUrl =
+      typeof body?.canonicalUrl === "string" ? body.canonicalUrl : null
+     } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
       typeof form.get("url") === "string" ? String(form.get("url")) : null
@@ -131,7 +147,12 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
     favicon,
     previewImage,
     tags,
-  })
+    siteName,
+    author,
+    publishedAt,
+    language,
+    canonicalUrl,
+     })
 
   if (!bookmark) {
     if (isJsonRequest(contentType)) {

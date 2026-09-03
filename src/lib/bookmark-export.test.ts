@@ -85,15 +85,20 @@ describe("formatCsvRow", () => {
          isFavorite: true,
          visitCount: 12,
          createdAt: "2026-01-01T00:00:00.000Z",
-         updatedAt: null,
-         lastVisitedAt: null,
-         deletedAt: null,
-         })
+          updatedAt: null,
+          lastVisitedAt: null,
+          deletedAt: null,
+          siteName: null,
+          author: null,
+          publishedAt: null,
+          language: null,
+          canonicalUrl: null,
+           })
 
-    expect(row).toBe(
-      "https://example.com/a,Example,desc,dev|reading,true,12,2026-01-01T00:00:00.000Z,"
-       )
-    })
+     expect(row).toBe(
+        "https://example.com/a,Example,desc,dev|reading,true,12,2026-01-01T00:00:00.000Z,"
+         )
+      })
 
   it("quotes a title containing a comma, quote, and newline", () => {
     const row = formatCsvRow({
@@ -106,13 +111,18 @@ describe("formatCsvRow", () => {
          isFavorite: false,
          visitCount: 0,
          createdAt: "2026-01-01T00:00:00.000Z",
-         updatedAt: null,
-         lastVisitedAt: null,
-         deletedAt: null,
-         })
+          updatedAt: null,
+          lastVisitedAt: null,
+          deletedAt: null,
+          siteName: null,
+          author: null,
+          publishedAt: null,
+          language: null,
+          canonicalUrl: null,
+            })
 
-    expect(row).toContain('"a,b ""quoted""\n' + '"')
-       })
+     expect(row).toContain('"a,b ""quoted""\n' + '"')
+         })
 })
 
 describe("exportContentType", () => {
@@ -149,7 +159,12 @@ describe("createBookmarkExportStream", () => {
        updatedAt: null,
        lastVisitedAt: null,
        deletedAt: null,
-     }]
+       siteName: "Example",
+       author: null,
+       publishedAt: null,
+       language: null,
+       canonicalUrl: null,
+      }]
 
     async function* source() {
       yield rows[0]
@@ -161,22 +176,27 @@ describe("createBookmarkExportStream", () => {
       })
 
   it("wraps each entry in a self-contained Netscape HTML document", async () => {
-    async function* source() {
-      yield {
-          url: "https://example.com/a",
-          title: 'A "quoted" <title>',
-          description: "Hi & bye",
-          favicon: null,
-          previewImage: null,
-          tags: ["dev", "reading"],
-          isFavorite: true,
-          visitCount: 7,
-          createdAt: "2026-03-01T00:00:00.000Z",
-          updatedAt: null,
-          lastVisitedAt: null,
-          deletedAt: null,
-          }
-        }
+     async function* source() {
+       yield {
+           url: "https://example.com/a",
+           title: 'A "quoted" <title>',
+           description: "Hi & bye",
+           favicon: null,
+           previewImage: null,
+           tags: ["dev", "reading"],
+           isFavorite: true,
+           visitCount: 7,
+           createdAt: "2026-03-01T00:00:00.000Z",
+           updatedAt: null,
+           lastVisitedAt: null,
+           deletedAt: null,
+           siteName: "Example",
+           author: "Ada",
+           publishedAt: "2020-01-01T00:00:00.000Z",
+           language: "en",
+           canonicalUrl: "https://example.com/a",
+             }
+           }
 
     const output = await collect(createBookmarkExportStream(source(), "html"))
     expect(output).toContain('<!DOCTYPE NETSCAPE-Bookmark-file-1>')
@@ -189,41 +209,103 @@ describe("createBookmarkExportStream", () => {
       })
 
   it("streams a JSON envelope without a closing tag before every record", async () => {
-    async function* source() {
-      yield {
-          url: "https://example.com/one",
-          title: "One",
-          description: null,
-          favicon: null,
-          previewImage: null,
-          tags: [],
-          isFavorite: false,
-          visitCount: 0,
-          createdAt: "2026-01-01T00:00:00.000Z",
-          updatedAt: null,
-          lastVisitedAt: null,
-          deletedAt: null,
+     async function* source() {
+       yield {
+           url: "https://example.com/one",
+           title: "One",
+           description: null,
+           favicon: null,
+           previewImage: null,
+           tags: [],
+           isFavorite: false,
+           visitCount: 0,
+           createdAt: "2026-01-01T00:00:00.000Z",
+           updatedAt: null,
+           lastVisitedAt: null,
+           deletedAt: null,
+           siteName: null,
+           author: null,
+           publishedAt: null,
+           language: null,
+           canonicalUrl: null,
+            }
+         yield {
+           url: "https://example.com/two",
+           title: "Two",
+           description: null,
+           favicon: null,
+           previewImage: null,
+           tags: ["x"],
+           isFavorite: false,
+           visitCount: 0,
+           createdAt: "2026-02-01T00:00:00.000Z",
+           updatedAt: null,
+           lastVisitedAt: null,
+           deletedAt: null,
+           siteName: "Two site",
+           author: "Jane",
+           publishedAt: "2021-05-04T00:00:00.000Z",
+           language: "es",
+           canonicalUrl: "https://example.com/canonical-two",
+            }
           }
-        yield {
-          url: "https://example.com/two",
-          title: "Two",
-          description: null,
-          favicon: null,
-          previewImage: null,
-          tags: ["x"],
-          isFavorite: false,
-          visitCount: 0,
-          createdAt: "2026-02-01T00:00:00.000Z",
-          updatedAt: null,
-          lastVisitedAt: null,
-          deletedAt: null,
+
+     const output = await collect(createBookmarkExportStream(source(), "json"))
+     expect(output.startsWith('{"version":1')).toBe(true)
+      expect(output.endsWith("]}")).toBe(true)
+      expect(output).toContain('"https://example.com/one"')
+      expect(output).toContain('"https://example.com/two"')
+        })
+
+  it("exports Story 7 enrichments to JSON losslessly", async () => {
+     const exportedRow = {
+       url: "https://example.com/rich",
+       title: "Rich",
+       description: null,
+       favicon: null,
+       previewImage: null,
+       tags: ["rich"],
+       isFavorite: false,
+       visitCount: 0,
+       createdAt: "2026-01-01T00:00:00.000Z",
+       updatedAt: null,
+       lastVisitedAt: null,
+       deletedAt: null,
+       siteName: "Example site",
+       author: "Ada Lovelace",
+       publishedAt: "2025-06-15T00:00:00.000Z",
+       language: "en",
+       canonicalUrl: "https://example.com/rich?canonical=1",
+       }
+
+     async function* source() {
+       yield exportedRow
           }
+
+     const output = await collect(createBookmarkExportStream(source(), "json"))
+     const parsed = JSON.parse(output) as {
+       version: number
+       exportedAt: string
+       bookmarks: Array<
+         typeof exportedRow & {
+            siteName?: string | null
+            author?: string | null
+            publishedAt?: string | null
+            language?: string | null
+            canonicalUrl?: string | null
+             }
+          >
         }
 
-    const output = await collect(createBookmarkExportStream(source(), "json"))
-    expect(output.startsWith('{"version":1')).toBe(true)
-     expect(output.endsWith("]}")).toBe(true)
-     expect(output).toContain('"https://example.com/one"')
-     expect(output).toContain('"https://example.com/two"')
-      })
-})
+     expect(parsed.bookmarks[0].url).toBe(exportedRow.url)
+     expect(parsed.bookmarks[0].siteName).toBe("Example site")
+     expect(parsed.bookmarks[0].author).toBe("Ada Lovelace")
+     expect(parsed.bookmarks[0].publishedAt).toBe(
+        "2025-06-15T00:00:00.000Z"
+        )
+     expect(parsed.bookmarks[0].language).toBe("en")
+     expect(parsed.bookmarks[0].canonicalUrl).toBe(
+        "https://example.com/rich?canonical=1"
+        )
+        })
+ })

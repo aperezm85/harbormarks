@@ -241,6 +241,17 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 
 ## Recent Changes
 
+### 2026-09-03 (v0.9.6)
+
+- Added five nullable enrichment columns (`site_name`, `author`, `published_at`,
+  `language`, `canonical_url`) via migration `0005_bookmark_enrichment.sql`, applied
+  automatically at container start. All are nullable, so the migration adds columns
+  without rewriting existing rows; take a dump before any upgrade as usual.
+- Metadata extraction now runs on `node-html-parser` and decodes the response body
+  with the declared or detected charset, so non-UTF-8 pages no longer arrive as
+  mojibake, and bot-protected pages fall back to a per-host adapter.
+- Brought the README, changelog, and package version back in sync for the release.
+
 ### 2026-09-02 (v0.9.5)
 
 - Added import, driven by a new `POST /api/bookmarks/import` route: JSON (this

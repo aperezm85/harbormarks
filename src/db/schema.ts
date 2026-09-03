@@ -70,4 +70,11 @@ export const bookmarks = pgTable("bookmarks", {
   updatedAt: timestamp("updated_at").defaultNow(),
   lastVisitedAt: timestamp("last_visited_at"),
   deletedAt: timestamp("deleted_at"),
+  // Story 7 enrichment columns: extracted from the target page where present,
+  // left null where not. Additive and nullable; existing rows are not backfilled.
+  siteName: text("site_name"),
+  author: text("author"),
+  publishedAt: timestamp("published_at"),
+  language: text("language"),
+  canonicalUrl: text("canonical_url"),
 })
