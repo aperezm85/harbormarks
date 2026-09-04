@@ -27,28 +27,30 @@ process.env.HARBOR_BOOTSTRAP_ADMIN_NAME = ""
 // Insert straight into the table via a raw client so each case controls exactly
 // which user owns a row, bypassing the data layer's user scoping on the way in.
 async function insertBookmark(
-   client: Client,
-   userId: number,
-   opts: {
-    url: string
-    title?: string | null
-    favorite?: boolean
-    visitCount?: number
-    tags?: string[] | null
-    deleted?: boolean
-    deletedAt?: Date | null
-    }
+    client: Client,
+    userId: number,
+    opts: {
+     url: string
+     title?: string | null
+     favorite?: boolean
+     visitCount?: number
+     tags?: string[] | null
+     deleted?: boolean
+     deletedAt?: Date | null
+     previewImage?: string | null
+     createdAt?: Date | null
+     }
 ): Promise<RawBookmark> {
   const tagLiteral =
     opts.tags &&
     Array.isArray(opts.tags) &&
        opts.tags.length > 0
-          ? `{${opts.tags.join(",")}}`
-          : null
+         ? `{${opts.tags.join(",")}}`
+         : null
 
   const result = await client.query(
-      `\nINSERT INTO bookmarks (user_id, url, title, is_favorite, visit_count, tags, deleted_at)
-     VALUES ($1, $2, $3, $4, $5, $6::text[], $7)
+      `\nINSERT INTO bookmarks (user_id, url, title, is_favorite, visit_count, tags, deleted_at, preview_image, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6::text[], $7, $8, $9)
     RETURNING id, user_id, url, title, is_favorite, deleted_at`,
      [
       userId,
@@ -58,6 +60,10 @@ async function insertBookmark(
       opts.visitCount ?? 0,
       tagLiteral,
       opts.deleted ? (opts.deletedAt ?? new Date()) : null,
+      opts.previewImage ?? null,
+      // A null created_at lets the column default (now()) apply; an explicit
+      // Date is bound in UTC, matching how the data layer writes rows.
+      opts.createdAt ?? null,
        ]
   )
 
@@ -485,9 +491,336 @@ describe.skipIf(!TEST_DATABASE_URL)("import behaviors", () => {
      expect(await countFor(ownerA)).toBe(1)
        })
 
-  it("imports 5,000 bookmarks without exhausting memory", async () => {
-     const result = await bm.importBookmarks(ownerA, BULK)
-     expect(result.imported).toBe(5000)
-     expect(await countFor(ownerA)).toBe(5000)
-       })
- })
+   it("imports 5,000 bookmarks without exhausting memory", async () => {
+      const result = await bm.importBookmarks(ownerA, BULK)
+      expect(result.imported).toBe(5000)
+      expect(await countFor(ownerA)).toBe(5000)
+        })
+  })
+
+describe.skipIf(!TEST_DATABASE_URL)("search operators", () => {
+  let raw: Client
+  let bm: typeof import("./bookmarks")
+  let ownerA = 0
+  let ownerB = 0
+
+  const controlUrl = TEST_DATABASE_URL!
+
+  beforeAll(async () => {
+    await runMigrations(controlUrl)
+
+    raw = new Client({ connectionString: controlUrl })
+    await raw.connect()
+
+    bm = await import("./bookmarks")
+  })
+
+  beforeEach(async () => {
+    await truncateAll(raw)
+
+    const a = await raw.query(
+      `INSERT INTO users (email, password_hash) VALUES ('op-a@example.com', 'x') RETURNING id`
+    )
+    const b = await raw.query(
+      `INSERT INTO users (email, password_hash) VALUES ('op-b@example.com', 'x') RETURNING id`
+    )
+
+    ownerA = Number(a.rows[0].id)
+    ownerB = Number(b.rows[0].id)
+  })
+
+  afterAll(async () => {
+    await raw.end()
+  })
+
+  const urlsOf = (rows: { url: string }[]) => rows.map((row) => row.url)
+
+  it("tag: matches case-insensitively and excludes untagged rows", async () => {
+    const rust = await insertBookmark(raw, ownerA, {
+      url: "https://tag-rust.example.com/a",
+      tags: ["rust"],
+    })
+    const rustUpper = await insertBookmark(raw, ownerA, {
+      url: "https://tag-rust-upper.example.com/a",
+      tags: ["Rust"],
+    })
+    const go = await insertBookmark(raw, ownerA, {
+      url: "https://tag-go.example.com/a",
+      tags: ["go"],
+    })
+    const noTags = await insertBookmark(raw, ownerA, {
+      url: "https://tag-notags.example.com/a",
+      tags: null,
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "tag:rust",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(rust.url)
+    expect(urls).toContain(rustUpper.url)
+    expect(urls).not.toContain(go.url)
+    expect(urls).not.toContain(noTags.url)
+  })
+
+  it("repeated tag: operators AND together", async () => {
+    const both = await insertBookmark(raw, ownerA, {
+      url: "https://tag-both.example.com/a",
+      tags: ["rust", "go"],
+    })
+    const rustOnly = await insertBookmark(raw, ownerA, {
+      url: "https://tag-rustonly.example.com/a",
+      tags: ["rust"],
+    })
+    const goOnly = await insertBookmark(raw, ownerA, {
+      url: "https://tag-goonly.example.com/a",
+      tags: ["go"],
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "tag:rust tag:go",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(both.url)
+    expect(urls).not.toContain(rustOnly.url)
+    expect(urls).not.toContain(goOnly.url)
+  })
+
+  it('tag:"machine learning" matches a multi-word tag', async () => {
+    const ml = await insertBookmark(raw, ownerA, {
+      url: "https://tag-ml.example.com/a",
+      tags: ["machine learning"],
+    })
+    const rust = await insertBookmark(raw, ownerA, {
+      url: "https://tag-rust2.example.com/a",
+      tags: ["rust"],
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: 'tag:"machine learning"',
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(ml.url)
+    expect(urls).not.toContain(rust.url)
+  })
+
+  it("site: matches the host and subdomains but not lookalikes", async () => {
+    const exact = await insertBookmark(raw, ownerA, {
+      url: "https://github.com/a",
+    })
+    const sub = await insertBookmark(raw, ownerA, {
+      url: "https://sub.github.com/a",
+    })
+    const notSub = await insertBookmark(raw, ownerA, {
+      url: "https://notgithub.com/a",
+    })
+    const evil = await insertBookmark(raw, ownerA, {
+      url: "https://github.com.evil.com/a",
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "site:github.com",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(exact.url)
+    expect(urls).toContain(sub.url)
+    expect(urls).not.toContain(notSub.url)
+    expect(urls).not.toContain(evil.url)
+  })
+
+  it("is:favorite returns only favorites", async () => {
+    const fav = await insertBookmark(raw, ownerA, {
+      url: "https://fav.example.com/a",
+      favorite: true,
+    })
+    const notFav = await insertBookmark(raw, ownerA, {
+      url: "https://notfav.example.com/a",
+      favorite: false,
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "is:favorite",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(fav.url)
+    expect(urls).not.toContain(notFav.url)
+  })
+
+  it("is:unread is accepted but does not filter", async () => {
+    const a = await insertBookmark(raw, ownerA, {
+      url: "https://unread-a.example.com/a",
+    })
+    const b = await insertBookmark(raw, ownerA, {
+      url: "https://unread-b.example.com/a",
+    })
+
+    const withUnread = await bm.listBookmarks(ownerA, {
+      search: "is:unread",
+      pageSize: 100,
+    })
+    const without = await bm.listBookmarks(ownerA, { pageSize: 100 })
+
+    // `unread` is a no-op until story 12 adds the status column, so the result
+    // set is identical to an unfiltered listing.
+    expect(urlsOf(withUnread).sort()).toEqual(urlsOf(without).sort())
+    expect(urlsOf(withUnread)).toContain(a.url)
+    expect(urlsOf(withUnread)).toContain(b.url)
+  })
+
+  it("has:image matches rows with a preview image", async () => {
+    const withImg = await insertBookmark(raw, ownerA, {
+      url: "https://img.example.com/a",
+      previewImage: "https://img.example.com/a.jpg",
+    })
+    const noImg = await insertBookmark(raw, ownerA, {
+      url: "https://noimg.example.com/a",
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "has:image",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(withImg.url)
+    expect(urls).not.toContain(noImg.url)
+  })
+
+  it("before: and after: filter by created_at", async () => {
+    const old = await insertBookmark(raw, ownerA, {
+      url: "https://date-old.example.com/a",
+      createdAt: new Date("2025-06-01T00:00:00.000Z"),
+    })
+    const recent = await insertBookmark(raw, ownerA, {
+      url: "https://date-new.example.com/a",
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+    })
+
+    const before = await bm.listBookmarks(ownerA, {
+      search: "before:2026-01-01",
+      pageSize: 100,
+    })
+    expect(urlsOf(before)).toContain(old.url)
+    expect(urlsOf(before)).not.toContain(recent.url)
+
+    const after = await bm.listBookmarks(ownerA, {
+      search: "after:2026-01-01",
+      pageSize: 100,
+    })
+    expect(urlsOf(after)).toContain(recent.url)
+    expect(urlsOf(after)).not.toContain(old.url)
+  })
+
+  it("a query of only operators filters without free text or ranking", async () => {
+    const favImg = await insertBookmark(raw, ownerA, {
+      url: "https://op-favimg.example.com/a",
+      favorite: true,
+      previewImage: "https://x.example.com/i.jpg",
+    })
+    const favNoImg = await insertBookmark(raw, ownerA, {
+      url: "https://op-favnoimg.example.com/a",
+      favorite: true,
+    })
+    const noFavImg = await insertBookmark(raw, ownerA, {
+      url: "https://op-nofavimg.example.com/a",
+      favorite: false,
+      previewImage: "https://x.example.com/i2.jpg",
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "is:favorite has:image",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(favImg.url)
+    expect(urls).not.toContain(favNoImg.url)
+    expect(urls).not.toContain(noFavImg.url)
+  })
+
+  it("operators combine with free text", async () => {
+    const match = await insertBookmark(raw, ownerA, {
+      url: "https://combo-match.example.com/a",
+      title: "Rust guide",
+      tags: ["rust"],
+    })
+    const tagOnly = await insertBookmark(raw, ownerA, {
+      url: "https://combo-tagonly.example.com/a",
+      title: "Rust book",
+      tags: ["rust"],
+    })
+    const textOnly = await insertBookmark(raw, ownerA, {
+      url: "https://combo-textonly.example.com/a",
+      title: "Go guide",
+      tags: ["go"],
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "tag:rust guide",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(match.url)
+    expect(urls).not.toContain(tagOnly.url)
+    expect(urls).not.toContain(textOnly.url)
+  })
+
+  it("an unknown operator degrades to a free-text search without crashing", async () => {
+    const match = await insertBookmark(raw, ownerA, {
+      url: "https://unknown-op.example.com/a",
+      title: "foo:bar reference",
+    })
+    const other = await insertBookmark(raw, ownerA, {
+      url: "https://unknown-other.example.com/a",
+      title: "unrelated",
+    })
+
+    // `foo:bar` is not a known operator, so it becomes free text and is passed
+    // to websearch_to_tsquery, which treats it as the terms `foo` AND `bar`.
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "foo:bar",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(match.url)
+    expect(urls).not.toContain(other.url)
+  })
+
+  it("operators respect soft delete and user scoping", async () => {
+    const active = await insertBookmark(raw, ownerA, {
+      url: "https://scope-active.example.com/a",
+      tags: ["rust"],
+    })
+    const trashed = await insertBookmark(raw, ownerA, {
+      url: "https://scope-trash.example.com/a",
+      tags: ["rust"],
+      deleted: true,
+    })
+    const otherUser = await insertBookmark(raw, ownerB, {
+      url: "https://scope-other.example.com/a",
+      tags: ["rust"],
+    })
+
+    const rows = await bm.listBookmarks(ownerA, {
+      search: "tag:rust",
+      pageSize: 100,
+    })
+    const urls = urlsOf(rows)
+
+    expect(urls).toContain(active.url)
+    expect(urls).not.toContain(trashed.url)
+    expect(urls).not.toContain(otherUser.url)
+  })
+})

@@ -1,10 +1,11 @@
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm"
+import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm"
 
 import { db } from "@/db/client"
 import { bookmarks } from "@/db/schema"
 import { ensureAuthSchema } from "@/lib/auth"
 import { normalizeBookmarkAssetUrl } from "@/lib/bookmark-assets"
 import { normalizeTags, parseTags } from "@/lib/bookmark-tags"
+import { parseBookmarkQuery } from "@/lib/bookmark-query"
 import {
   type BookmarkCardData,
   type BookmarkTagSummary,
@@ -147,11 +148,19 @@ export async function listBookmarks(
 ) {
   await ensureBookmarksTable()
 
-  const search = options?.search?.trim()
   const tag = options?.tag?.trim()
   const filters = []
-  const searchQuery = search
-    ? sql`websearch_to_tsquery('simple', ${search})`
+  // Story 8: the raw `q` string is parsed into operators plus free text. The
+  // parser is pure and unit-tested; the SQL below is built from that structured
+  // object with parameter binding, never from interpolated text.
+  const parsedQuery = options?.search
+    ? parseBookmarkQuery(options.search)
+    : { freeText: "", operators: [] }
+  const freeText = parsedQuery.freeText
+  // Ranking (ts_rank) applies only when free text is present, so an
+  // operators-only query keeps the view's default sort order.
+  const searchQuery = freeText
+    ? sql`websearch_to_tsquery('simple', ${freeText})`
     : null
   const viewSort =
     options?.view === "mostVisited"
@@ -192,8 +201,65 @@ export async function listBookmarks(
     filters.push(eq(bookmarks.isFavorite, true))
   }
 
-  if (search) {
+  if (searchQuery) {
     filters.push(sql<boolean>`${BOOKMARK_SEARCH_VECTOR} @@ ${searchQuery}`)
+  }
+
+  // Story 8 operators. Pushed to the same `filters` array as the user and
+  // soft-delete scoping, so every operator inherits that scoping and the
+  // operators AND together. Each value is parameter-bound, never interpolated.
+  for (const op of parsedQuery.operators) {
+    switch (op.kind) {
+      case "tag": {
+        filters.push(
+          sql<boolean>`exists (
+            select 1
+            from unnest(coalesce(${bookmarks.tags}, ARRAY[]::text[])) as bookmark_tag
+            where lower(bookmark_tag) = ${op.value.toLowerCase()}
+          )`
+        )
+        break
+      }
+      case "site": {
+        const siteValue = op.value.toLowerCase()
+        // The host is extracted from the stored URL. Matching is exact-host OR
+        // subdomain; the `%.` prefix keeps `notgithub.com` and
+        // `github.com.evil.com` from matching `site:github.com`.
+        const host = sql`lower(coalesce(
+          (regexp_match(${bookmarks.url}, '^[a-z][a-z0-9+.-]*://([^/:?#]+)'))[1],
+          ''
+        ))`
+        filters.push(
+          sql<boolean>`${host} = ${siteValue} or ${host} like ${`%.${siteValue}`}`
+        )
+        break
+      }
+      case "is": {
+        if (op.value === "favorite") {
+          filters.push(eq(bookmarks.isFavorite, true))
+        }
+        // `unread` is accepted by the parser but reserved for story 12's status
+        // column; it is intentionally ignored here until that column exists.
+        break
+      }
+      case "has": {
+        if (op.value === "image") {
+          filters.push(isNotNull(bookmarks.previewImage))
+        }
+        break
+      }
+      case "before": {
+        // `created_at` is `timestamp without time zone` and the session timezone
+        // is UTC, so binding the JS Date (midnight UTC) matches how rows are
+        // written.
+        filters.push(sql<boolean>`${bookmarks.createdAt} < ${op.value}`)
+        break
+      }
+      case "after": {
+        filters.push(sql<boolean>`${bookmarks.createdAt} >= ${op.value}`)
+        break
+      }
+    }
   }
 
   if (tag) {

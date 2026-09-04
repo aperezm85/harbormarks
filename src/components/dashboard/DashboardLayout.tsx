@@ -6,8 +6,13 @@ import {
   type BookmarkCardData,
   type BookmarkView,
 } from "@/lib/bookmark-types"
+import {
+  parseBookmarkQuery,
+  removeOperatorFromQuery,
+} from "@/lib/bookmark-query"
 
 import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
+import { SearchOperatorChips } from "@/components/dashboard/SearchOperatorChips"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { Button } from "@/components/ui/button"
 import { HarborCard } from "@/components/ui/HarborCard"
@@ -73,6 +78,7 @@ const DashboardTopBar = ({
           setSearchInput("")
           setDebouncedSearch("")
         }}
+        hint="tag: site: is:favorite"
       />
       {isRefreshingBookmarks && (
         <span
@@ -374,6 +380,11 @@ export const DashboardLayout = ({
       refreshTrigger,
      ])
 
+  // Story 8: derive the parsed operators from the debounced search at render
+  // time (not in an effect) so the removable chips always reflect the active
+  // query. Removal happens in an event handler, never in an effect.
+  const queryOperators = parseBookmarkQuery(debouncedSearch).operators
+
   const hasActiveSearch = debouncedSearch.length > 0
 
   return (
@@ -401,9 +412,20 @@ export const DashboardLayout = ({
             <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
               <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {hasActiveSearch ? (
-                  <div className="text-md pt-4 font-medium text-muted-foreground">
-                    Looking at results for "{debouncedSearch}".
-                  </div>
+                  <>
+                    <div className="text-md pt-4 font-medium text-muted-foreground">
+                      Looking at results for "{debouncedSearch}".
+                    </div>
+                    <SearchOperatorChips
+                      operators={queryOperators}
+                      onRemove={(token) => {
+                        const next = removeOperatorFromQuery(searchInput, token)
+                        setPage(1)
+                        setSearchInput(next)
+                        setDebouncedSearch(next)
+                      }}
+                    />
+                  </>
                 ) : routeOnlyFavorites ? (
                   <>
                     <h2 className="col-span-full text-2xl font-medium text-muted-foreground">

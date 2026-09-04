@@ -308,10 +308,12 @@ function SidebarInput({
   className,
   onClear,
   clearAriaLabel = "Clear search",
+  hint,
   ...props
 }: React.ComponentProps<typeof Input> & {
   onClear?: () => void
   clearAriaLabel?: string
+  hint?: React.ReactNode
 }) {
   const valueAsString =
     typeof props.value === "string" || typeof props.value === "number"
@@ -330,17 +332,23 @@ function SidebarInput({
         className={cn("h-8 w-full", className)}
         {...props}
       />
-      {canClear && (
+      {(canClear || hint) && (
         <InputGroupAddon align="inline-end">
-          <InputGroupButton
-            size="icon-xs"
-            variant="ghost"
-            aria-label={clearAriaLabel}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={onClear}
-          >
-            <XIcon />
-          </InputGroupButton>
+          {canClear ? (
+            <InputGroupButton
+              size="icon-xs"
+              variant="ghost"
+              aria-label={clearAriaLabel}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onClear}
+            >
+              <XIcon />
+            </InputGroupButton>
+          ) : (
+            <kbd className="hidden whitespace-nowrap rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground md:inline-block">
+              {hint}
+            </kbd>
+          )}
         </InputGroupAddon>
       )}
     </InputGroup>
