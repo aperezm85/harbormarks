@@ -131,6 +131,16 @@ docker compose down
 
 ## Recent Changes
 
+### 2026-09-03 (v0.9.7)
+
+- Search now understands operators, so you can filter by tag, site, favorite
+  status, whether a preview image exists, and save date, alongside free-text
+  search. Combine them to narrow results precisely (for example
+  `tag:rust site:github.com`); the active operators show as removable chips
+  under the search box, which also hints at the operators you can use.
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
+
 ### 2026-09-03 (v0.9.6)
 
 - Bookmark cards now show the site name, and the edit dialog surfaces the author,

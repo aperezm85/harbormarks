@@ -241,6 +241,19 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 
 ## Recent Changes
 
+### 2026-09-03 (v0.9.7)
+
+- Search now parses the `q` parameter into operators (`tag:`, `site:`, `is:`,
+  `has:`, `before:`, `after:`) plus free text in a new pure module
+  (`src/lib/bookmark-query.ts`); `listBookmarks` builds the SQL from the
+  structured result with parameter binding, so operators and free text combine
+  and stay scoped to the requesting user.
+- `is:unread` is accepted but ignored in SQL until a read-status column lands
+  (story 12); unknown operators and malformed dates degrade to free text.
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
+- Brought the README, changelog, and package version back in sync for the release.
+
 ### 2026-09-03 (v0.9.6)
 
 - Added five nullable enrichment columns (`site_name`, `author`, `published_at`,

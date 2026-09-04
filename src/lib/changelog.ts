@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.7",
+    date: "2026-09-03",
+    changes: [
+      "Search now understands operators, so you can filter by tag, site, favorite status, whether a preview image exists, and save date — alongside free-text search.",
+      "Combine operators to narrow results precisely (for example tag:rust site:github.com); the active operators appear as removable chips under the search box.",
+      "The search box now shows a hint of the operators you can use.",
+    ],
+  },
+  {
     version: "v0.9.6",
     date: "2026-09-03",
     changes: [
