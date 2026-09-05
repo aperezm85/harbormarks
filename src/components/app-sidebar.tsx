@@ -13,15 +13,20 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
 import Logo from "@/assets/harborMark.svg"
 import { LatestChangesDialog } from "@/components/dialog/LatestChangesDialog"
+import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
 import { NavUser, type SidebarUser } from "@/components/ui/NavUser"
+import { tagHue } from "@/lib/tag-color"
+import type { BookmarkCardData } from "@/lib/bookmark-types"
+import { latestChanges } from "@/lib/changelog"
 import {
   BookmarkIcon,
-  HashIcon,
   HeartStraightIcon,
+  PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
 
@@ -85,9 +90,15 @@ function getServerRouteSnapshot() {
 
 export function AppSidebar({
   currentUser,
+  onBookmarkSaved,
+  preselectedTags,
+  defaultFavorite,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   currentUser?: SidebarUser | null
+  onBookmarkSaved?: (bookmark: BookmarkCardData) => void
+  preselectedTags?: string[]
+  defaultFavorite?: boolean
 }) {
   const [tags, setTags] = React.useState<SidebarTagSummary[]>([])
   const [isLoadingTags, setIsLoadingTags] = React.useState(true)
@@ -162,48 +173,69 @@ export function AppSidebar({
   const navigationGroups = React.useMemo(() => {
     return [
       {
-        title: "Main",
+        title: "Library",
         items: [
           {
             title: "All Bookmarks",
             url: "/",
-            icon: <BookmarkIcon className="size-4" weight="fill" />,
+            icon:               <BookmarkIcon className="size-4" />,
           },
           {
             title: "Favorites",
             url: "/favorites",
-            icon: <HeartStraightIcon className="size-4" weight="fill" />,
+            icon: <HeartStraightIcon className="size-4" />,
           },
           {
             title: "Trash",
             url: "/trash",
-            icon: <TrashIcon className="size-4" weight="fill" />,
+            icon: <TrashIcon className="size-4" />,
           },
         ],
       },
     ]
   }, [])
 
+  const version = latestChanges[0]?.version ?? ""
+
   return (
     <Sidebar {...props}>
-      <SidebarHeader>
-        <div className="flex h-12 w-full items-center justify-start">
-          <img src={Logo.src} alt="HarborMarks logo" className="mr-2 h-6 w-6" />
-          <h1 className="text-2xl font-bold">
+      <SidebarHeader className="gap-3">
+        <div className="flex h-12 items-center gap-2">
+          <img src={Logo.src} alt="HarborMarks logo" className="h-6 w-6" />
+          <span className="text-lg font-bold">
             Harbor<span className="text-primary">Marks</span>
-          </h1>
+          </span>
+          {version ? (
+            <span className="ml-auto rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] font-medium text-sidebar-foreground/70">
+              {version}
+            </span>
+          ) : null}
         </div>
+        <CreateBookmarkDialog
+          onSaved={onBookmarkSaved}
+          preselectedTags={preselectedTags}
+          defaultFavorite={defaultFavorite}
+          trigger={
+            <Button className="w-full justify-between font-medium">
+              <span className="flex items-center gap-2">
+                <PlusIcon className="size-4" weight="bold" />
+                Save a link
+              </span>
+              <kbd className="rounded border border-white/25 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-white/80">
+                N
+              </kbd>
+            </Button>
+          }
+        />
       </SidebarHeader>
       <SidebarContent>
         {/* We create a SidebarGroup for each parent. */}
-        {navigationGroups.map((item) => (
-          <SidebarGroup key={item.title}>
-            <SidebarGroupLabel className="text-md">
-              {item.title}
-            </SidebarGroupLabel>
+        {navigationGroups.map((group) => (
+          <SidebarGroup key={group.title}>
+            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {item.items.map((item) => (
+                {group.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild
@@ -228,9 +260,9 @@ export function AppSidebar({
           </SidebarGroup>
         ))}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-md">Tags</SidebarGroupLabel>
+          <SidebarGroupLabel>Tags</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-2">
+            <SidebarMenu className="gap-1">
               {isLoadingTags
                 ? Array.from({ length: 4 }).map((_, index) => (
                     <SidebarMenuItem key={`tag-loading-${index}`}>
@@ -261,11 +293,12 @@ export function AppSidebar({
                       }}
                     >
                       <div className="flex w-full items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <HashIcon
-                            size={16}
-                            weight="thin"
-                            className="text-primary"
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="tag-dot"
+                            style={
+                              { "--h": tagHue(tag.tag) } as React.CSSProperties
+                            }
                           />
                           <span className="truncate">{tag.tag}</span>
                         </div>

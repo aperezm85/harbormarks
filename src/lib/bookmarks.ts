@@ -10,6 +10,7 @@ import {
   type BookmarkCardData,
   type BookmarkTagSummary,
   type BookmarkView,
+  type BookmarkViewCounts,
   DEFAULT_BOOKMARK_PAGE_SIZE,
 } from "@/lib/bookmark-types"
 import {
@@ -24,7 +25,12 @@ import {
 } from "@/lib/bookmark-import"
 
 export { DEFAULT_BOOKMARK_PAGE_SIZE }
-export type { BookmarkCardData, BookmarkTagSummary, BookmarkView }
+export type {
+  BookmarkCardData,
+  BookmarkTagSummary,
+  BookmarkView,
+  BookmarkViewCounts,
+}
 // Maintained by Postgres as a STORED generated column and backed by a GIN index
 // (migrations/0004_bookmark_search_vector.sql). Computing the tsvector inline here
 // instead would force a sequential scan on every search: the concat_ws() and
@@ -321,6 +327,43 @@ export async function listBookmarkTags(userId: number, query?: string) {
     tag: row.tag,
     count: Number(row.count),
   }))
+}
+
+// Per-view totals for the subbar chips. A single conditional-aggregation query
+// keeps this to one indexed scan of the user's rows instead of one count per
+// chip. `mostVisited` shares the `recent` set (it is the same rows, a different
+// sort), so both report the non-deleted total.
+export async function countBookmarksByView(
+  userId: number
+): Promise<BookmarkViewCounts> {
+  await ensureBookmarksTable()
+
+  const result = await db.execute(sql<{
+    recent: number
+    favorites: number
+    unorganized: number
+    trash: number
+  }>`
+    select
+      count(*) filter (where deleted_at is null)::int as recent,
+      count(*) filter (where deleted_at is null and is_favorite)::int as favorites,
+      count(*) filter (
+        where deleted_at is null and (tags is null or tags = '{}'::text[])
+      )::int as unorganized,
+      count(*) filter (where deleted_at is not null)::int as trash
+    from bookmarks
+    where user_id = ${userId}
+  `)
+
+  const row = result.rows[0]
+
+  return {
+    recent: Number(row?.recent ?? 0),
+    mostVisited: Number(row?.recent ?? 0),
+    unorganized: Number(row?.unorganized ?? 0),
+    favorites: Number(row?.favorites ?? 0),
+    trash: Number(row?.trash ?? 0),
+  }
 }
 
 // `published_at` is a timestamp column, but the JSON API and the metadata

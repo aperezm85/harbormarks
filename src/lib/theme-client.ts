@@ -1,21 +1,22 @@
-export type ThemeMode = "light" | "dark" | "system"
+const SYSTEM_MEDIA_QUERY = "(prefers-color-scheme: dark)"
+const STORAGE_KEY = "theme"
 
-export const isThemeMode = (value: string | null): value is ThemeMode => {
-  return value === "light" || value === "dark" || value === "system"
-}
+export type ThemeMode = "light" | "dark" | "system"
 
 export const getStoredThemeMode = (): ThemeMode | null => {
   if (typeof window === "undefined") {
     return null
   }
 
-  const storedTheme = window.localStorage.getItem("theme")
-  return isThemeMode(storedTheme) ? storedTheme : null
+  const stored = window.localStorage.getItem(STORAGE_KEY)
+  if (stored === "light" || stored === "dark" || stored === "system") {
+    return stored
+  }
+
+  return null
 }
 
-export const resolveThemeMode = (
-  mode: ThemeMode | null = getStoredThemeMode()
-) => {
+export const resolveThemeMode = (mode: ThemeMode | null): "light" | "dark" => {
   if (mode === "light" || mode === "dark") {
     return mode
   }
@@ -24,14 +25,10 @@ export const resolveThemeMode = (
     return "light"
   }
 
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light"
+  return window.matchMedia(SYSTEM_MEDIA_QUERY).matches ? "dark" : "light"
 }
 
-export const applyThemePreference = (
-  mode: ThemeMode | null = getStoredThemeMode()
-) => {
+export const applyThemePreference = (mode: ThemeMode | null) => {
   if (typeof document === "undefined") {
     return
   }
@@ -45,7 +42,7 @@ export const setThemeMode = (mode: ThemeMode) => {
     return
   }
 
-  window.localStorage.setItem("theme", mode)
+  window.localStorage.setItem(STORAGE_KEY, mode)
   applyThemePreference(mode)
 }
 
@@ -57,6 +54,5 @@ export const toggleThemeMode = () => {
   const nextMode = document.documentElement.classList.contains("dark")
     ? "light"
     : "dark"
-
   setThemeMode(nextMode)
 }

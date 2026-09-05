@@ -39,6 +39,8 @@
     --sidebar-accent-foreground: oklch(0.218 0.008 223.9);
     --sidebar-border: oklch(0.925 0.005 214.3);
     --sidebar-ring: oklch(0.723 0.014 214.4);
+    --tag-dot-l: 0.38;
+    --tag-dot-c: 0.13;
 }
 
 .dark {
@@ -73,6 +75,8 @@
     --sidebar-accent-foreground: oklch(0.987 0.002 197.1);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.56 0.021 213.5);
+    --tag-dot-l: 0.68;
+    --tag-dot-c: 0.15;
 }
 
 @theme inline {
@@ -127,4 +131,17 @@
   html {
     @apply font-sans;
     }
+}
+
+/* Sidebar tag dots. The lightness/chroma are theme-scoped above (mirrored from
+   TAG_DOT_LIGHT / TAG_DOT_DARK in src/lib/tag-color.ts — keep them in sync); the
+   hue is set per-tag via the --h custom property (tagHue). oklch() with a bare
+   hue var is valid because --h resolves to a number. */
+.tag-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  background: oklch(var(--tag-dot-l) var(--tag-dot-c) var(--h, 0));
 }
