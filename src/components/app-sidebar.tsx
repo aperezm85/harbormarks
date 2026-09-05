@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { Button } from "@/components/ui/button"
 import {
   Sidebar,
   SidebarContent,
@@ -13,16 +14,15 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
 import Logo from "@/assets/harborMark.svg"
-import { LatestChangesDialog } from "@/components/dialog/LatestChangesDialog"
 import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
+import { LatestChangesDialog } from "@/components/dialog/LatestChangesDialog"
 import { NavUser, type SidebarUser } from "@/components/ui/NavUser"
-import { tagHue } from "@/lib/tag-color"
 import type { BookmarkCardData } from "@/lib/bookmark-types"
 import { latestChanges } from "@/lib/changelog"
+import { tagHue } from "@/lib/tag-color"
 import {
   BookmarkIcon,
   HeartStraightIcon,
@@ -178,7 +178,7 @@ export function AppSidebar({
           {
             title: "All Bookmarks",
             url: "/",
-            icon:               <BookmarkIcon className="size-4" />,
+            icon: <BookmarkIcon className="size-4" />,
           },
           {
             title: "Favorites",
@@ -205,18 +205,17 @@ export function AppSidebar({
           <span className="text-lg font-bold">
             Harbor<span className="text-primary">Marks</span>
           </span>
-          {version ? (
-            <span className="ml-auto rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] font-medium text-sidebar-foreground/70">
-              {version}
-            </span>
-          ) : null}
+          {version ? <LatestChangesDialog version={version} /> : null}
         </div>
         <CreateBookmarkDialog
           onSaved={onBookmarkSaved}
           preselectedTags={preselectedTags}
           defaultFavorite={defaultFavorite}
           trigger={
-            <Button className="w-full justify-between font-medium">
+            <Button
+              className="w-full justify-between font-medium"
+              size="sidebar"
+            >
               <span className="flex items-center gap-2">
                 <PlusIcon className="size-4" weight="bold" />
                 Save a link
@@ -249,7 +248,14 @@ export function AppSidebar({
                         }}
                       >
                         <div className="flex items-center gap-2">
-                          {item?.icon} {item.title}
+                          <span
+                            className={
+                              pathname === item.url ? "text-primary" : ""
+                            }
+                          >
+                            {item?.icon}
+                          </span>{" "}
+                          {item.title}
                         </div>
                       </a>
                     </SidebarMenuButton>
@@ -323,7 +329,6 @@ export function AppSidebar({
       </SidebarContent>
       {currentUser ? (
         <SidebarFooter>
-          <LatestChangesDialog />
           <NavUser user={currentUser} />
         </SidebarFooter>
       ) : null}
