@@ -656,25 +656,79 @@ describe.skipIf(!TEST_DATABASE_URL)("search operators", () => {
     expect(urls).not.toContain(notFav.url)
   })
 
-  it("is:unread is accepted but does not filter", async () => {
-    const a = await insertBookmark(raw, ownerA, {
+  it("is:unread filters by status", async () => {
+    const unread = await insertBookmark(raw, ownerA, {
       url: "https://unread-a.example.com/a",
     })
-    const b = await insertBookmark(raw, ownerA, {
+    const reading = await insertBookmark(raw, ownerA, {
       url: "https://unread-b.example.com/a",
     })
+    await raw.query("UPDATE bookmarks SET status = 'reading' WHERE id = $1", [
+      reading.id,
+    ])
 
     const withUnread = await bm.listBookmarks(ownerA, {
       search: "is:unread",
       pageSize: 100,
     })
-    const without = await bm.listBookmarks(ownerA, { pageSize: 100 })
 
-    // `unread` is a no-op until story 12 adds the status column, so the result
-    // set is identical to an unfiltered listing.
-    expect(urlsOf(withUnread).sort()).toEqual(urlsOf(without).sort())
-    expect(urlsOf(withUnread)).toContain(a.url)
-    expect(urlsOf(withUnread)).toContain(b.url)
+    // `is:unread` filters to the unread status, not a no-op.
+    expect(urlsOf(withUnread)).toContain(unread.url)
+    expect(urlsOf(withUnread)).not.toContain(reading.url)
+  })
+
+  it("is:reading and is:archived filter by status", async () => {
+    const reading = await insertBookmark(raw, ownerA, {
+      url: "https://reading-a.example.com/a",
+    })
+    await raw.query("UPDATE bookmarks SET status = 'reading' WHERE id = $1", [
+      reading.id,
+    ])
+    const archived = await insertBookmark(raw, ownerA, {
+      url: "https://archived-a.example.com/a",
+    })
+    await raw.query("UPDATE bookmarks SET status = 'archived' WHERE id = $1", [
+      archived.id,
+    ])
+    const unread = await insertBookmark(raw, ownerA, {
+      url: "https://status-unread.example.com/a",
+    })
+
+    const readingRows = await bm.listBookmarks(ownerA, {
+      search: "is:reading",
+      pageSize: 100,
+    })
+    expect(urlsOf(readingRows)).toContain(reading.url)
+    expect(urlsOf(readingRows)).not.toContain(archived.url)
+    expect(urlsOf(readingRows)).not.toContain(unread.url)
+
+    const archivedRows = await bm.listBookmarks(ownerA, {
+      search: "is:archived",
+      pageSize: 100,
+    })
+    expect(urlsOf(archivedRows)).toContain(archived.url)
+    expect(urlsOf(archivedRows)).not.toContain(reading.url)
+    expect(urlsOf(archivedRows)).not.toContain(unread.url)
+  })
+
+  it("view unread lists only unread bookmarks", async () => {
+    const unread = await insertBookmark(raw, ownerA, {
+      url: "https://view-unread.example.com/a",
+    })
+    const reading = await insertBookmark(raw, ownerA, {
+      url: "https://view-reading.example.com/a",
+    })
+    await raw.query("UPDATE bookmarks SET status = 'reading' WHERE id = $1", [
+      reading.id,
+    ])
+
+    const rows = await bm.listBookmarks(ownerA, {
+      view: "unread",
+      pageSize: 100,
+    })
+
+    expect(urlsOf(rows)).toContain(unread.url)
+    expect(urlsOf(rows)).not.toContain(reading.url)
   })
 
   it("has:image matches rows with a preview image", async () => {

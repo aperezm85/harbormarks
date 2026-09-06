@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 // When a search is active the parsed operator chips are shown below the row.
 type ViewChipKey =
   | "recent"
+  | "unread"
   | "mostVisited"
   | "unorganized"
   | "favorites"
@@ -22,6 +23,7 @@ type ViewChipKey =
 
 const VIEW_TITLE: Record<BookmarkView, string> = {
   recent: "Recent",
+  unread: "Unread",
   mostVisited: "Most visited",
   unorganized: "Unorganized",
   trash: "Trash",
@@ -29,6 +31,7 @@ const VIEW_TITLE: Record<BookmarkView, string> = {
 
 const CHIP_DEFS: { key: ViewChipKey; label: string }[] = [
   { key: "recent", label: "All" },
+  { key: "unread", label: "Unread" },
   { key: "mostVisited", label: "Most visited" },
   { key: "unorganized", label: "Unorganized" },
   { key: "favorites", label: "Favorites" },
@@ -56,7 +59,7 @@ export const DashboardSubBar = ({
   debouncedSearch: string
   count: number
   queryOperators: BookmarkQueryOperator[]
-  onIndexViewChange: (view: "recent" | "mostVisited" | "unorganized") => void
+  onIndexViewChange: (view: "recent" | "unread" | "mostVisited" | "unorganized") => void
   onNavigate: (path: string) => void
   onRemoveOperator: (token: string) => void
 }) => {

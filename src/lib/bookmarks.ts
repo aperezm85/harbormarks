@@ -8,6 +8,7 @@ import { normalizeTags, parseTags } from "@/lib/bookmark-tags"
 import { parseBookmarkQuery } from "@/lib/bookmark-query"
 import {
   type BookmarkCardData,
+  type BookmarkStatus,
   type BookmarkTagSummary,
   type BookmarkView,
   type BookmarkViewCounts,
@@ -38,6 +39,23 @@ export type {
 const BOOKMARK_SEARCH_VECTOR = sql`bookmarks.search_vector`
 
 const DEFAULT_FAVICON = "/favicon.ico"
+
+const BOOKMARK_STATUSES: readonly BookmarkStatus[] = [
+  "unread",
+  "reading",
+  "archived",
+]
+
+export function isBookmarkStatus(value: unknown): value is BookmarkStatus {
+  return (
+    typeof value === "string" &&
+    (BOOKMARK_STATUSES as readonly string[]).includes(value)
+  )
+}
+
+function normalizeBookmarkStatus(value: unknown): BookmarkStatus {
+  return isBookmarkStatus(value) ? value : "unread"
+}
 
 let isSchemaReady = false
 let schemaReadyPromise: Promise<void> | null = null
@@ -95,6 +113,13 @@ function toCardData(bookmark: typeof bookmarks.$inferSelect): BookmarkCardData {
        : null,
     language: bookmark.language,
     canonicalUrl: bookmark.canonicalUrl,
+    // Story 12 notes-only slice: private user note, null when unset.
+    note: bookmark.note ?? null,
+    // Read status slice: unexpected values fall back to unread so the card
+    // never renders a broken state (e.g. rows written before the constraint).
+    status: normalizeBookmarkStatus(
+      (bookmark as { status?: unknown }).status
+    ),
    }
  }
 
@@ -243,9 +268,13 @@ export async function listBookmarks(
       case "is": {
         if (op.value === "favorite") {
           filters.push(eq(bookmarks.isFavorite, true))
+        } else if (
+          op.value === "unread" ||
+          op.value === "reading" ||
+          op.value === "archived"
+        ) {
+          filters.push(eq(bookmarks.status, op.value))
         }
-        // `unread` is accepted by the parser but reserved for story 12's status
-        // column; it is intentionally ignored here until that column exists.
         break
       }
       case "has": {
@@ -280,6 +309,10 @@ export async function listBookmarks(
     filters.push(
       or(isNull(bookmarks.tags), sql<boolean>`${bookmarks.tags} = '{}'::text[]`)
     )
+  }
+
+  if (options?.view === "unread") {
+    filters.push(eq(bookmarks.status, "unread"))
   }
 
   const whereClause = filters.length === 1 ? filters[0] : and(...filters)
@@ -343,6 +376,7 @@ export async function countBookmarksByView(
     favorites: number
     unorganized: number
     trash: number
+    unread: number
   }>`
     select
       count(*) filter (where deleted_at is null)::int as recent,
@@ -350,7 +384,8 @@ export async function countBookmarksByView(
       count(*) filter (
         where deleted_at is null and (tags is null or tags = '{}'::text[])
       )::int as unorganized,
-      count(*) filter (where deleted_at is not null)::int as trash
+      count(*) filter (where deleted_at is not null)::int as trash,
+      count(*) filter (where deleted_at is null and status = 'unread')::int as unread
     from bookmarks
     where user_id = ${userId}
   `)
@@ -363,6 +398,7 @@ export async function countBookmarksByView(
     unorganized: Number(row?.unorganized ?? 0),
     favorites: Number(row?.favorites ?? 0),
     trash: Number(row?.trash ?? 0),
+    unread: Number(row?.unread ?? 0),
   }
 }
 
@@ -400,17 +436,27 @@ export async function createBookmark(
     publishedAt?: string | null
     language?: string | null
     canonicalUrl?: string | null
+    // Story 12 notes-only slice: optional on input, nullable column.
+    note?: string | null
+    // Read status slice: optional on input, defaults to unread.
+    status?: BookmarkStatus | string | null
     }
- ) {
-   await ensureBookmarksTable()
+  ) {
+    await ensureBookmarksTable()
 
-   const normalizedUrl = normalizeBookmarkUrl(input.url)
+    const normalizedUrl = normalizeBookmarkUrl(input.url)
 
-   if (!normalizedUrl) {
-    throw new Error("Invalid bookmark URL")
-   }
+    if (!normalizedUrl) {
+      throw new Error("Invalid bookmark URL")
+    }
 
-   const [created] = await db
+    const status = normalizeBookmarkStatus(input.status ?? "unread")
+
+    if (input.status != null && !isBookmarkStatus(input.status)) {
+      throw new Error("Invalid bookmark status")
+    }
+
+    const [created] = await db
       .insert(bookmarks)
       .values({
         userId,
@@ -432,6 +478,10 @@ export async function createBookmark(
          publishedAt: parseEnrichmentDate(input.publishedAt),
          language: input.language?.trim() || null,
          canonicalUrl: input.canonicalUrl?.trim() || null,
+          // Story 12 note: trimmed like title/description; empty collapses to
+          // null so "no note" is stored as NULL, not an empty string.
+          note: input.note?.trim() || null,
+          status,
         updatedAt: new Date(),
       })
       .returning()
@@ -456,8 +506,14 @@ export async function updateBookmarkById(
     publishedAt?: string | null
     language?: string | null
     canonicalUrl?: string | null
+    // Story 12 note. Optional on input: the JSON route passes real values,
+    // the form route passes `undefined`, which leaves the column untouched.
+    note?: string | null | undefined
+    // Read status slice. Optional on input: undefined omits the column;
+    // a provided value is validated against the three allowed states.
+    status?: BookmarkStatus | string | null | undefined
    }
- ) {
+  ) {
    await ensureBookmarksTable()
 
    const normalizedUrl = normalizeBookmarkUrl(input.url)
@@ -496,6 +552,19 @@ export async function updateBookmarkById(
                ? input.canonicalUrl?.trim() || null
                : undefined,
          }
+    // Story 12 note: only written when the caller passed a value. undefined
+    // omits the column; null/string overwrites (empty collapses to NULL).
+    const noteUpdate =
+      input.note !== undefined ? { note: input.note?.trim() || null } : {}
+    // Read status slice: only written when the caller passed a value.
+    // undefined omits the column; null falls back to unread.
+    if (input.status !== undefined && input.status !== null && !isBookmarkStatus(input.status)) {
+      throw new Error("Invalid bookmark status")
+    }
+    const statusUpdate =
+      input.status !== undefined
+        ? { status: normalizeBookmarkStatus(input.status ?? "unread") }
+        : {}
 
    const [updated] = await db
       .update(bookmarks)
@@ -507,8 +576,10 @@ export async function updateBookmarkById(
        previewImage: normalizeBookmarkAssetUrl(
          input.previewImage?.trim() || null
         ),
-       tags: normalizeTags(input.tags),
+        tags: normalizeTags(input.tags),
         ...enrichment,
+        ...noteUpdate,
+        ...statusUpdate,
        updatedAt: new Date(),
        })
       .where(
@@ -554,6 +625,32 @@ export async function toggleFavoriteById(userId: number, id: number) {
     )
 
   return true
+}
+
+export async function setBookmarkStatusById(
+  userId: number,
+  id: number,
+  status: BookmarkStatus | string
+) {
+  await ensureBookmarksTable()
+
+  if (!isBookmarkStatus(status)) {
+    throw new Error("Invalid bookmark status")
+  }
+
+  const [updated] = await db
+    .update(bookmarks)
+    .set({ status, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, userId),
+        isNull(bookmarks.deletedAt)
+      )
+    )
+    .returning()
+
+  return updated ? toCardData(updated) : null
 }
 
 export async function deleteBookmarkById(userId: number, id: number) {

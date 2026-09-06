@@ -1,3 +1,5 @@
+export type BookmarkStatus = "unread" | "reading" | "archived"
+
 export type BookmarkCardData = {
   id: string
   url: string
@@ -17,7 +19,11 @@ export type BookmarkCardData = {
   publishedAt: string | null
   language: string | null
   canonicalUrl: string | null
-  note?: string | null
+  // Story 12 notes-only slice: private user note, always present on card data
+  // (null when unset).
+  note: string | null
+  // Read status slice: unread | reading | archived, always present.
+  status: BookmarkStatus
 }
 
 export type BookmarkTagSummary = {
@@ -25,7 +31,12 @@ export type BookmarkTagSummary = {
   count: number
 }
 
-export type BookmarkView = "recent" | "mostVisited" | "unorganized" | "trash"
+export type BookmarkView =
+  | "recent"
+  | "mostVisited"
+  | "unorganized"
+  | "trash"
+  | "unread"
 
 // Per-view totals for the dashboard subbar chips. Kept in this shared types
 // module (not in the server data layer) so client components can reference the
@@ -36,6 +47,7 @@ export type BookmarkViewCounts = {
   unorganized: number
   favorites: number
   trash: number
+  unread: number
 }
 
 export const DEFAULT_BOOKMARK_PAGE_SIZE = 50

@@ -44,6 +44,18 @@ const parseCases: ParseCase[] = [
     operators: [{ kind: "is", value: "unread", token: "is:unread" }],
   },
   {
+    name: "is:reading is accepted and recorded",
+    query: "is:reading",
+    freeText: "",
+    operators: [{ kind: "is", value: "reading", token: "is:reading" }],
+  },
+  {
+    name: "is:archived is accepted and recorded",
+    query: "is:archived",
+    freeText: "",
+    operators: [{ kind: "is", value: "archived", token: "is:archived" }],
+  },
+  {
     name: "has:image alone",
     query: "has:image",
     freeText: "",
@@ -149,8 +161,8 @@ const parseCases: ParseCase[] = [
   },
   {
     name: "an is value outside the whitelist becomes free text",
-    query: "is:archived rust",
-    freeText: "is:archived rust",
+    query: "is:later rust",
+    freeText: "is:later rust",
     operators: [],
   },
   {

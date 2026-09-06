@@ -65,6 +65,11 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
   let publishedAt: string | null | undefined
   let language: string | null | undefined
   let canonicalUrl: string | null | undefined
+  // Story 12 note. JSON-only: string-or-null from the body; the form path
+  // stays undefined so the data layer omits the column.
+  let note: string | null | undefined
+  // Read status slice. JSON-only: validated string; undefined omits the column.
+  let status: string | null | undefined
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -88,6 +93,10 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
     language = typeof body?.language === "string" ? body.language : null
     canonicalUrl =
       typeof body?.canonicalUrl === "string" ? body.canonicalUrl : null
+    // Pass through as-is (string or null): updateBookmarkById applies
+    // `trim() || null` when present and omits the column when undefined.
+    note = typeof body?.note === "string" ? body.note : null
+    status = typeof body?.status === "string" ? body.status : undefined
      } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
@@ -152,6 +161,8 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
     publishedAt,
     language,
     canonicalUrl,
+    note,
+    status,
      })
 
   if (!bookmark) {

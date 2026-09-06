@@ -38,7 +38,7 @@ export const DashboardLayout = ({
   bookmarks: BookmarkCardData[]
   tagFilter?: string
   onlyFavorites?: boolean
-  view?: "recent" | "mostVisited" | "unorganized" | "trash"
+  view?: "recent" | "unread" | "mostVisited" | "unorganized" | "trash"
   hasMore?: boolean
   currentUser?: {
     id: number
