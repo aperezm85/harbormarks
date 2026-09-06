@@ -84,7 +84,7 @@ http://<NAS_IP>:3000/login
 Example:
 
 ```text
-http://192.168.1.50:3000/login
+http://<your-nas-ip>:3000/login
 ```
 
 If you use a reverse proxy, map your domain to `http://127.0.0.1:3000` on the NAS.
