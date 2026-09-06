@@ -7,19 +7,23 @@ import {
   type BookmarkView,
 } from "@/lib/bookmark-types"
 import {
+  DEFAULT_CARD_VIEW,
+  getStoredCardView,
+  setStoredCardView,
+  type CardViewMode,
+} from "@/lib/card-view"
+import {
   parseBookmarkQuery,
   removeOperatorFromQuery,
 } from "@/lib/bookmark-query"
+import { cn } from "@/lib/utils"
 
 import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar"
 import { DashboardSubBar } from "@/components/dashboard/DashboardSubBar"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { Button } from "@/components/ui/button"
 import { HarborCard } from "@/components/ui/HarborCard"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 import { Toaster } from "@/components/ui/sonner"
 
@@ -52,6 +56,11 @@ export const DashboardLayout = ({
   const [visibleBookmarks, setVisibleBookmarks] =
     useState<BookmarkCardData[]>(bookmarks)
   const [activeView, setActiveView] = useState<BookmarkView>(view ?? "recent")
+  const [cardView, setCardView] = useState<CardViewMode>(DEFAULT_CARD_VIEW)
+  // False until the stored view has been applied. The container stays
+  // `invisible` (layout preserved, just not painted) until then, so a stored
+  // list/compact choice never flashes the server-rendered grid first.
+  const [isCardViewReady, setIsCardViewReady] = useState(false)
   const [isRefreshingBookmarks, setIsRefreshingBookmarks] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(initialHasMore)
@@ -60,23 +69,41 @@ export const DashboardLayout = ({
   const requestIdRef = useRef(0)
   const skipInitialRefreshRef = useRef(true)
 
-   // A successful import posts this event; reset to page 1 and re-fetch so the
-   // newly imported bookmarks appear without a full page reload.
+  // A successful import posts this event; reset to page 1 and re-fetch so the
+  // newly imported bookmarks appear without a full page reload.
+  // The stored card view is read in an effect (not the useState initializer)
+  // so the server-rendered markup always matches the first client render and
+  // the persisted choice hydrates right after without a mismatch.
+  useEffect(() => {
+    // Hydrating persisted UI state on mount: sanctioned set-state-in-effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCardView(getStoredCardView())
+    setIsCardViewReady(true)
+  }, [])
+
+  const handleCardViewChange = (next: CardViewMode) => {
+    setCardView(next)
+    setStoredCardView(next)
+  }
+
   useEffect(() => {
     function handleBookmarksChanged() {
       setPage(1)
       setRefreshTrigger((current) => current + 1)
-     }
+    }
 
-    window.addEventListener("harbormarks:bookmarks-changed", handleBookmarksChanged)
+    window.addEventListener(
+      "harbormarks:bookmarks-changed",
+      handleBookmarksChanged
+    )
 
     return () => {
       window.removeEventListener(
         "harbormarks:bookmarks-changed",
         handleBookmarksChanged
-        )
-      }
-    }, [])
+      )
+    }
+  }, [])
 
   useEffect(() => {
     function syncRouteFilters() {
@@ -293,15 +320,15 @@ export const DashboardLayout = ({
     return () => {
       abortController.abort()
     }
-    }, [
-      activeView,
-      debouncedSearch,
-      page,
-      routeTagFilter,
-      routeOnlyFavorites,
-      routeTrashOnly,
-      refreshTrigger,
-     ])
+  }, [
+    activeView,
+    debouncedSearch,
+    page,
+    routeTagFilter,
+    routeOnlyFavorites,
+    routeTrashOnly,
+    refreshTrigger,
+  ])
 
   // Story 8: derive the parsed operators from the debounced search at render
   // time (not in an effect) so the removable chips always reflect the active
@@ -309,6 +336,16 @@ export const DashboardLayout = ({
   const queryOperators = parseBookmarkQuery(debouncedSearch).operators
 
   const hasActiveSearch = debouncedSearch.length > 0
+
+  // Container classes per card density. Kept as a plain variable (not an
+  // inline template literal) so prettier-plugin-tailwindcss can sort the
+  // classes without touching the conditional `invisible` gate below.
+  const densityClassName =
+    cardView === "grid"
+      ? "grid gap-4 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]"
+      : cardView === "list"
+        ? "flex flex-col gap-2.5 p-4"
+        : "flex flex-col gap-px overflow-hidden p-4"
 
   // Client-side navigation that rides the app's ClientRouter: click a
   // transient link so the transition (and the route-sync effect) run without
@@ -345,6 +382,8 @@ export const DashboardLayout = ({
             }}
             isRefreshing={isRefreshingBookmarks}
             hasActiveSearch={hasActiveSearch}
+            cardView={cardView}
+            onCardViewChange={handleCardViewChange}
           />
           <DashboardSubBar
             activeView={activeView}
@@ -380,11 +419,20 @@ export const DashboardLayout = ({
           />
           <div className="flex flex-1 flex-col p-4">
             <div className="min-h-screen flex-1 md:min-h-min">
-              <div className="grid gap-4 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
+              {/* `invisible` until the stored view is applied: it keeps the
+              layout space reserved, so the cards appear at the right density
+              with no layout jump (see isCardViewReady). */}
+              <div
+                className={cn(
+                  densityClassName,
+                  !isCardViewReady && "invisible"
+                )}
+              >
                 {visibleBookmarks.map((bookmark) => (
                   <HarborCard
                     key={bookmark.id}
                     {...bookmark}
+                    viewMode={cardView}
                     onSaved={applyBookmarkUpdate}
                     onVisit={() => incrementVisitCount(bookmark.id)}
                     onVisitRollback={() => decrementVisitCount(bookmark.id)}
@@ -412,7 +460,7 @@ export const DashboardLayout = ({
                   />
                 ))}
                 {hasMore ? (
-                  <div className="col-span-full flex justify-center pt-2 pb-2">
+                  <div className="flex w-full justify-center pt-2 pb-2">
                     <Button
                       type="button"
                       variant="secondary"
@@ -426,7 +474,7 @@ export const DashboardLayout = ({
                   </div>
                 ) : null}
                 {visibleBookmarks.length === 0 && (
-                  <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  <div className="w-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                     {hasActiveSearch
                       ? `Your harbor doesn't contain any results for "${debouncedSearch}".`
                       : routeOnlyFavorites
