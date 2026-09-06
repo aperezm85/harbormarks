@@ -27,7 +27,8 @@ COPY scripts ./scripts
 RUN corepack enable \
 	&& pnpm install --prod --frozen-lockfile \
 	&& pnpm store prune \
-	&& rm -rf /root/.cache /root/.local/share/pnpm
+	&& rm -rf /root/.cache /root/.local/share/pnpm \
+	&& mkdir -p public/uploads/avatars
 
 ENV HOST=0.0.0.0
 ENV PORT=3000
