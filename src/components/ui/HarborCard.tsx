@@ -223,7 +223,16 @@ export const HarborCard = ({
   }
 
   const openBookmark = () => {
+    // Click-to-read: an unread click becomes "reading" once the visit is
+    // tracked. Archived items are never touched; the badge/dot clears
+    // optimistically and rolls back if either request fails.
+    const wasUnread = status === "unread" && !isTrashItem
+
     onVisit?.()
+
+    if (wasUnread) {
+      onSaved?.({ ...bookmarkData, visitCount: visitCount + 1, status: "reading" })
+    }
 
     void fetch(`/api/bookmarks/${id}/visit`, {
       method: "POST",
@@ -231,10 +240,53 @@ export const HarborCard = ({
         "content-type": "application/json",
       },
       keepalive: true,
-    }).catch(() => {
-      onVisitRollback?.()
-      toast.error("Unable to track bookmark visit. Counter was restored.")
     })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Unable to track bookmark visit")
+        }
+
+        if (!wasUnread) {
+          return
+        }
+
+        // Visit succeeded: promote unread -> reading. A status failure keeps
+        // the incremented visit count and only reverts the status.
+        return fetch(`/api/bookmarks/${id}/status`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ status: "reading" }),
+        }).then(async (statusResponse) => {
+          if (!statusResponse.ok) {
+            throw new Error("Unable to update read status")
+          }
+
+          const payload = (await statusResponse.json()) as {
+            data?: BookmarkCardData
+          }
+
+          if (payload.data) {
+            onSaved?.({ ...payload.data, visitCount: visitCount + 1 })
+          }
+        })
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : ""
+
+        if (message === "Unable to update read status") {
+          onSaved?.({ ...bookmarkData, visitCount: visitCount + 1 })
+          toast.error("Visit tracked, but read status was reverted.")
+          return
+        }
+
+        onVisitRollback?.()
+        if (wasUnread) {
+          onSaved?.(bookmarkData)
+        }
+        toast.error("Unable to track bookmark visit. Counter was restored.")
+      })
   }
 
   // const resetVisitCount = () => {
@@ -343,7 +395,13 @@ export const HarborCard = ({
   const statusLabel =
     status === "unread" ? "Unread" : status === "reading" ? "Reading" : "Archived"
 
-  const renderStatusControl = () => (
+  const renderStatusControl = () => {
+    // Card shows the unread state only — no dot for reading/archived.
+    if (status !== "unread") {
+      return null
+    }
+
+    return (
     <Button
       variant="ghost"
       size="icon-xs"
@@ -367,17 +425,25 @@ export const HarborCard = ({
         />
       )}
     </Button>
-  )
+    )
+  }
 
-  const renderStatusBadge = () => (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-      <span
-        aria-hidden="true"
-        className={`size-1.5 rounded-full ${statusDotClassName}`}
-      />
-      {statusLabel}
-    </span>
-  )
+  const renderStatusBadge = () => {
+    // Card shows the unread state only — no badge for reading/archived.
+    if (status !== "unread") {
+      return null
+    }
+
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <span
+          aria-hidden="true"
+          className={`size-1.5 rounded-full ${statusDotClassName}`}
+        />
+        {statusLabel}
+      </span>
+    )
+  }
 
   const deleteBookmark = () => {
     if (isDeleting) {
@@ -631,6 +697,9 @@ export const HarborCard = ({
           canonicalUrl,
           note,
           status,
+          createdAt,
+          visitCount,
+          isFavorite,
         }}
         onSaved={onSaved}
         trigger={
@@ -1134,6 +1203,9 @@ export const HarborCard = ({
               canonicalUrl,
               note,
               status,
+              createdAt,
+              visitCount,
+              isFavorite,
             }}
             onSaved={onSaved}
             trigger={

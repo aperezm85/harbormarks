@@ -117,6 +117,45 @@ function resolveDisplayName(email: string, displayName: string | null) {
   return localPart || email
 }
 
+const MAX_AVATAR_URL_LENGTH = 2048
+
+function isAllowedAvatarUrl(candidate: string) {
+  if (candidate.length > MAX_AVATAR_URL_LENGTH) {
+    return false
+  }
+
+  const lowered = candidate.toLowerCase()
+  if (
+    lowered.startsWith("javascript:") ||
+    lowered.startsWith("data:text/html")
+  ) {
+    return false
+  }
+
+  if (candidate.startsWith("/uploads/")) {
+    return true
+  }
+
+  if (candidate.startsWith("/api/avatar/")) {
+    return true
+  }
+
+  if (candidate.startsWith("data:image/svg+xml")) {
+    return true
+  }
+
+  if (candidate.startsWith("https://")) {
+    try {
+      const parsed = new URL(candidate)
+      return parsed.protocol === "https:"
+    } catch {
+      return false
+    }
+  }
+
+  return false
+}
+
 function gravatarUrl(email: string) {
   const normalizedEmail = normalizeEmail(email)
   const [localPart] = normalizedEmail.split("@")
@@ -130,11 +169,11 @@ function resolveAvatarUrl(email: string, avatarUrl?: string | null) {
     return gravatarUrl(email)
   }
 
-  if (candidate.includes("gravatar.com/avatar/")) {
-    return gravatarUrl(email)
+  if (isAllowedAvatarUrl(candidate)) {
+    return candidate
   }
 
-  return candidate
+  return gravatarUrl(email)
 }
 
 async function hashPassword(password: string, salt?: string) {
@@ -720,6 +759,40 @@ export async function updateProfileName(userId: number, displayName: string) {
   const [updated] = await db
     .update(users)
     .set({ displayName: trimmedName, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      role: users.role,
+      isActive: users.isActive,
+      emailVerifiedAt: users.emailVerifiedAt,
+    })
+
+  if (!updated) {
+    return { error: "User not found" as const }
+  }
+
+  return { data: toAuthenticatedUser(updated) }
+}
+
+export async function updateProfileAvatar(
+  userId: number,
+  url: string | null
+) {
+  await ensureAuthSchema()
+
+  const trimmed = url?.trim() ?? ""
+  const nextValue = trimmed === "" ? null : trimmed
+
+  if (nextValue !== null && !isAllowedAvatarUrl(nextValue)) {
+    return { error: "Invalid avatar URL" as const }
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set({ avatarUrl: nextValue, updatedAt: new Date() })
     .where(eq(users.id, userId))
     .returning({
       id: users.id,

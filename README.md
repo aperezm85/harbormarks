@@ -131,6 +131,23 @@ docker compose down
 
 ## Recent Changes
 
+### 2026-09-06 (v0.9.11)
+
+- Opening an unread bookmark now marks it as reading automatically. The status
+  badge clears right away and rolls back if the update fails; archived
+  bookmarks are never touched.
+- The save/edit dialog got a cleaner layout with a preview image header, a
+  favorites switch that saves inline, and delete moved inside the dialog.
+- Press `N` anywhere on the dashboard to open the save-a-link dialog (ignored
+  while typing or when a menu or dialog is already open).
+- Bookmarks saved via a Freedium mirror now show the real article title,
+  description, and image instead of the mirror's own chrome; the saved URL
+  itself is untouched.
+- You can now upload a profile picture from your profile page, with safer
+  avatar handling and notifications that float instead of shifting the page.
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
+
 ### 2026-09-06 (v0.9.10)
 
 - Every bookmark now has your own private note, separate from the scraped page
