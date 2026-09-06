@@ -18,7 +18,6 @@ pnpm-debug.log*
 
 # local docker compose overrides (auto-loaded by docker compose)
 docker-compose.override.yml
-
 # macOS-specific files
 .DS_Store
 
@@ -39,3 +38,5 @@ Modelfile.txt
 .harbormarks-cache/
 # Local skill registry cache (atl tooling)
 .atl/
+# Local user-uploaded avatars served from public/
+public/uploads/

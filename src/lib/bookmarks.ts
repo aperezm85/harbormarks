@@ -512,7 +512,10 @@ export async function updateBookmarkById(
     // Read status slice. Optional on input: undefined omits the column;
     // a provided value is validated against the three allowed states.
     status?: BookmarkStatus | string | null | undefined
-   }
+    // Favorite toggle. Optional on input: undefined omits the column so the
+    // edit dialog can persist the switch in the same save as status.
+    isFavorite?: boolean | undefined
+    }
   ) {
    await ensureBookmarksTable()
 
@@ -565,6 +568,8 @@ export async function updateBookmarkById(
       input.status !== undefined
         ? { status: normalizeBookmarkStatus(input.status ?? "unread") }
         : {}
+    const favoriteUpdate =
+      input.isFavorite !== undefined ? { isFavorite: input.isFavorite } : {}
 
    const [updated] = await db
       .update(bookmarks)
@@ -580,7 +585,8 @@ export async function updateBookmarkById(
         ...enrichment,
         ...noteUpdate,
         ...statusUpdate,
-       updatedAt: new Date(),
+        ...favoriteUpdate,
+        updatedAt: new Date(),
        })
       .where(
        and(

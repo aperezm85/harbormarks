@@ -241,6 +241,33 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 
 ## Recent Changes
 
+### 2026-09-06 (v0.9.11)
+
+- Click-to-read: `HarborCard.tsx` `openBookmark` promotes `unread` to `reading`
+  once the `/visit` POST succeeds (optimistic `onSaved` with status rollback
+  only; archived and trash items untouched). Failures surface via toast with
+  the visit counter restored.
+- Save/Edit dialog redesign (`CreateBookmarkDialog.tsx`, proto-styled): preview
+  image header, a favorites switch persisted inline through a new optional
+  `isFavorite` passthrough (`updateBookmarkById`, both JSON routes), and delete
+  moved inside the dialog.
+- `N` shortcut (`app-sidebar.tsx`): opens the save-a-link dialog via the
+  trigger ref, dashboard-scoped, ignoring modified keys, typing targets, and
+  open dialogs/menus/command palettes.
+- Freedium metadata unwrap: new `src/lib/freedium-url.ts` (`unwrapFreediumUrl`,
+  unit-tested in `freedium-url.test.ts`) extracts the inner article URL from
+  mirror paths; `metadata.ts` `fetchPageMetadata` sources metadata from the
+  inner URL with a single mirror retry when the inner fetch yields only the
+  fallback. Saved bookmark URLs are untouched.
+- Avatar upload: new `src/lib/avatar-storage.ts`, `POST
+  /api/auth/profile-avatar`, serving routes (`/api/avatar/[file]`,
+  `/uploads/avatars/[file]`), `updateProfileAvatar` plus strict
+  `isAllowedAvatarUrl` in `src/lib/auth.ts`, profile page UI with
+  `ProfileToast.tsx` (floating toasts instead of layout-shifting ones), and a
+  `public/uploads/` gitignore rule so uploaded files stay local.
+- Bumped `package.json` to 0.9.11 and synced the README, INSTRUCTIONS, and
+  in-app changelog (`src/lib/changelog.ts`).
+
 ### 2026-09-06 (v0.9.10)
 
 - Story 12 notes slice: migration `0006_bookmark_note.sql` adds a nullable `note`

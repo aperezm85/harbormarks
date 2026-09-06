@@ -125,6 +125,9 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   // Story 12 note. JSON-only: string passthrough, else null. The form path
   // (which never reads it) keeps this route's prior behavior.
   let note: string | null = null
+  // Reading-queue toggle: JSON-only status passthrough. createBookmark
+  // validates and defaults to unread; the form path stays unread.
+  let status: string | null = null
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -150,6 +153,7 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
       typeof body?.canonicalUrl === "string" ? body.canonicalUrl : null
     // Pass through as-is (string or null): createBookmark applies `trim() || null`.
     note = typeof body?.note === "string" ? body.note : null
+    status = typeof body?.status === "string" ? body.status : null
     } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
@@ -217,6 +221,7 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     language,
     canonicalUrl,
     note,
+    status,
     })
 
   if (isJsonRequest(contentType)) {

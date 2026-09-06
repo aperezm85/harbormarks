@@ -70,6 +70,8 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
   let note: string | null | undefined
   // Read status slice. JSON-only: validated string; undefined omits the column.
   let status: string | null | undefined
+  // Favorite switch. JSON-only: boolean passthrough; undefined omits the column.
+  let isFavorite: boolean | undefined
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -97,6 +99,8 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
     // `trim() || null` when present and omits the column when undefined.
     note = typeof body?.note === "string" ? body.note : null
     status = typeof body?.status === "string" ? body.status : undefined
+    isFavorite =
+      typeof body?.isFavorite === "boolean" ? body.isFavorite : undefined
      } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
@@ -163,6 +167,7 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
     canonicalUrl,
     note,
     status,
+    isFavorite,
      })
 
   if (!bookmark) {

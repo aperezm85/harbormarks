@@ -102,6 +102,59 @@ export function AppSidebar({
 }) {
   const [tags, setTags] = React.useState<SidebarTagSummary[]>([])
   const [isLoadingTags, setIsLoadingTags] = React.useState(true)
+  // Ref to the "Save a link" trigger so the `N` shortcut can open the same
+  // create-mode dialog through the regular DialogTrigger click path.
+  const saveTriggerRef = React.useRef<HTMLButtonElement>(null)
+
+  // Dashboard shortcut: `N` opens the "Save a link" dialog. The sidebar only
+  // renders inside the dashboard, so this listener is inherently
+  // dashboard-scoped. It ignores keystrokes with modifiers, keystrokes while
+  // typing, and keystrokes while another dialog/menu is already open.
+  React.useEffect(() => {
+    function handleKeydown(event: KeyboardEvent) {
+      if (event.defaultPrevented) {
+        return
+      }
+
+      if (event.key.toLowerCase() !== "n") {
+        return
+      }
+
+      // Allow Shift (needed for uppercase `N`); ignore real modifiers.
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+
+      if (
+        target?.closest(
+          "input, textarea, select, [contenteditable], [role='dialog'], [role='alertdialog'], [cmdk-root], [data-cmdk-root]"
+        ) ||
+        target?.isContentEditable
+      ) {
+        return
+      }
+
+      // Another modal/dialog, menu, popover, or command palette is open.
+      if (
+        document.querySelector(
+          "[role='dialog'][data-state='open'], [role='alertdialog'][data-state='open'], [role='menu'][data-state='open'], [data-state='open'][role='listbox'], [cmdk-root], [data-cmdk-root]"
+        )
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      saveTriggerRef.current?.click()
+    }
+
+    window.addEventListener("keydown", handleKeydown)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeydown)
+    }
+  }, [])
 
   // The URL is an external store: subscribe to it instead of copying it into
   // state from an effect. The server snapshot is empty so the first client
@@ -213,8 +266,10 @@ export function AppSidebar({
           defaultFavorite={defaultFavorite}
           trigger={
             <Button
+              ref={saveTriggerRef}
               className="w-full justify-between font-medium"
               size="sidebar"
+              title="Save a link (N)"
             >
               <span className="flex items-center gap-2">
                 <PlusIcon className="size-4" weight="bold" />

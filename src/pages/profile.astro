@@ -12,7 +12,9 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import Header from "@/components/ui/Header.astro"
 import { Input } from "@/components/ui/input"
+import ProfileToast from "@/components/ui/ProfileToast"
 import Layout from "@/layouts/main.astro"
+import { Toaster } from "sonner"
 
 const user = Astro.locals.user
 
@@ -76,6 +78,56 @@ if (error?.startsWith("Password must be at least")) {
       </Card>
 
       <div class="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile picture</CardTitle>
+            <CardDescription>
+              Upload a PNG, JPEG, or WebP image (max 512KB) or paste an
+              https image URL.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="flex items-center gap-4">
+              <img
+                id="avatar-preview"
+                src={user.avatarUrl}
+                alt="Your avatar"
+                loading="eager"
+                fetchpriority="high"
+                decoding="async"
+                class="h-16 w-16 rounded-full border object-cover"
+              />
+              <div class="space-y-2 text-sm">
+                <input
+                  id="avatar-file"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  class="block text-sm"
+                />
+                <Input
+                  id="avatar-url"
+                  type="url"
+                  placeholder="https://example.com/avatar.png"
+                  value={user.avatarUrl.startsWith("/uploads/") ||
+                  user.avatarUrl.startsWith("/api/avatar/") ||
+                  user.avatarUrl.startsWith("https://")
+                    ? user.avatarUrl.startsWith("data:")
+                      ? ""
+                      : user.avatarUrl
+                    : ""}
+                />
+              </div>
+            </div>
+            <p id="avatar-error" class="mt-2 hidden text-sm text-destructive"></p>
+            <div class="mt-4 flex gap-2">
+              <Button type="button" id="avatar-save">Save avatar</Button>
+              <Button type="button" id="avatar-remove" variant="outline"
+                >Remove</Button
+              >
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Profile</CardTitle>
@@ -157,13 +209,112 @@ if (error?.startsWith("Password must be at least")) {
       </div>
     </div>
 
-    <div class="mt-6 space-y-2">
-      {
-        status === "updated" ? (
-          <p class="text-sm text-muted-foreground">Profile updated.</p>
-        ) : null
-      }
-      {error ? <p class="text-sm text-destructive">{error}</p> : null}
-    </div>
+    <ProfileToast status={status} error={error} client:load />
+  <Toaster client:load />
   </div>
+
+  <script>
+    const preview = document.getElementById(
+      "avatar-preview"
+    ) as HTMLImageElement | null
+    const fileInput = document.getElementById(
+      "avatar-file"
+    ) as HTMLInputElement | null
+    const urlInput = document.getElementById(
+      "avatar-url"
+    ) as HTMLInputElement | null
+    const errorEl = document.getElementById("avatar-error")
+    const saveBtn = document.getElementById("avatar-save")
+    const removeBtn = document.getElementById("avatar-remove")
+
+    // NOTE: no static `import { toast } from "sonner"` here — Astro does not
+    // bundle bare specifiers in inline scripts, so that import silently
+    // fails. Toasts go through the ProfileToast island instead.
+    function notifyToast(type: "success" | "error", message: string) {
+      window.dispatchEvent(
+        new CustomEvent("profile:toast", { detail: { type, message } })
+      )
+    }
+
+    function isLocalAvatarUrl(avatarUrl: string) {
+      return (
+        avatarUrl.startsWith("/uploads/") ||
+        avatarUrl.startsWith("/api/avatar/")
+      )
+    }
+
+    function showAvatarError(message: string) {
+      if (!errorEl) return
+      errorEl.textContent = message
+      errorEl.classList.remove("hidden")
+    }
+
+    function clearAvatarError() {
+      if (!errorEl) return
+      errorEl.textContent = ""
+      errorEl.classList.add("hidden")
+    }
+
+    fileInput?.addEventListener("change", () => {
+      const file = fileInput.files?.[0]
+      if (file && preview) {
+        preview.src = URL.createObjectURL(file)
+      }
+    })
+
+    function syncAvatarUI(avatarUrl: string) {
+      if (preview) {
+        preview.src = isLocalAvatarUrl(avatarUrl)
+          ? `${avatarUrl}?t=${Date.now()}`
+          : avatarUrl
+      }
+      if (urlInput) {
+        urlInput.value =
+          isLocalAvatarUrl(avatarUrl) || avatarUrl.startsWith("https://")
+            ? avatarUrl
+            : ""
+      }
+      if (fileInput) {
+        fileInput.value = ""
+      }
+    }
+
+    async function postAvatar(body: FormData | string) {
+      clearAvatarError()
+      const response = await fetch("/api/auth/profile-avatar", {
+        method: "POST",
+        body,
+        headers:
+          typeof body === "string" ? { "Content-Type": "application/json" } : {},
+      })
+      const result = (await response.json().catch(() => null)) as {
+        error?: string
+        data?: { avatarUrl?: string }
+      } | null
+      const avatarUrl = result?.data?.avatarUrl
+      if (!response.ok || !result || result.error || !avatarUrl) {
+        const message = result?.error ?? "Could not save avatar."
+        showAvatarError(message)
+        notifyToast("error", message)
+        return
+      }
+      syncAvatarUI(avatarUrl)
+      notifyToast("success", "Profile updated.")
+    }
+
+    saveBtn?.addEventListener("click", () => {
+      const file = fileInput?.files?.[0]
+      if (file) {
+        const form = new FormData()
+        form.append("file", file)
+        void postAvatar(form)
+        return
+      }
+      void postAvatar(JSON.stringify({ avatarUrl: urlInput?.value ?? "" }))
+    })
+
+    removeBtn?.addEventListener("click", () => {
+      void postAvatar(JSON.stringify({ avatarUrl: "" }))
+    })
+  </script>
 </Layout>

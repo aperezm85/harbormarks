@@ -14,6 +14,9 @@
 //   extractPostId / extractIdFromText:
 //     -[a-f0-9]{8,}$        (match a trailing post ID on a path)
 //     ([a-f0-9]{8,})$      (match a trailing post ID in bare guid text)
+//   unwrapFreediumUrl (in @/lib/freedium-url):
+//     \/(https?:\/\/.+)$   (extract an inner article URL from a mirror path;
+//                            operates on the URL href, never on HTML)
 //
 // Bot-challenge detection is a pure string.includes() check — also not HTML
 // extraction. The three markers Cloudflare's "Just a Moment" interstitial uses
@@ -22,6 +25,7 @@
 import type { APIRoute } from "astro"
 
 import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
+import { unwrapFreediumUrl } from "@/lib/freedium-url"
 import {
   decodeWithCharset,
   fetchRawSafely,
@@ -552,8 +556,10 @@ function isParseableContentType(contentType: string): boolean {
 // --- Orchestration ------------------------------------------------------------
 
 // Fetch and parse metadata for a page, ending in the per-host adapter and then
-// the humanized-path fallback when nothing else yields a title.
-export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
+// the humanized-path fallback when nothing else yields a title. This is the
+// single-URL worker — it never unwraps Freedium mirrors itself; the
+// `fetchPageMetadata` wrapper below handles that routing.
+async function fetchSinglePageMetadata(url: URL): Promise<PageMetadata> {
   const fallback = buildFallbackMetadata(url)
 
   try {
@@ -627,6 +633,38 @@ export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
       return fallback
     }
   }
+}
+
+// Freedium mirror hack: a URL like
+// `https://freedium-mirror.cfd/https://someone.medium.com/post-1234abcd`
+// serves mirror chrome (wrong title/description/image), so metadata is sourced
+// from the INNER article URL instead. The caller's saved bookmark URL is
+// untouched — only the metadata source changes. If the inner fetch yields just
+// the humanized-path fallback (inner site down / blocked), the original
+// mirror URL is fetched once more before giving up. No `metadataSource` field
+// is added to PageMetadata; the routing is server-logged only.
+export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
+  const inner = unwrapFreediumUrl(url)
+  if (!inner || inner.href === url.href) {
+    return fetchSinglePageMetadata(url)
+  }
+
+  console.log(`[metadata] freedium mirror detected, fetching inner ${inner.href}`)
+  const innerMeta = await fetchSinglePageMetadata(inner)
+  const innerFallbackTitle = buildFallbackMetadata(inner).title
+  const innerYieldedOnlyFallback =
+    innerMeta.title === innerFallbackTitle &&
+    innerMeta.description === "" &&
+    innerMeta.previewImage === null
+
+  if (!innerYieldedOnlyFallback) {
+    return innerMeta
+  }
+
+  console.warn(
+    `[metadata] freedium inner fetch yielded only fallback for ${inner.href}; trying mirror ${url.href}`
+  )
+  return fetchSinglePageMetadata(url)
 }
 
 // --- Pure decode helper (for tests that skip HTTP) ---------------------------

@@ -6,6 +6,17 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.11",
+    date: "2026-09-06",
+    changes: [
+      "Opening an unread bookmark now marks it as reading automatically, with the badge clearing right away and rolling back if the update fails. Archived bookmarks are never touched.",
+      "The save/edit dialog got a cleaner layout with a preview image header, a favorites switch that saves inline, and delete moved inside the dialog.",
+      "Press N anywhere on the dashboard to open the save-a-link dialog (it stays out of the way while you type or have a menu open).",
+      "Bookmarks saved via a Freedium mirror now show the real article title, description, and image instead of the mirror's own chrome.",
+      "You can now upload a profile picture from your profile page, with safer avatar handling and notifications that float instead of shifting the page.",
+    ],
+  },
+  {
     version: "v0.9.10",
     date: "2026-09-06",
     changes: [
