@@ -241,6 +241,23 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 
 ## Recent Changes
 
+### 2026-09-06 (v0.9.9)
+
+- Added a card view selector (`src/components/dashboard/CardViewSelector.tsx`,
+  a segmented control next to the theme toggle) with three densities: `grid`
+  (the current card), `list` (horizontal cards with a 120–152px thumbnail), and
+  `compact` (single 44px rows that render no preview `<img>` at all).
+- The choice persists in `localStorage` (`harbormarks:card-view`, see the new
+  `src/lib/card-view.ts`); `DashboardLayout.tsx` owns the state, hydrates it in
+  an effect to avoid an SSR mismatch, and gates the container with `invisible`
+  until applied so reloads never flash the wrong layout. `HarborCard.tsx` takes
+  a `viewMode` prop with early returns for `list`/`compact`, reusing the same
+  visit/favorite/delete/restore handlers. Conditional classes go through `cn()`,
+  never string concatenation — `prettier-plugin-tailwindcss` eats leading spaces
+  inside `className` template literals (verified at the byte level).
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
+
 ### 2026-09-05 (v0.9.8)
 
 - Redesigned the bookmark card (`src/components/ui/HarborCard.tsx`) into a more

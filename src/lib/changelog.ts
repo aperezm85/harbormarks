@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.9",
+    date: "2026-09-06",
+    changes: [
+      "Switch how bookmarks are displayed from the top bar: card view (the current grid), card list view (stacked horizontal cards with a small thumbnail), or compact view (dense single rows with no preview images). Your choice is remembered between visits.",
+      "All card actions (favorite, edit, delete, restore) work the same in every view, and the list stays hidden until your saved view is applied so the page never flashes the wrong layout on reload.",
+      "No new schema migration ships in this release, so upgrading is a drop-in image swap with no restart-time table rewrite.",
+    ],
+  },
+  {
     version: "v0.9.8",
     date: "2026-09-05",
     changes: [

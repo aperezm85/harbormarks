@@ -32,6 +32,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import type { BookmarkCardData } from "@/lib/bookmark-types"
+import type { CardViewMode } from "@/lib/card-view"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -98,6 +99,7 @@ export const HarborCard = ({
   onRestored,
   onPurged,
   isTrashItem,
+  viewMode = "grid",
 }: {
   id: string
   url: string
@@ -127,6 +129,7 @@ export const HarborCard = ({
   onRestored?: (bookmark: BookmarkCardData) => void
   onPurged?: (bookmark: BookmarkCardData) => void
   isTrashItem?: boolean
+  viewMode?: CardViewMode
 }) => {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   // const [isResettingVisit, setIsResettingVisit] = useState(false)
@@ -479,6 +482,327 @@ export const HarborCard = ({
 
   const days = Math.floor(created.until(now).total({ unit: "day" }))
   const createdRelativeTime = rtf.format(-days, "day")
+
+  // Shared action cluster for the list and compact densities. Same handlers
+  // and dialogs as the grid card, only the layout wrapper differs.
+  const renderStandaloneActions = () => (
+    <div className="relative z-20 flex shrink-0 items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="group/heart hover:cursor-pointer"
+        type="button"
+        aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
+        disabled={isTogglingFavorite || isDeleting}
+        hidden={isTrashItem}
+        onClick={(event) => {
+          event.stopPropagation()
+          toggleFavorite()
+        }}
+      >
+        {isTogglingFavorite ? (
+          <SpinnerIcon className="size-3 animate-spin" />
+        ) : isFavorite ? (
+          <HeartStraightIcon weight="fill" className="size-3 text-red-500" />
+        ) : (
+          <HeartStraightIcon className="size-3 text-muted-foreground" />
+        )}
+      </Button>
+
+      <CreateBookmarkDialog
+        bookmark={{
+          id,
+          url,
+          title,
+          description,
+          favicon,
+          previewImage,
+          tags,
+          siteName,
+          author,
+          publishedAt,
+          language,
+          canonicalUrl,
+        }}
+        onSaved={onSaved}
+        trigger={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Edit bookmark"
+            title="Edit bookmark"
+            disabled={isDeleting}
+            hidden={isTrashItem}
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <PencilSimpleIcon size="3" />
+          </Button>
+        }
+      />
+
+      {isTrashItem ? (
+        <>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            aria-label="Restore bookmark"
+            title="Restore bookmark"
+            disabled={isDeleting}
+            onClick={(event) => {
+              event.stopPropagation()
+              restoreBookmark()
+            }}
+          >
+            {isDeleting ? (
+              <SpinnerIcon className="size-3 animate-spin" />
+            ) : (
+              <ArrowCounterClockwiseIcon size="3" />
+            )}
+          </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="icon-xs"
+                type="button"
+                aria-label="Delete bookmark permanently"
+                title="Delete permanently"
+                disabled={isDeleting}
+                onClick={(event) => {
+                  event.stopPropagation()
+                }}
+              >
+                <TrashIcon size="3" weight="light" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <AlertDialogHeader>
+                <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                  <TrashIcon weight="light" />
+                </AlertDialogMedia>
+                <AlertDialogTitle>
+                  Delete this bookmark permanently?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes &ldquo;{title}&rdquo; from your harbor for good.
+                  It cannot be restored, and there is no undo.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  variant="outline"
+                  disabled={isDeleting}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Keep in Trash
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={isDeleting}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    purgeBookmark()
+                  }}
+                >
+                  {isDeleting ? (
+                    <>
+                      <SpinnerIcon className="size-3 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete permanently"
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      ) : (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              type="button"
+              aria-label="Delete bookmark"
+              title="Delete bookmark"
+              className="group/trash"
+              disabled={isDeleting}
+              onClick={(event) => {
+                event.stopPropagation()
+              }}
+            >
+              <TrashIcon
+                size="3"
+                weight="light"
+                className="group-hover/trash:text-destructive hover:text-destructive"
+              />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <AlertDialogHeader>
+              <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                <TrashIcon weight="light" />
+              </AlertDialogMedia>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will move your bookmark to Trash. You can undo it from the
+                toast after deletion.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                variant="outline"
+                disabled={isDeleting}
+                onClick={(event) => event.stopPropagation()}
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={isDeleting}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  deleteBookmark()
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <SpinnerIcon className="size-3 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
+  )
+
+  const stretchedLink = (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Open bookmark: ${title}`}
+      className="absolute inset-0 z-10 rounded-[inherit] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+      onClick={() => {
+        openBookmark()
+      }}
+    >
+      <span className="sr-only">Open bookmark: {title}</span>
+    </a>
+  )
+
+  // CardListView: cards stacked vertically, simplified horizontal card with a
+  // small fixed thumbnail (like the proto's list density). Always rendered —
+  // never the compact image-less row.
+  if (viewMode === "list") {
+    return (
+      <div className="group relative flex flex-row items-stretch overflow-hidden rounded-md bg-card text-sm text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted/50">
+        {stretchedLink}
+        <div className="relative z-0 w-[120px] shrink-0 self-stretch sm:w-[152px]">
+          {previewImage && isPreviewImageVisible ? (
+            <img
+              src={previewImage}
+              alt={`${title} preview`}
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+              onError={() => setIsPreviewImageVisible(false)}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-linear-to-br from-sky-500/25 via-cyan-400/15 to-indigo-500/30" />
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <img
+              src={favicon}
+              alt={`${title} favicon`}
+              className="size-3 shrink-0 rounded-sm bg-accent p-px"
+            />
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
+              {siteName ?? url}
+            </span>
+            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+              {createdRelativeTime}
+            </span>
+          </div>
+          <div className="truncate text-sm leading-snug font-medium">
+            {title}
+          </div>
+          <p className="line-clamp-2 text-[12px] text-muted-foreground">
+            {description}
+          </p>
+          {tags.length > 0 ? (
+            <div className="mt-auto flex flex-wrap gap-1.5 pt-1.5">
+              {tags.map((tag) => (
+                <Badge variant="outline" key={tag}>
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="relative z-20 flex shrink-0 flex-col items-end justify-between gap-2 border-l bg-muted/20 px-3 py-3">
+          <div className="flex items-center gap-0.75 text-muted-foreground">
+            <EyeIcon className="size-3" />
+            <span className="font-mono text-[10px]/[12px]">{visitCount}</span>
+          </div>
+          {renderStandaloneActions()}
+        </div>
+      </div>
+    )
+  }
+
+  // CompactView: a dense single-row list. No preview image is rendered at
+  // all — not even hidden — so compact mode issues no image requests.
+  if (viewMode === "compact") {
+    return (
+      <div className="group relative flex h-11 min-w-0 flex-row items-center gap-2 bg-card px-3 text-sm text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted/50">
+        {stretchedLink}
+        <img
+          src={favicon}
+          alt={`${title} favicon`}
+          className="relative z-0 size-3.5 shrink-0 rounded-sm bg-accent p-px"
+        />
+        <span className="relative z-0 min-w-0 flex-1 truncate leading-snug font-medium">
+          {title}
+        </span>
+        <span className="relative z-0 hidden w-36 shrink-0 truncate font-mono text-[11px] text-muted-foreground lg:block">
+          {siteName ?? url}
+        </span>
+        {tags.length > 0 ? (
+          <span className="relative z-0 hidden shrink-0 items-center gap-1 md:flex">
+            {tags.slice(0, 2).map((tag) => (
+              <Badge variant="outline" key={tag}>
+                {tag}
+              </Badge>
+            ))}
+          </span>
+        ) : null}
+        <span className="relative z-0 flex shrink-0 items-center gap-0.75 text-muted-foreground">
+          <EyeIcon className="size-3" />
+          <span className="font-mono text-[10px]/[12px]">{visitCount}</span>
+        </span>
+        {renderStandaloneActions()}
+      </div>
+    )
+  }
 
   return (
     <Card className="group relative h-full border pt-0 transition-colors hover:bg-muted/50">
