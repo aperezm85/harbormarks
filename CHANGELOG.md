@@ -4,6 +4,17 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.0.0 — 2026-09-06
+
+- Saving an existing URL now returns the existing bookmark and offers open, merge-tags, or save-anyway instead of a bare error.
+- New tag management screen (`/tags`, linked from the sidebar): rename a tag everywhere, merge one tag into another, or delete a tag from all bookmarks.
+- New unauthenticated liveness probe at `GET /api/healthz` for Docker healthchecks and reverse proxies.
+- User-uploaded avatars survive rebuilds via a persistent `uploads_data` volume; back it up alongside the database.
+- Internet-facing defaults locked down: deploy compose ships closed registration and forces a real bootstrap password.
+- Pull requests now run lint, typecheck, and tests via a dedicated CI workflow.
+- `CHANGELOG.md` is the single source of truth for release notes (README links to it); new `SECURITY.md`, bug/feature issue templates, and uploads backup/restore docs.
+- No schema migration ships in this release, so upgrading is a drop-in image swap with no restart-time table rewrite.
+
 ## v0.9.11 — 2026-09-06
 
 - Click-to-read: opening an unread bookmark marks it as reading with rollback on failure.

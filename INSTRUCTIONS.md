@@ -260,6 +260,35 @@ directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
 
+### 2026-09-06 (v1.0.0)
+
+- Duplicate resolution: `POST /api/bookmarks` returns a structured 409
+  (`code: "duplicate_bookmark"` with the existing row) instead of a bare
+  error; `resolve: "merge-tags"` unions tags into the existing bookmark,
+  `"create-anyway"` inserts a true duplicate. `CreateBookmarkDialog.tsx`
+  surfaces all three options (open existing / merge / save anyway).
+- Tag management: `renameBookmarkTag`, `mergeBookmarkTags`, and
+  `deleteBookmarkTag` in `src/lib/bookmarks.ts` (per-user, trash-excluded,
+  case-insensitive), a new `POST /api/bookmarks/tags/manage` route, and a
+  `/tags` page (`TagManager.tsx` behind a single `client:only` `TagsPage`
+  island) linked from the sidebar.
+- Liveness probe: `GET /api/healthz` (unauthenticated, no DB touch,
+  allowlisted in `src/middleware.ts`); both Compose files and the Portainer
+  stack probe it instead of `/login`.
+- Uploads persistence: `uploads_data:/app/public/uploads` volume in both
+  Compose files plus `mkdir -p` in the runtime image; section 9 documents
+  backup/restore of the volume.
+- Deploy defaults: `docker-compose.deploy.yml` ships
+  `HARBOR_ALLOW_SIGNUP: "false"` with a non-default bootstrap password
+  placeholder.
+- Release hygiene: `.github/workflows/ci.yml` runs lint + typecheck + test
+  on pull requests; `CHANGELOG.md` is the single source of truth (README
+  links to it); new `SECURITY.md` and issue templates.
+- Bumped `package.json` to 1.0.0 and synced the in-app changelog
+  (`src/lib/changelog.ts`), `CHANGELOG.md`, and INSTRUCTIONS.
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
+
 ### 2026-09-06 (v0.9.11)
 
 - Click-to-read: `HarborCard.tsx` `openBookmark` promotes `unread` to `reading`
