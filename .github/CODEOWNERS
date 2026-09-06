@@ -1,0 +1,4 @@
+# Every change requires @aperezm85's review. Combined with the branch
+# protection rule on `main` (require code owner reviews), only the
+# maintainer can approve pull requests.
+* @aperezm85
