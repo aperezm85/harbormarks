@@ -13,11 +13,19 @@ import {
   ArrowCounterClockwiseIcon,
   EyeIcon,
   HeartStraightIcon,
+  NotepadIcon,
   PencilSimpleIcon,
   SpinnerIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
 import { CreateBookmarkDialog } from "../dialog/CreateBookmarkDialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 import {
   AlertDialog,
@@ -31,7 +39,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import type { BookmarkCardData } from "@/lib/bookmark-types"
+import type { BookmarkCardData, BookmarkStatus } from "@/lib/bookmark-types"
 import type { CardViewMode } from "@/lib/card-view"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -88,6 +96,8 @@ export const HarborCard = ({
   publishedAt,
   language,
   canonicalUrl,
+  note,
+  status = "unread",
   onSaved,
   onVisit,
   onVisitRollback,
@@ -118,6 +128,8 @@ export const HarborCard = ({
   publishedAt: string | null
   language: string | null
   canonicalUrl: string | null
+  note: string | null
+  status?: BookmarkStatus
   onSaved?: (bookmark: BookmarkCardData) => void
   onVisit?: () => void
   onVisitRollback?: () => void
@@ -132,12 +144,17 @@ export const HarborCard = ({
   viewMode?: CardViewMode
 }) => {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
+  // Read status slice: cycles unread -> reading -> archived -> unread.
+  const [isCyclingStatus, setIsCyclingStatus] = useState(false)
   // const [isResettingVisit, setIsResettingVisit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPreviewImageVisible, setIsPreviewImageVisible] = useState(
     Boolean(previewImage)
   )
   const [renderedPreviewImage, setRenderedPreviewImage] = useState(previewImage)
+  // Story 12 notes-only slice: controls the compact-density note dialog.
+  // Opened only from the note button's click handler, never from an effect.
+  const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false)
   // const [isSummarizerSupported, setIsSummarizerSupported] = useState(false)
   // const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false)
   // const [isSummarizing, setIsSummarizing] = useState(false)
@@ -201,6 +218,8 @@ export const HarborCard = ({
     publishedAt,
     language,
     canonicalUrl,
+    note,
+    status,
   }
 
   const openBookmark = () => {
@@ -273,6 +292,92 @@ export const HarborCard = ({
         setIsTogglingFavorite(false)
       })
   }
+
+  const nextStatus: BookmarkStatus =
+    status === "unread" ? "reading" : status === "reading" ? "archived" : "unread"
+
+  const cycleStatus = () => {
+    if (isCyclingStatus || isDeleting) {
+      return
+    }
+
+    setIsCyclingStatus(true)
+    onSaved?.({ ...bookmarkData, status: nextStatus })
+
+    void fetch(`/api/bookmarks/${id}/status`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ status: nextStatus }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Unable to update read status")
+        }
+
+        const payload = (await response.json()) as {
+          data?: BookmarkCardData
+        }
+
+        if (payload.data) {
+          onSaved?.(payload.data)
+        }
+      })
+      .catch(() => {
+        onSaved?.(bookmarkData)
+        toast.error("Unable to update read status. Change was reverted.")
+      })
+      .finally(() => {
+        setIsCyclingStatus(false)
+      })
+  }
+
+  const statusDotClassName =
+    status === "unread"
+      ? "bg-sky-500"
+      : status === "reading"
+        ? "bg-amber-500"
+        : "bg-emerald-500"
+
+  const statusLabel =
+    status === "unread" ? "Unread" : status === "reading" ? "Reading" : "Archived"
+
+  const renderStatusControl = () => (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      className="hover:cursor-pointer"
+      type="button"
+      aria-label={`Mark as ${nextStatus}`}
+      title={`Mark as ${nextStatus} (now ${statusLabel})`}
+      disabled={isCyclingStatus || isDeleting}
+      hidden={isTrashItem}
+      onClick={(event) => {
+        event.stopPropagation()
+        cycleStatus()
+      }}
+    >
+      {isCyclingStatus ? (
+        <SpinnerIcon className="size-3 animate-spin" />
+      ) : (
+        <span
+          aria-hidden="true"
+          className={`size-2.5 rounded-full ${statusDotClassName}`}
+        />
+      )}
+    </Button>
+  )
+
+  const renderStatusBadge = () => (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      <span
+        aria-hidden="true"
+        className={`size-1.5 rounded-full ${statusDotClassName}`}
+      />
+      {statusLabel}
+    </span>
+  )
 
   const deleteBookmark = () => {
     if (isDeleting) {
@@ -487,6 +592,7 @@ export const HarborCard = ({
   // and dialogs as the grid card, only the layout wrapper differs.
   const renderStandaloneActions = () => (
     <div className="relative z-20 flex shrink-0 items-center gap-1">
+      {renderStatusControl()}
       <Button
         variant="ghost"
         size="icon-xs"
@@ -523,6 +629,8 @@ export const HarborCard = ({
           publishedAt,
           language,
           canonicalUrl,
+          note,
+          status,
         }}
         onSaved={onSaved}
         trigger={
@@ -748,6 +856,17 @@ export const HarborCard = ({
           <p className="line-clamp-2 text-[12px] text-muted-foreground">
             {description}
           </p>
+          {isTrashItem ? null : (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              {renderStatusBadge()}
+            </div>
+          )}
+          {note?.trim() ? (
+            <p className="m-0 mt-2 flex items-start gap-1.75 rounded-sm border-l-2 border-l-primary bg-muted px-2 py-2.5 text-[12.5px]/[1.45] font-light text-foreground">
+              <NotepadIcon className="w-7 text-primary" />
+              {note}
+            </p>
+          ) : null}
           {tags.length > 0 ? (
             <div className="mt-auto flex flex-wrap gap-1.5 pt-1.5">
               {tags.map((tag) => (
@@ -799,6 +918,41 @@ export const HarborCard = ({
           <EyeIcon className="size-3" />
           <span className="font-mono text-[10px]/[12px]">{visitCount}</span>
         </span>
+        {note?.trim() ? (
+          <>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              type="button"
+              aria-label="View note"
+              title="View note"
+              className="relative z-20"
+              onClick={(event) => {
+                event.stopPropagation()
+                setIsNoteDialogOpen(true)
+              }}
+            >
+              <NotepadIcon className="size-3 text-primary" />
+            </Button>
+            <Dialog
+              open={isNoteDialogOpen}
+              onOpenChange={setIsNoteDialogOpen}
+            >
+              <DialogContent
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                <DialogHeader>
+                  <DialogTitle>Your note</DialogTitle>
+                  <DialogDescription>{title}</DialogDescription>
+                </DialogHeader>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {note}
+                </p>
+              </DialogContent>
+            </Dialog>
+          </>
+        ) : null}
         {renderStandaloneActions()}
       </div>
     )
@@ -903,13 +1057,13 @@ export const HarborCard = ({
               </Button>
             </div>
           )} */}
-          {/* Will enable NOTE when we allow users to add notes */}
-          {/* {note && (
-            <p className="m-0 flex items-start gap-1.75 rounded-sm border-l-2 border-l-primary bg-muted px-2 py-2.5 text-[12.5px]/[1.45] font-light text-foreground">
+          {/* Story 12 notes-only slice: private user note. */}
+          {note?.trim() ? (
+            <p className="m-0 mt-2 flex items-start gap-1.75 rounded-sm border-l-2 border-l-primary bg-muted px-2 py-2.5 text-[12.5px]/[1.45] font-light text-foreground">
               <NotepadIcon className="w-7 text-primary" />
               {note}
             </p>
-          )} */}
+          ) : null}
 
           <div className="mt-4 flex flex-wrap gap-2">
             {tags.map((tag) => (
@@ -921,13 +1075,15 @@ export const HarborCard = ({
         </div>
       </CardContent>
       <CardFooter>
-        <div className="flex flex-1 items-center justify-start text-muted-foreground">
+        <div className="flex flex-1 items-center justify-start gap-2 text-muted-foreground">
           <div className="flex items-center gap-0.75">
             <EyeIcon className="size-3" />
             <span className="font-mono text-[10px]/[12px]">{visitCount}</span>
           </div>
+          {isTrashItem ? null : renderStatusBadge()}
         </div>
         <div className="relative z-20 flex shrink-0 items-center gap-2">
+          {isTrashItem ? null : renderStatusControl()}
           <Button
             variant="ghost"
             size="icon-xs"
@@ -976,6 +1132,8 @@ export const HarborCard = ({
               publishedAt,
               language,
               canonicalUrl,
+              note,
+              status,
             }}
             onSaved={onSaved}
             trigger={

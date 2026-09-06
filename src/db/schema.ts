@@ -77,4 +77,10 @@ export const bookmarks = pgTable("bookmarks", {
   publishedAt: timestamp("published_at"),
   language: text("language"),
   canonicalUrl: text("canonical_url"),
+  // Story 12 notes-only slice: private user note, nullable, searchable via
+  // the search_vector generated column (migrations/0006_bookmark_note.sql).
+  note: text("note"),
+  // Read status slice: unread | reading | archived, defaulting to unread
+  // (migrations/0007_bookmark_status.sql).
+  status: text("status").notNull().default("unread"),
 })

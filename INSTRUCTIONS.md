@@ -241,6 +241,27 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 
 ## Recent Changes
 
+### 2026-09-06 (v0.9.10)
+
+- Story 12 notes slice: migration `0006_bookmark_note.sql` adds a nullable `note`
+  column and rebuilds the `search_vector` generated column against a new 5-argument
+  `harbormarks_bookmark_search_text()` so note text is indexed (drop index, drop
+  column, drop the old 4-arg function, recreate, reindex — all in the one file, so
+  new notes are searchable instead of silently unindexed). `note` flows through
+  `src/db/schema.ts`, `BookmarkCardData`, `create/updateBookmarkById`, and both
+  JSON routes (form path untouched); `CreateBookmarkDialog.tsx` gains a "Your
+  note" field that metadata refetch never clobbers; `HarborCard.tsx` renders the
+  note inline on grid/list and behind a note-icon dialog on compact.
+- Read status slice: migration `0007_bookmark_status.sql` adds `status TEXT NOT
+  NULL DEFAULT 'unread'` with a `chk_bookmarks_status` check constraint (guarded
+  by a `DO` block for idempotence). Wired through `listBookmarks` (new `unread`
+  view), the `is:unread` / `is:reading` / `is:archived` operators (no longer
+  no-ops), `countBookmarksByView`, a new `POST /api/bookmarks/[id]/status` route,
+  a cycle control plus badge on the card, and an Unread chip in
+  `DashboardSubBar.tsx`. Existing rows default to `unread`.
+- Bumped `package.json` to 0.9.10 and synced the README, INSTRUCTIONS, and
+  in-app changelog (`src/lib/changelog.ts`).
+
 ### 2026-09-06 (v0.9.9)
 
 - Added a card view selector (`src/components/dashboard/CardViewSelector.tsx`,

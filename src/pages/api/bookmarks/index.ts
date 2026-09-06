@@ -22,6 +22,10 @@ function parseBookmarkView(rawValue: string | null): BookmarkView {
     return "trash"
   }
 
+  if (rawValue === "unread") {
+    return "unread"
+  }
+
   return "recent"
 }
 
@@ -118,6 +122,9 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   let publishedAt: string | null = null
   let language: string | null = null
   let canonicalUrl: string | null = null
+  // Story 12 note. JSON-only: string passthrough, else null. The form path
+  // (which never reads it) keeps this route's prior behavior.
+  let note: string | null = null
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -141,6 +148,8 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     language = typeof body?.language === "string" ? body.language : null
     canonicalUrl =
       typeof body?.canonicalUrl === "string" ? body.canonicalUrl : null
+    // Pass through as-is (string or null): createBookmark applies `trim() || null`.
+    note = typeof body?.note === "string" ? body.note : null
     } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
@@ -207,6 +216,7 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     publishedAt,
     language,
     canonicalUrl,
+    note,
     })
 
   if (isJsonRequest(contentType)) {

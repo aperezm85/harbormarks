@@ -1,4 +1,4 @@
-import type { BookmarkCardData } from "@/lib/bookmark-types"
+import type { BookmarkCardData, BookmarkStatus } from "@/lib/bookmark-types"
 import { useCallback, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -41,6 +41,10 @@ type EditableBookmark = {
   publishedAt?: string | null
   language?: string | null
   canonicalUrl?: string | null
+  // Story 12 notes-only slice: private user note.
+  note?: string | null
+  // Read status slice: carried through so edit saves preserve it.
+  status?: BookmarkStatus | null
 }
 
 type BookmarkMetadataPayload = {
@@ -74,6 +78,8 @@ export const CreateBookmarkDialog = ({
   const [url, setUrl] = useState("")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  // Story 12 notes-only slice: private user note, free text.
+  const [note, setNote] = useState("")
   const [favicon, setFavicon] = useState("")
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -168,6 +174,7 @@ export const CreateBookmarkDialog = ({
       setUrl(values?.url ?? "")
       setTitle(values?.title ?? "")
       setDescription(values?.description ?? "")
+      setNote(values?.note ?? "")
       setFavicon(values?.favicon ?? "")
       setPreviewImage(values?.previewImage ?? null)
       setSelectedTags(values?.tags ?? preselectedTags ?? [])
@@ -345,6 +352,9 @@ export const CreateBookmarkDialog = ({
           publishedAt: publishedAt ?? undefined,
           language: language ?? undefined,
           canonicalUrl: canonicalUrl ?? undefined,
+          // Story 12 note: trimmed here; empty collapses to null so "no
+          // note" is stored as NULL. Metadata fetch never touches this field.
+          note: note.trim() ? note.trim() : null,
         }),
       })
 
@@ -479,6 +489,16 @@ export const CreateBookmarkDialog = ({
                 placeholder="Notes about this bookmark.."
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="note">Your note</Label>
+              <Textarea
+                id="note"
+                name="note"
+                placeholder="Why did you save this? (only you see this)"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
               />
             </Field>
             <Field>

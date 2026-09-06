@@ -131,6 +131,21 @@ docker compose down
 
 ## Recent Changes
 
+### 2026-09-06 (v0.9.10)
+
+- Every bookmark now has your own private note, separate from the scraped page
+  description. Add it when creating or editing; it shows on grid and list cards,
+  and in compact view a note icon opens it in a dialog. Notes are full-text
+  searchable, and refetching page metadata never overwrites them.
+- Track reading progress with a status on every bookmark (`unread`, `reading`,
+  `archived`), changed from a control on the card. A new Unread filter sits next
+  to the view chips, and the `is:unread` / `is:reading` / `is:archived` search
+  operators now filter instead of being ignored.
+- Two additive migrations ship in this release (`0006` for the note plus a search
+  index rebuild, `0007` for the status with a `unread` default). Existing
+  bookmarks keep an empty note and `unread` status. Back up before upgrading, as
+  usual.
+
 ### 2026-09-06 (v0.9.9)
 
 - Switch how bookmarks are displayed from the top bar: card view (the current

@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.10",
+    date: "2026-09-06",
+    changes: [
+      "Each bookmark now has your own private note: add it when creating or editing, see it on grid and list cards, and open it from the note icon in compact view. Notes are searchable, and refetching page metadata never overwrites them.",
+      "Track reading progress with a status on every bookmark (unread, reading, archived), a new Unread filter next to the view chips, and is:unread / is:reading / is:archived search operators that now actually filter.",
+      "Two additive migrations ship in this release (note + read status); existing bookmarks keep an empty note and unread status. Back up your database before upgrading, as usual.",
+    ],
+  },
+  {
     version: "v0.9.9",
     date: "2026-09-06",
     changes: [

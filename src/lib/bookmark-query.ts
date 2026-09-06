@@ -14,7 +14,7 @@
 export type BookmarkQueryOperator =
   | { kind: "tag"; value: string; token: string }
   | { kind: "site"; value: string; token: string }
-  | { kind: "is"; value: "favorite" | "unread"; token: string }
+  | { kind: "is"; value: "favorite" | "unread" | "reading" | "archived"; token: string }
   | { kind: "has"; value: "image"; token: string }
   | { kind: "before"; value: Date; token: string }
   | { kind: "after"; value: Date; token: string }
@@ -145,9 +145,8 @@ export function parseBookmarkQuery(query: string): ParsedBookmarkQuery {
         break
       }
       case "is": {
-        // Only `favorite` and `unread` are valid; any other value degrades to
-        // free text. `unread` is accepted now and ignored in the SQL until
-        // story 12 adds the status column. The keyword is matched
+        // Only `favorite`, `unread`, `reading`, and `archived` are valid; any
+        // other value degrades to free text. The keyword is matched
         // case-insensitively, like `tag:` and `site:`.
         const isValue = value.toLowerCase()
 
@@ -155,6 +154,10 @@ export function parseBookmarkQuery(query: string): ParsedBookmarkQuery {
           operators.push({ kind: "is", value: "favorite", token })
         } else if (isValue === "unread") {
           operators.push({ kind: "is", value: "unread", token })
+        } else if (isValue === "reading") {
+          operators.push({ kind: "is", value: "reading", token })
+        } else if (isValue === "archived") {
+          operators.push({ kind: "is", value: "archived", token })
         } else {
           freeTextTokens.push(token)
         }
