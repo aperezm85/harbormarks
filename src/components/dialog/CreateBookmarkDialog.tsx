@@ -166,6 +166,8 @@ export const CreateBookmarkDialog = ({
   const [metadataError, setMetadataError] = useState("")
   const [submitError, setSubmitError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
+  // Duplicate resolution: set when the API returns 409 + existing bookmark.
+  const [duplicate, setDuplicate] = useState<BookmarkCardData | null>(null)
   const [siteName, setSiteName] = useState<string | null>(null)
   const [author, setAuthor] = useState<string | null>(null)
   const [publishedAt, setPublishedAt] = useState<string | null>(null)
@@ -404,6 +406,7 @@ export const CreateBookmarkDialog = ({
     }
 
     setSubmitError("")
+    setDuplicate(null)
     setIsSaving(true)
     setStatusMessage(
       isEditMode ? "Saving bookmark changes..." : "Saving bookmark..."
@@ -421,36 +424,59 @@ export const CreateBookmarkDialog = ({
         ? `/api/bookmarks/${bookmark?.id}/update`
         : "/api/bookmarks"
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          url: normalizedUrl,
-          title: title.trim(),
-          description: description.trim(),
-          favicon,
-          previewImage,
-          tags: tagsPayload,
-          isFavorite: isEditMode ? editIsFavorite : saveIsFavorite,
-          // Save mode: new bookmarks always start unread (no status control).
-          // Edit mode: the segmented control maps Read -> "reading".
-          status: isEditMode ? editStatus : "unread",
-          // Story 7 enrichments. Sent as raw strings so the JSON route can
-          // apply its own `trim() || null`; empty/null stay null on the way in.
-          siteName: siteName ?? undefined,
-          author: author ?? undefined,
-          publishedAt: publishedAt ?? undefined,
-          language: language ?? undefined,
-          canonicalUrl: canonicalUrl ?? undefined,
-          // Story 12 note: trimmed here; empty collapses to null so "no
-          // note" is stored as NULL. Metadata fetch never touches this field.
-          note: note.trim() ? note.trim() : null,
-        }),
-      })
+      const saveOnce = async (resolve?: string) => {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            url: normalizedUrl,
+            title: title.trim(),
+            description: description.trim(),
+            favicon,
+            previewImage,
+            tags: tagsPayload,
+            isFavorite: isEditMode ? editIsFavorite : saveIsFavorite,
+            // Save mode: new bookmarks always start unread (no status control).
+            // Edit mode: the segmented control maps Read -> "reading".
+            status: isEditMode ? editStatus : "unread",
+            // Story 7 enrichments. Sent as raw strings so the JSON route can
+            // apply its own `trim() || null`; empty/null stay null on the way in.
+            siteName: siteName ?? undefined,
+            author: author ?? undefined,
+            publishedAt: publishedAt ?? undefined,
+            language: language ?? undefined,
+            canonicalUrl: canonicalUrl ?? undefined,
+            // Story 12 note: trimmed here; empty collapses to null so "no
+            // note" is stored as NULL. Metadata fetch never touches this field.
+            note: note.trim() ? note.trim() : null,
+            ...(resolve ? { resolve } : {}),
+          }),
+        })
 
-      const payload = await response.json()
+        return {
+          response,
+          payload: (await response.json()) as {
+            data?: BookmarkCardData
+            error?: string
+            code?: string
+            existing?: BookmarkCardData
+            merged?: boolean
+          },
+        }
+      }
+
+      const { response, payload } = await saveOnce()
+
+      if (response.status === 409 && payload.code === "duplicate_bookmark" && payload.existing) {
+        setDuplicate(payload.existing)
+        setSubmitError(
+          "This URL is already saved. Merge your tags into it, open it, or save anyway."
+        )
+        setStatusMessage("Duplicate URL found.")
+        return
+      }
 
       if (!response.ok) {
         const errorMessage =
@@ -478,6 +504,70 @@ export const CreateBookmarkDialog = ({
         error instanceof Error ? error.message : "Unable to save bookmark."
       setSubmitError(message)
       setStatusMessage(message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleDuplicateResolve(resolve: "merge-tags" | "create-anyway") {
+    const normalizedUrl = normalizeBookmarkUrl(url.trim())
+    if (!normalizedUrl || isSaving) {
+      return
+    }
+
+    const pendingTag = tagInput.trim()
+    const tagsPayload = pendingTag
+      ? hasTag(pendingTag)
+        ? selectedTags
+        : [...selectedTags, pendingTag]
+      : selectedTags
+
+    setIsSaving(true)
+    try {
+      const response = await fetch("/api/bookmarks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: normalizedUrl,
+          title: title.trim() || duplicate?.title || normalizedUrl,
+          description: description.trim(),
+          favicon,
+          previewImage,
+          tags: tagsPayload,
+          isFavorite: saveIsFavorite,
+          status: "unread",
+          siteName: siteName ?? undefined,
+          author: author ?? undefined,
+          publishedAt: publishedAt ?? undefined,
+          language: language ?? undefined,
+          canonicalUrl: canonicalUrl ?? undefined,
+          note: note.trim() ? note.trim() : null,
+          resolve,
+        }),
+      })
+      const payload = (await response.json()) as {
+        data?: BookmarkCardData
+        error?: string
+      }
+      if (!response.ok || !payload.data) {
+        throw new Error(
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to save bookmark."
+        )
+      }
+      toast.success(resolve === "merge-tags" ? "Tags merged." : "Bookmark saved.")
+      setDuplicate(null)
+      setIsOpen(false)
+      if (onSaved) {
+        onSaved(payload.data)
+      } else {
+        window.location.reload()
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to save bookmark."
+      setSubmitError(message)
     } finally {
       setIsSaving(false)
     }
@@ -952,6 +1042,55 @@ export const CreateBookmarkDialog = ({
               </details>
             </FieldGroup>
           </div>
+          {duplicate ? (
+            <div
+              className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+              role="alert"
+            >
+              <p className="font-medium">
+                Already saved as &ldquo;{duplicate.title}&rdquo;
+              </p>
+              <p className="mt-1 break-all text-xs text-muted-foreground">
+                {duplicate.url}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isSaving}
+                  onClick={() => {
+                    setIsOpen(false)
+                    if (onSaved) {
+                      onSaved(duplicate)
+                    } else {
+                      window.open(duplicate.url, "_blank", "noopener,noreferrer")
+                    }
+                  }}
+                >
+                  Open existing
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isSaving}
+                  onClick={() => void handleDuplicateResolve("merge-tags")}
+                >
+                  Merge tags
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isSaving}
+                  onClick={() => void handleDuplicateResolve("create-anyway")}
+                >
+                  Save anyway
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {submitError ? (
             <p className="text-sm text-destructive" role="alert">
               {submitError}

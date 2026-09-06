@@ -1,7 +1,10 @@
 import type { APIRoute } from "astro"
 
 import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
-import { hasDuplicateBookmarkUrl, updateBookmarkById } from "@/lib/bookmarks"
+import {
+  findDuplicateBookmark,
+  updateBookmarkById,
+} from "@/lib/bookmarks"
 
 function parseId(rawId: string | undefined) {
   const id = Number(rawId)
@@ -137,10 +140,16 @@ export const POST: APIRoute = async ({ params, request, redirect, locals }) => {
     return redirect("/?error=invalid_bookmark_url")
   }
 
-  if (await hasDuplicateBookmarkUrl(locals.userId, url, id)) {
+  const existing = await findDuplicateBookmark(locals.userId, url, id)
+
+  if (existing) {
     if (isJsonRequest(contentType)) {
       return new Response(
-        JSON.stringify({ error: "A bookmark with this URL already exists" }),
+        JSON.stringify({
+          error: "A bookmark with this URL already exists",
+          code: "duplicate_bookmark",
+          existing,
+        }),
         {
           status: 409,
           headers: {

@@ -166,6 +166,22 @@ export async function hasDuplicateBookmarkUrl(
   )
 }
 
+export async function findDuplicateBookmark(
+  userId: number,
+  url: string,
+  excludedBookmarkId?: number
+) {
+  await ensureBookmarksTable()
+
+  const row = await findBookmarkByCanonicalUrl(
+    userId,
+    url,
+    excludedBookmarkId
+  )
+
+  return row ? toCardData(row) : null
+}
+
 export async function listBookmarks(
   userId: number,
   options?: {
@@ -360,6 +376,108 @@ export async function listBookmarkTags(userId: number, query?: string) {
     tag: row.tag,
     count: Number(row.count),
   }))
+}
+
+function matchesTag(tag: string, target: string) {
+  return tag.toLowerCase() === target.toLowerCase()
+}
+
+function dedupeTags(tags: string[]) {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const tag of tags) {
+    const key = tag.toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      out.push(tag)
+    }
+  }
+  return out
+}
+
+async function rewriteUserTags(
+  userId: number,
+  rewrite: (tags: string[]) => string[] | null
+) {
+  await ensureBookmarksTable()
+
+  const rows = await db
+    .select({ id: bookmarks.id, tags: bookmarks.tags })
+    .from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt)))
+
+  let updated = 0
+  for (const row of rows) {
+    const current = parseTags(row.tags)
+    const next = rewrite(current)
+    if (next === null) {
+      continue
+    }
+    await db
+      .update(bookmarks)
+      .set({ tags: next.length > 0 ? next : null, updatedAt: new Date() })
+      .where(and(eq(bookmarks.id, row.id), eq(bookmarks.userId, userId)))
+    updated += 1
+  }
+  return updated
+}
+
+export async function renameBookmarkTag(
+  userId: number,
+  from: string,
+  to: string
+) {
+  const source = from.trim()
+  const target = to.trim()
+  if (!source || !target || matchesTag(source, target)) {
+    throw new Error("Invalid tag rename")
+  }
+
+  return rewriteUserTags(userId, (tags) => {
+    if (!tags.some((tag) => matchesTag(tag, source))) {
+      return null
+    }
+    return dedupeTags(
+      tags.map((tag) => (matchesTag(tag, source) ? target : tag))
+    )
+  })
+}
+
+export async function mergeBookmarkTags(
+  userId: number,
+  source: string,
+  target: string
+) {
+  const from = source.trim()
+  const to = target.trim()
+  if (!from || !to || matchesTag(from, to)) {
+    throw new Error("Invalid tag merge")
+  }
+
+  return rewriteUserTags(userId, (tags) => {
+    if (!tags.some((tag) => matchesTag(tag, from))) {
+      return null
+    }
+    const withoutSource = tags.filter((tag) => !matchesTag(tag, from))
+    if (!withoutSource.some((tag) => matchesTag(tag, to))) {
+      withoutSource.push(to)
+    }
+    return dedupeTags(withoutSource)
+  })
+}
+
+export async function deleteBookmarkTag(userId: number, tag: string) {
+  const target = tag.trim()
+  if (!target) {
+    throw new Error("Invalid tag")
+  }
+
+  return rewriteUserTags(userId, (tags) => {
+    if (!tags.some((t) => matchesTag(t, target))) {
+      return null
+    }
+    return tags.filter((t) => !matchesTag(t, target))
+  })
 }
 
 // Per-view totals for the subbar chips. A single conditional-aggregation query
