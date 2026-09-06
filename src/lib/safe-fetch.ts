@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises"
 import { request as httpRequest } from "node:http"
 import { request as httpsRequest } from "node:https"
 import { isIP } from "node:net"
+import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib"
 
 type SafeFetchResult = {
   url: string
@@ -24,6 +25,9 @@ type SafeFetchBinaryResult = {
  * header. When the header does not declare a charset, `rawCharset` is `null`
  * and callers should call {@link resolveCharset} (which also scans the leading
  * bytes of the body for a `<meta charset>` hint) before decoding.
+ *
+ * `truncated` is true when the body was cut at `maxBytes`. The leading bytes
+ * (where `<head>` lives) are always kept, so metadata extraction still works.
  */
 type SafeFetchRawResult = {
   url: string
@@ -32,6 +36,7 @@ type SafeFetchRawResult = {
   contentType: string
   body: Buffer
   rawCharset: string | null
+  truncated: boolean
 }
 
 type SafeFetchOptions = {
@@ -40,6 +45,10 @@ type SafeFetchOptions = {
   maxRedirects?: number
   headers?: Record<string, string>
 }
+
+const DEFAULT_MAX_BYTES = 1024 * 1024
+const DEFAULT_MAX_REDIRECTS = 8
+const DEFAULT_TIMEOUT_MS = 8000
 
 function parseHttpUrl(value: string) {
   const parsed = new URL(value)
@@ -163,6 +172,21 @@ async function resolveSafeAddress(parsedUrl: URL) {
   return resolved[0]
 }
 
+type CollectedResponse = {
+  statusCode: number
+  headers: Record<string, string | string[] | undefined>
+  body: Buffer
+  truncated: boolean
+}
+
+/**
+ * Perform the HTTP request and collect the body up to `maxBytes`.
+ *
+ * When the body exceeds the cap we keep the first `maxBytes` bytes, stop
+ * reading, and resolve with `truncated: true` — we do NOT reject. The
+ * document `<head>` is always at the top, so callers that only need metadata
+ * still get everything they need from a truncated body.
+ */
 function collectResponseText(
   parsedUrl: URL,
   resolvedAddress: string,
@@ -185,48 +209,92 @@ function collectResponseText(
     servername: parsedUrl.hostname,
   }
   const requestFactory = isHttps ? httpsRequest : httpRequest
-  const maxBytes = options.maxBytes ?? 256 * 1024
-  const timeoutMs = options.timeoutMs ?? 8000
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
-  return new Promise<{
-    statusCode: number
-    headers: Record<string, string | string[] | undefined>
-    body: Buffer
-  }>((resolve, reject) => {
+  return new Promise<CollectedResponse>((resolve, reject) => {
+    let settled = false
+    const done = (fn: () => void) => {
+      if (!settled) {
+        settled = true
+        fn()
+      }
+    }
+
     const request = requestFactory(requestOptions, (response) => {
       const chunks: Buffer[] = []
       let totalBytes = 0
 
-      response.on("data", (chunk: Buffer) => {
-        totalBytes += chunk.length
+      const finish = (truncated: boolean) =>
+        done(() =>
+          resolve({
+            statusCode: response.statusCode ?? 0,
+            headers: response.headers,
+            body: Buffer.concat(chunks),
+            truncated,
+          })
+        )
 
-        if (totalBytes > maxBytes) {
-          request.destroy(new Error("Response too large"))
+      response.on("data", (chunk: Buffer) => {
+        if (settled) {
+          return
+        }
+
+        const remaining = maxBytes - totalBytes
+        if (chunk.length >= remaining) {
+          chunks.push(chunk.subarray(0, remaining))
+          totalBytes = maxBytes
+          finish(true)
+          // Stop the download without raising an error on the request.
+          response.destroy()
           return
         }
 
         chunks.push(chunk)
+        totalBytes += chunk.length
       })
 
-      response.on("end", () => {
-        resolve({
-          statusCode: response.statusCode ?? 0,
-          headers: response.headers,
-          body: Buffer.concat(chunks),
-        })
-      })
+      response.on("end", () => finish(false))
+      response.on("error", (error) => done(() => reject(error)))
     })
 
     request.setTimeout(timeoutMs, () => {
       request.destroy(new Error("Request timed out"))
     })
 
-    request.on("error", (error) => {
-      reject(error)
-    })
+    request.on("error", (error) => done(() => reject(error)))
 
     request.end()
   })
+}
+
+/**
+ * Best-effort decompression for servers that ignore `accept-encoding:
+ * identity`. A truncated compressed stream will fail to inflate; in that case
+ * we return the raw bytes and let the caller fall back.
+ */
+function decodeContentEncoding(body: Buffer, encodingHeader: string): Buffer {
+  const encoding = encodingHeader.trim().toLowerCase()
+
+  if (!encoding || encoding === "identity") {
+    return body
+  }
+
+  try {
+    if (encoding === "gzip" || encoding === "x-gzip") {
+      return gunzipSync(body)
+    }
+    if (encoding === "br") {
+      return brotliDecompressSync(body)
+    }
+    if (encoding === "deflate") {
+      return inflateSync(body)
+    }
+  } catch {
+    // fall through
+  }
+
+  return body
 }
 
 /**
@@ -254,51 +322,54 @@ export function parseCharsetFromString(contentType: string): string | null {
   const trimmed = contentType.trim()
   if (trimmed.length === 0) {
     return null
-   }
+  }
 
   const lower = trimmed.toLowerCase()
   const word = "charset"
   let from = 0
 
-   // Walk every "charset" occurrence, tolerating optional whitespace around the
-   // "=" (HTTP parameter syntax permits spaces there).
+  // Walk every "charset" occurrence, tolerating optional whitespace around the
+  // "=" (HTTP parameter syntax permits spaces there).
   while (true) {
     const at = lower.indexOf(word, from)
     if (at === -1) {
       return null
-     }
+    }
 
     let i = at + word.length
     while (i < lower.length && lower[i] === " ") {
       i += 1
-     }
+    }
 
     if (i < lower.length && lower[i] === "=") {
       i += 1
       while (i < lower.length && lower[i] === " ") {
         i += 1
-        }
+      }
 
       const rest = lower.slice(i)
       const separator = rest.indexOf(";")
       let raw = separator === -1 ? rest : rest.slice(0, separator)
       raw = raw.trim()
 
-        // Strip a single pair of surrounding quotes when present.
+      // Strip a single pair of surrounding quotes when present.
       if (raw.length >= 2) {
         const first = raw[0]
         const last = raw[raw.length - 1]
-        if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+        if (
+          (first === '"' && last === '"') ||
+          (first === "'" && last === "'")
+        ) {
           raw = raw.slice(1, -1)
-          }
-         }
+        }
+      }
 
       raw = raw.trim()
       return raw.length > 0 ? raw : null
-      }
+    }
 
     from = at + word.length
-     }
+  }
 }
 
 /**
@@ -371,10 +442,14 @@ export function resolveCharset(contentType: string, body: Buffer): string {
     return declared
   }
 
-  const buffer = Buffer.isBuffer(body) ? body : Buffer.from(String(body), "latin1")
+  const buffer = Buffer.isBuffer(body)
+    ? body
+    : Buffer.from(String(body), "latin1")
 
   if (buffer.length > 0) {
-    const head = buffer.subarray(0, Math.min(1024, buffer.length)).toString("latin1")
+    const head = buffer
+      .subarray(0, Math.min(1024, buffer.length))
+      .toString("latin1")
     const fromMeta = readMetaCharsetFromHead(head)
     if (fromMeta) {
       return fromMeta
@@ -421,31 +496,46 @@ async function fetchRawInternal(
 ): Promise<SafeFetchRawResult> {
   const parsedUrl = parseHttpUrl(input)
   const resolvedAddress = await resolveSafeAddress(parsedUrl)
-  const response = await collectResponseText(parsedUrl, resolvedAddress, options)
+  const response = await collectResponseText(
+    parsedUrl,
+    resolvedAddress,
+    options
+  )
   const location = response.headers.location
+  const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
 
-  if (
-    response.statusCode >= 300 &&
-    response.statusCode < 400 &&
-    location &&
-    redirectCount < (options.maxRedirects ?? 3)
-  ) {
+  if (response.statusCode >= 300 && response.statusCode < 400 && location) {
+    if (redirectCount >= maxRedirects) {
+      throw new Error(`Too many redirects (limit ${maxRedirects})`)
+    }
+
     const nextLocation = Array.isArray(location) ? location[0] : location
     const redirectedUrl = new URL(nextLocation, parsedUrl)
-    return fetchRawInternal(redirectedUrl.toString(), options, redirectCount + 1)
+    return fetchRawInternal(
+      redirectedUrl.toString(),
+      options,
+      redirectCount + 1
+    )
   }
 
   const contentType = Array.isArray(response.headers["content-type"])
     ? (response.headers["content-type"][0] ?? "")
     : (response.headers["content-type"] ?? "")
 
+  const contentEncoding = Array.isArray(response.headers["content-encoding"])
+    ? (response.headers["content-encoding"][0] ?? "")
+    : (response.headers["content-encoding"] ?? "")
+
+  const body = decodeContentEncoding(response.body, contentEncoding)
+
   return {
     url: parsedUrl.toString(),
     status: response.statusCode,
     ok: response.statusCode >= 200 && response.statusCode < 300,
     contentType,
-    body: response.body,
+    body,
     rawCharset: parseCharsetFromString(contentType),
+    truncated: response.truncated,
   }
 }
 

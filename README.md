@@ -131,6 +131,16 @@ docker compose down
 
 ## Recent Changes
 
+### 2026-09-05 (v0.9.8)
+
+- Bookmark cards got a cleaner, more compact layout. The URL and a relative
+  timestamp (for example, 3 days ago) now sit in the card header, and the visit
+  count moves to a small footer, so each card reads at a glance.
+- Card actions (favorite, edit, delete) are smaller and subtler, and preview
+  images show at full brightness instead of dimmed and grayscale.
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
+
 ### 2026-09-03 (v0.9.7)
 
 - Search now understands operators, so you can filter by tag, site, favorite

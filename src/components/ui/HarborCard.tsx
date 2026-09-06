@@ -1,18 +1,19 @@
+import { Temporal } from "@js-temporal/polyfill"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import {
   ArrowCounterClockwiseIcon,
-  ArrowsCounterClockwiseIcon,
+  EyeIcon,
   HeartStraightIcon,
   PencilSimpleIcon,
-  SparkleIcon,
   SpinnerIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
@@ -30,14 +31,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import type { BookmarkCardData } from "@/lib/bookmark-types"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -97,8 +90,8 @@ export const HarborCard = ({
   onSaved,
   onVisit,
   onVisitRollback,
-  onVisitReset,
-  onVisitResetRollback,
+  // onVisitReset,
+  // onVisitResetRollback,
   onFavoriteToggle,
   onDeleted,
   onDeleteRollback,
@@ -136,17 +129,17 @@ export const HarborCard = ({
   isTrashItem?: boolean
 }) => {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
-  const [isResettingVisit, setIsResettingVisit] = useState(false)
+  // const [isResettingVisit, setIsResettingVisit] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPreviewImageVisible, setIsPreviewImageVisible] = useState(
     Boolean(previewImage)
   )
   const [renderedPreviewImage, setRenderedPreviewImage] = useState(previewImage)
-  const [isSummarizerSupported, setIsSummarizerSupported] = useState(false)
-  const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false)
-  const [isSummarizing, setIsSummarizing] = useState(false)
-  const [summaryText, setSummaryText] = useState("")
-  const [summaryError, setSummaryError] = useState("")
+  // const [isSummarizerSupported, setIsSummarizerSupported] = useState(false)
+  // const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false)
+  // const [isSummarizing, setIsSummarizing] = useState(false)
+  // const [summaryText, setSummaryText] = useState("")
+  // const [summaryError, setSummaryError] = useState("")
 
   // A new previewImage means any earlier load failure no longer applies, so the
   // image is shown again. Adjusting state during render is React's documented
@@ -163,27 +156,27 @@ export const HarborCard = ({
       return
     }
 
-    let isMounted = true
+    // let isMounted = true
 
-    void summarizerApi
-      .availability()
-      .then((availability) => {
-        if (!isMounted) {
-          return
-        }
+    // void summarizerApi
+    //   .availability()
+    //   .then((availability) => {
+    //     if (!isMounted) {
+    //       return
+    //     }
 
-        setIsSummarizerSupported(availability !== "unavailable")
-      })
-      .catch(() => {
-        if (!isMounted) {
-          return
-        }
+    //     setIsSummarizerSupported(availability !== "unavailable")
+    //   })
+    //   .catch(() => {
+    //     if (!isMounted) {
+    //       return
+    //     }
 
-        setIsSummarizerSupported(false)
-      })
+    //     setIsSummarizerSupported(false)
+    //   })
 
     return () => {
-      isMounted = false
+      // isMounted = false
     }
   }, [])
 
@@ -205,7 +198,7 @@ export const HarborCard = ({
     publishedAt,
     language,
     canonicalUrl,
-      }
+  }
 
   const openBookmark = () => {
     onVisit?.()
@@ -222,33 +215,33 @@ export const HarborCard = ({
     })
   }
 
-  const resetVisitCount = () => {
-    if (isResettingVisit || isDeleting) {
-      return
-    }
+  // const resetVisitCount = () => {
+  //   if (isResettingVisit || isDeleting) {
+  //     return
+  //   }
 
-    setIsResettingVisit(true)
-    onVisitReset?.()
+  //   setIsResettingVisit(true)
+  //   onVisitReset?.()
 
-    void fetch(`/api/bookmarks/${id}/reset-visit`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Unable to reset visit count")
-        }
-      })
-      .catch(() => {
-        onVisitResetRollback?.(visitCount)
-        toast.error("Unable to reset visit count. Previous value was restored.")
-      })
-      .finally(() => {
-        setIsResettingVisit(false)
-      })
-  }
+  //   void fetch(`/api/bookmarks/${id}/reset-visit`, {
+  //     method: "POST",
+  //     headers: {
+  //       "content-type": "application/json",
+  //     },
+  //   })
+  //     .then((response) => {
+  //       if (!response.ok) {
+  //         throw new Error("Unable to reset visit count")
+  //       }
+  //     })
+  //     .catch(() => {
+  //       onVisitResetRollback?.(visitCount)
+  //       toast.error("Unable to reset visit count. Previous value was restored.")
+  //     })
+  //     .finally(() => {
+  //       setIsResettingVisit(false)
+  //     })
+  // }
 
   const toggleFavorite = () => {
     if (isTogglingFavorite || isDeleting) {
@@ -389,93 +382,103 @@ export const HarborCard = ({
       })
   }
 
-  const summarizeWithAi = async () => {
-    if (isSummarizing || isDeleting) {
-      return
-    }
+  // const summarizeWithAi = async () => {
+  //   if (isSummarizing || isDeleting) {
+  //     return
+  //   }
 
-    const summarizerApi = getSummarizerApi()
-    if (!summarizerApi) {
-      toast.error("Summarizer API is not supported in this browser.")
-      return
-    }
+  //   const summarizerApi = getSummarizerApi()
+  //   if (!summarizerApi) {
+  //     toast.error("Summarizer API is not supported in this browser.")
+  //     return
+  //   }
 
-    setIsSummaryDialogOpen(true)
-    setIsSummarizing(true)
-    setSummaryText("")
-    setSummaryError("")
+  //   setIsSummaryDialogOpen(true)
+  //   setIsSummarizing(true)
+  //   setSummaryText("")
+  //   setSummaryError("")
 
-    let summarizer: SummarizerSession | null = null
+  //   let summarizer: SummarizerSession | null = null
 
-    try {
-      const createPromise = summarizerApi.create({
-        type: "tldr",
-        format: "plain-text",
-        length: "medium",
-      })
+  //   try {
+  //     const createPromise = summarizerApi.create({
+  //       type: "tldr",
+  //       format: "plain-text",
+  //       length: "medium",
+  //     })
 
-      const availability = await summarizerApi.availability()
-      if (availability === "unavailable") {
-        throw new Error("Summarizer API is unavailable on this device.")
-      }
+  //     const availability = await summarizerApi.availability()
+  //     if (availability === "unavailable") {
+  //       throw new Error("Summarizer API is unavailable on this device.")
+  //     }
 
-      if (availability === "downloadable" || availability === "downloading") {
-        toast.message("Preparing AI model", {
-          description:
-            "Chrome may download the on-device model before summarizing.",
-        })
-      }
+  //     if (availability === "downloadable" || availability === "downloading") {
+  //       toast.message("Preparing AI model", {
+  //         description:
+  //           "Chrome may download the on-device model before summarizing.",
+  //       })
+  //     }
 
-      const sourceResponse = await fetch(
-        `/api/bookmarks/summarize-source?url=${encodeURIComponent(url)}`,
-        {
-          headers: {
-            accept: "application/json",
-          },
-        }
-      )
+  //     const sourceResponse = await fetch(
+  //       `/api/bookmarks/summarize-source?url=${encodeURIComponent(url)}`,
+  //       {
+  //         headers: {
+  //           accept: "application/json",
+  //         },
+  //       }
+  //     )
 
-      const sourcePayload = (await sourceResponse.json()) as {
-        data?: {
-          content: string
-        }
-        error?: string
-      }
+  //     const sourcePayload = (await sourceResponse.json()) as {
+  //       data?: {
+  //         content: string
+  //       }
+  //       error?: string
+  //     }
 
-      if (!sourceResponse.ok) {
-        throw new Error(sourcePayload.error ?? "Unable to read page content.")
-      }
+  //     if (!sourceResponse.ok) {
+  //       throw new Error(sourcePayload.error ?? "Unable to read page content.")
+  //     }
 
-      const sourceText = sourcePayload.data?.content?.trim()
-      if (!sourceText) {
-        throw new Error("No readable content found on this page.")
-      }
+  //     const sourceText = sourcePayload.data?.content?.trim()
+  //     if (!sourceText) {
+  //       throw new Error("No readable content found on this page.")
+  //     }
 
-      summarizer = await createPromise
+  //     summarizer = await createPromise
 
-      const summary = await summarizer.summarize(sourceText, {
-        context:
-          "Provide a concise summary in simple language with the key takeaway first.",
-      })
+  //     const summary = await summarizer.summarize(sourceText, {
+  //       context:
+  //         "Provide a concise summary in simple language with the key takeaway first.",
+  //     })
 
-      setSummaryText(summary.trim())
-    } catch (error) {
-      const rawMessage = error instanceof Error ? error.message : ""
-      const normalizedMessage = rawMessage.toLowerCase()
+  //     setSummaryText(summary.trim())
+  //   } catch (error) {
+  //     const rawMessage = error instanceof Error ? error.message : ""
+  //     const normalizedMessage = rawMessage.toLowerCase()
 
-      const message =
-        normalizedMessage.includes("cancel") ||
-        normalizedMessage.includes("aborted")
-          ? "The AI summary request was cancelled. Please try again."
-          : rawMessage || "Unable to summarize this page right now."
+  //     const message =
+  //       normalizedMessage.includes("cancel") ||
+  //       normalizedMessage.includes("aborted")
+  //         ? "The AI summary request was cancelled. Please try again."
+  //         : rawMessage || "Unable to summarize this page right now."
 
-      setSummaryError(message)
-      toast.error(message)
-    } finally {
-      summarizer?.destroy?.()
-      setIsSummarizing(false)
-    }
-  }
+  //     setSummaryError(message)
+  //     toast.error(message)
+  //   } finally {
+  //     summarizer?.destroy?.()
+  //     setIsSummarizing(false)
+  //   }
+  // }
+
+  const rtf = new Intl.RelativeTimeFormat("en", {
+    numeric: "auto",
+  })
+  const now = Temporal.Now.instant()
+
+  const created = Temporal.Instant.from(createdAt)
+
+  const days = Math.floor(created.until(now).total({ unit: "day" }))
+  const createdRelativeTime = rtf.format(-days, "day")
 
   return (
     <Card className="group relative h-full border pt-0 transition-colors hover:bg-muted/50">
@@ -496,7 +499,7 @@ export const HarborCard = ({
           <img
             src={previewImage}
             alt={`${title} preview`}
-            className="h-full w-full object-cover brightness-60 grayscale dark:brightness-40"
+            className="h-full w-full object-cover"
             loading="lazy"
             decoding="async"
             onError={() => setIsPreviewImageVisible(false)}
@@ -506,249 +509,26 @@ export const HarborCard = ({
         )}
       </div>
       <CardHeader className="min-w-0">
-        <div className="flex w-full min-w-0 items-center justify-between gap-2">
+        <div className="flex w-full min-w-0 items-center justify-start gap-2">
           <img
             src={favicon}
             alt={`${title} favicon`}
-            className="size-8 rounded-md bg-accent p-1"
+            className="size-3 rounded-sm bg-accent p-px"
           />
-          <div className="relative z-20 flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="group/heart hover:cursor-pointer"
-              type="button"
-              aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
-              disabled={isTogglingFavorite || isDeleting}
-              hidden={isTrashItem}
-              onClick={(event) => {
-                event.stopPropagation()
-                toggleFavorite()
-              }}
-            >
-              {isTogglingFavorite ? (
-                <SpinnerIcon className="size-4 animate-spin" />
-              ) : isFavorite ? (
-                <span className="relative inline-flex size-4 items-center justify-center">
-                  <HeartStraightIcon
-                    weight="fill"
-                    className="absolute size-4 text-red-500 transition-opacity group-hover/heart:opacity-0"
-                  />
-                  <HeartStraightIcon className="absolute size-4 text-white opacity-0 transition-opacity group-hover/heart:opacity-100" />
-                </span>
-              ) : (
-                <span className="relative inline-flex size-4 items-center justify-center">
-                  <HeartStraightIcon className="absolute size-4 text-muted-foreground transition-opacity group-hover/heart:opacity-0" />
-                  <HeartStraightIcon
-                    weight="fill"
-                    className="absolute size-4 text-red-500 opacity-0 transition-opacity group-hover/heart:opacity-100"
-                  />
-                </span>
-              )}
-            </Button>
-
-          <CreateBookmarkDialog
-            bookmark={{
-              id,
-              url,
-              title,
-              description,
-              favicon,
-              previewImage,
-              tags,
-              siteName,
-              author,
-              publishedAt,
-              language,
-              canonicalUrl,
-           }}
-              onSaved={onSaved}
-              trigger={
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="Edit bookmark"
-                  title="Edit bookmark"
-                  disabled={isDeleting}
-                  hidden={isTrashItem}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                  }}
-                >
-                  <PencilSimpleIcon />
-                </Button>
-              }
-            />
-
-            {isTrashItem ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  aria-label="Restore bookmark"
-                  title="Restore bookmark"
-                  disabled={isDeleting}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    restoreBookmark()
-                  }}
-                >
-                  {isDeleting ? (
-                    <SpinnerIcon className="size-4 animate-spin" />
-                  ) : (
-                    <ArrowCounterClockwiseIcon />
-                  )}
-                </Button>
-
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      type="button"
-                      aria-label="Delete bookmark permanently"
-                      title="Delete permanently"
-                      disabled={isDeleting}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                      }}
-                    >
-                      <TrashIcon weight="fill" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
-                    <AlertDialogHeader>
-                      <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
-                        <TrashIcon weight="fill" />
-                      </AlertDialogMedia>
-                      <AlertDialogTitle>
-                        Delete this bookmark permanently?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This removes &ldquo;{title}&rdquo; from your harbor for
-                        good. It cannot be restored, and there is no undo.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel
-                        variant="outline"
-                        disabled={isDeleting}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        Keep in Trash
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        disabled={isDeleting}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          purgeBookmark()
-                        }}
-                      >
-                        {isDeleting ? (
-                          <>
-                            <SpinnerIcon className="size-4 animate-spin" />
-                            Deleting...
-                          </>
-                        ) : (
-                          "Delete permanently"
-                        )}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </>
-            ) : (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    type="button"
-                    aria-label="Delete bookmark"
-                    title="Delete bookmark"
-                    disabled={isDeleting}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                    }}
-                  >
-                    <TrashIcon weight="fill" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
-                >
-                  <AlertDialogHeader>
-                    <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
-                      <TrashIcon weight="fill" />
-                    </AlertDialogMedia>
-                    <AlertDialogTitle>
-                      Are you absolutely sure?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will move your bookmark to Trash. You can undo it
-                      from the toast after deletion.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel
-                      variant="outline"
-                      disabled={isDeleting}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      Cancel
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      variant="destructive"
-                      disabled={isDeleting}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        deleteBookmark()
-                      }}
-                    >
-                      {isDeleting ? (
-                        <>
-                          <SpinnerIcon className="size-4 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        "Delete"
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
+          <span className="truncate overflow-hidden font-mono text-[11px] text-muted-foreground">
+            {url}
+          </span>
+          <span></span>
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {createdRelativeTime}
+          </span>
         </div>
         <CardTitle className="min-w-0 wrap-break-word">{title}</CardTitle>
-        <CardDescription className="min-w-0 break-all">{url}</CardDescription>
-         </CardHeader>
-       {siteName ? (
-         <div className="flex min-w-0 items-center justify-between px-4 pt-2">
-           <Badge
-            variant="secondary"
-            className="max-w-full truncate font-medium"
-            title={siteName}
-            aria-label={`Site: ${siteName}`}
-            >
-             {siteName}
-           </Badge>
-         </div>
-       ) : null}
-       <CardContent className="mt-auto flex flex-1 flex-col justify-between">
-        <p>{description}</p>
+      </CardHeader>
+      <CardContent className="mt-auto flex flex-1 flex-col justify-between">
+        <p className="text-[12px] text-muted-foreground">{description}</p>
         <div>
-          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-            <span>
-              Opened <strong>{visitCount}</strong>{" "}
-              {visitCount === 1 ? "time" : "times"}
-            </span>
+          {/* <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
             {!isTrashItem && (
               <Button
                 variant="outline"
@@ -762,15 +542,15 @@ export const HarborCard = ({
                 }}
               >
                 {isResettingVisit ? (
-                  <SpinnerIcon className="size-4 animate-spin" />
+                  <SpinnerIcon className="size-3 animate-spin" />
                 ) : (
-                  <ArrowsCounterClockwiseIcon className="size-4" />
+                  <ArrowsCounterClockwiseIcon className="size-3" />
                 )}
                 {isResettingVisit ? "Resetting..." : "Reset"}
               </Button>
             )}
-          </div>
-          {!isTrashItem && isSummarizerSupported && (
+          </div> */}
+          {/* {!isTrashItem && isSummarizerSupported && (
             <div className="mt-3">
               <Button
                 variant="outline"
@@ -786,29 +566,261 @@ export const HarborCard = ({
               >
                 {isSummarizing ? (
                   <>
-                    <SpinnerIcon className="size-4 animate-spin" />
+                    <SpinnerIcon className="size-3 animate-spin" />
                     Summarizing...
                   </>
                 ) : (
                   "Summarize with AI"
                 )}
                 <SparkleIcon
-                  className="size-4 text-yellow-500"
+                  className="size-3 text-yellow-500"
                   data-icon="inline-end"
                 />
               </Button>
             </div>
-          )}
+          )} */}
+          {/* Will enable NOTE when we allow users to add notes */}
+          {/* {note && (
+            <p className="m-0 flex items-start gap-1.75 rounded-sm border-l-2 border-l-primary bg-muted px-2 py-2.5 text-[12.5px]/[1.45] font-light text-foreground">
+              <NotepadIcon className="w-7 text-primary" />
+              {note}
+            </p>
+          )} */}
+
           <div className="mt-4 flex flex-wrap gap-2">
             {tags.map((tag) => (
-              <Badge variant="default" key={tag}>
+              <Badge variant="outline" key={tag}>
                 {tag}
               </Badge>
             ))}
           </div>
         </div>
       </CardContent>
-      <Dialog
+      <CardFooter>
+        <div className="flex flex-1 items-center justify-start text-muted-foreground">
+          <div className="flex items-center gap-0.75">
+            <EyeIcon className="size-3" />
+            <span className="font-mono text-[10px]/[12px]">{visitCount}</span>
+          </div>
+        </div>
+        <div className="relative z-20 flex shrink-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="group/heart hover:cursor-pointer"
+            type="button"
+            aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
+            disabled={isTogglingFavorite || isDeleting}
+            hidden={isTrashItem}
+            onClick={(event) => {
+              event.stopPropagation()
+              toggleFavorite()
+            }}
+          >
+            {isTogglingFavorite ? (
+              <SpinnerIcon className="size-3 animate-spin" />
+            ) : isFavorite ? (
+              <span className="relative inline-flex size-3 items-center justify-center">
+                <HeartStraightIcon
+                  weight="fill"
+                  className="absolute size-3 text-red-500 transition-opacity group-hover/heart:opacity-0"
+                />
+                <HeartStraightIcon className="absolute size-3 text-white opacity-0 transition-opacity group-hover/heart:opacity-100" />
+              </span>
+            ) : (
+              <span className="relative inline-flex size-3 items-center justify-center">
+                <HeartStraightIcon className="absolute size-3 text-muted-foreground transition-opacity group-hover/heart:opacity-0" />
+                <HeartStraightIcon
+                  weight="fill"
+                  className="absolute size-3 text-red-500 opacity-0 transition-opacity group-hover/heart:opacity-100"
+                />
+              </span>
+            )}
+          </Button>
+
+          <CreateBookmarkDialog
+            bookmark={{
+              id,
+              url,
+              title,
+              description,
+              favicon,
+              previewImage,
+              tags,
+              siteName,
+              author,
+              publishedAt,
+              language,
+              canonicalUrl,
+            }}
+            onSaved={onSaved}
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Edit bookmark"
+                title="Edit bookmark"
+                disabled={isDeleting}
+                hidden={isTrashItem}
+                onClick={(event) => {
+                  event.stopPropagation()
+                }}
+              >
+                <PencilSimpleIcon size="3" />
+              </Button>
+            }
+          />
+
+          {isTrashItem ? (
+            <>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                type="button"
+                aria-label="Restore bookmark"
+                title="Restore bookmark"
+                disabled={isDeleting}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  restoreBookmark()
+                }}
+              >
+                {isDeleting ? (
+                  <SpinnerIcon className="size-3 animate-spin" />
+                ) : (
+                  <ArrowCounterClockwiseIcon size="3" />
+                )}
+              </Button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="icon-xs"
+                    type="button"
+                    aria-label="Delete bookmark permanently"
+                    title="Delete permanently"
+                    disabled={isDeleting}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                    }}
+                  >
+                    <TrashIcon size="3" weight="light" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <AlertDialogHeader>
+                    <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                      <TrashIcon weight="light" />
+                    </AlertDialogMedia>
+                    <AlertDialogTitle>
+                      Delete this bookmark permanently?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes &ldquo;{title}&rdquo; from your harbor for
+                      good. It cannot be restored, and there is no undo.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel
+                      variant="outline"
+                      disabled={isDeleting}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Keep in Trash
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      disabled={isDeleting}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        purgeBookmark()
+                      }}
+                    >
+                      {isDeleting ? (
+                        <>
+                          <SpinnerIcon className="size-3 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete permanently"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          ) : (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  type="button"
+                  aria-label="Delete bookmark"
+                  title="Delete bookmark"
+                  className="group/trash"
+                  disabled={isDeleting}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                  }}
+                >
+                  <TrashIcon
+                    size="3"
+                    weight="light"
+                    className="group-hover/trash:text-destructive hover:text-destructive"
+                  />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                <AlertDialogHeader>
+                  <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                    <TrashIcon weight="light" />
+                  </AlertDialogMedia>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will move your bookmark to Trash. You can undo it from
+                    the toast after deletion.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel
+                    variant="outline"
+                    disabled={isDeleting}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={isDeleting}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      deleteBookmark()
+                    }}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <SpinnerIcon className="size-3 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      </CardFooter>
+      {/* <Dialog
         open={isSummaryDialogOpen}
         onOpenChange={(nextOpen) => {
           setIsSummaryDialogOpen(nextOpen)
@@ -838,7 +850,7 @@ export const HarborCard = ({
 
           <DialogFooter showCloseButton />
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </Card>
   )
 }

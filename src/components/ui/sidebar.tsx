@@ -14,17 +14,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import {
+  SidebarContext,
+  type SidebarContextProps,
+  useSidebar,
+} from "@/components/ui/sidebar-context"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-  SidebarContext,
-  type SidebarContextProps,
-  useSidebar,
-} from "@/components/ui/sidebar-context"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { MagnifyingGlassIcon, SidebarIcon, XIcon } from "@phosphor-icons/react"
@@ -345,7 +345,7 @@ function SidebarInput({
               <XIcon />
             </InputGroupButton>
           ) : (
-            <kbd className="hidden whitespace-nowrap rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground md:inline-block">
+            <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10.5px] whitespace-nowrap text-muted-foreground md:inline-block">
               {hint}
             </kbd>
           )}
@@ -371,7 +371,10 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-footer"
       data-sidebar="footer"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      className={cn(
+        "m-2 flex flex-col gap-2 border-t border-sidebar-border py-2",
+        className
+      )}
       {...props}
     />
   )
@@ -504,7 +507,7 @@ const sidebarMenuButtonVariants = cva(
       size: {
         default: "h-8 text-sm",
         sm: "h-7 text-xs",
-        lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
+        lg: "h-9 text-xs group-data-[collapsible=icon]:p-0!",
       },
     },
     defaultVariants: {

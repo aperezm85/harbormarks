@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v0.9.8",
+    date: "2026-09-05",
+    changes: [
+      "Bookmark cards got a cleaner, more compact layout: the URL and a relative timestamp (for example, 3 days ago) now sit in the header, and the visit count moves to a small footer.",
+      "Card actions (favorite, edit, delete) are smaller and subtler, and preview images show at full brightness instead of dimmed.",
+      "No new schema migration ships in this release, so upgrading is a drop-in image swap with no restart-time table rewrite.",
+    ],
+  },
+  {
     version: "v0.9.7",
     date: "2026-09-03",
     changes: [

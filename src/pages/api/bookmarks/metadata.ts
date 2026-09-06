@@ -21,13 +21,13 @@
 // without scraping a challenge page.
 import type { APIRoute } from "astro"
 
-import { parse, type HTMLElement } from "node-html-parser"
 import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 import {
   decodeWithCharset,
   fetchRawSafely,
   resolveCharset,
 } from "@/lib/safe-fetch"
+import { parse, type HTMLElement } from "node-html-parser"
 
 // --- Types -------------------------------------------------------------------
 
@@ -64,6 +64,28 @@ export type MetadataAdapter = {
    */
   hosts: (hostname: string) => boolean
   fetchMetadata: (pageUrl: URL) => Promise<PartialPageMetadata | null>
+}
+
+// --- Constants ---------------------------------------------------------------
+
+// Everything we extract lives in <head>, but heavy publisher pages can carry a
+// lot of inline script/preload markup before </head>. 1 MB is comfortably
+// above that; safe-fetch truncates (never rejects) past this point.
+const PAGE_MAX_BYTES = 1024 * 1024
+const PAGE_TIMEOUT_MS = 8000
+const PAGE_MAX_REDIRECTS = 8
+
+const FEED_MAX_BYTES = 256 * 1024
+const FEED_TIMEOUT_MS = 5000
+const FEED_MAX_REDIRECTS = 3
+
+const USER_AGENT = "HarborMarksBot/1.0 (+metadata-fetch)"
+
+// --- Logging -----------------------------------------------------------------
+
+function logMetadataFailure(stage: string, pageUrl: URL, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`[metadata] ${stage} failed for ${pageUrl.href}: ${message}`)
 }
 
 // --- URL / path helpers (regex OK: not HTML extraction) -----------------------
@@ -119,6 +141,18 @@ function extractIdFromText(text: string): string | null {
     .toLowerCase()
     .match(/([a-f\d]{8,})$/i)
   return match?.[1]?.toLowerCase() ?? null
+}
+
+// Parse a response URL defensively, falling back to the requested URL.
+function resolveFinalUrl(responseUrl: string | undefined, requested: URL): URL {
+  if (!responseUrl) {
+    return requested
+  }
+  try {
+    return new URL(responseUrl)
+  } catch {
+    return requested
+  }
 }
 
 // --- Bot challenge detection --------------------------------------------------
@@ -404,11 +438,11 @@ async function fetchMediumFeedMetadata(
   const feedUrl = new URL("/feed", pageUrl)
   try {
     const response = await fetchRawSafely(feedUrl.toString(), {
-      timeoutMs: 5000,
-      maxBytes: 256 * 1024,
-      maxRedirects: 3,
+      timeoutMs: FEED_TIMEOUT_MS,
+      maxBytes: FEED_MAX_BYTES,
+      maxRedirects: FEED_MAX_REDIRECTS,
       headers: {
-        "user-agent": "HarborMarksBot/1.0 (+metadata-fetch)",
+        "user-agent": USER_AGENT,
       },
     })
 
@@ -417,7 +451,8 @@ async function fetchMediumFeedMetadata(
     }
 
     const charset =
-      response.rawCharset ?? resolveCharset(response.contentType, response.body)
+      response.rawCharset ??
+      resolveCharset(response.contentType ?? "", response.body)
     const xml = decodeWithCharset(response.body, charset)
 
     // Parse as XML: strip link from the void set so <link>url</link> keeps its
@@ -471,7 +506,8 @@ async function fetchMediumFeedMetadata(
     }
 
     return null
-  } catch {
+  } catch (error) {
+    logMetadataFailure("medium feed", pageUrl, error)
     return null
   }
 }
@@ -498,6 +534,21 @@ async function fetchAdapterMetadata(
   return adapter.fetchMetadata(pageUrl)
 }
 
+// Content types we are willing to parse as a document. An empty header is
+// treated as HTML — plenty of servers omit it and the body is usually HTML.
+function isParseableContentType(contentType: string): boolean {
+  const lower = contentType.toLowerCase()
+  if (lower.length === 0) {
+    return true
+  }
+  return (
+    lower.includes("text/html") ||
+    lower.includes("text/plain") ||
+    lower.includes("application/xhtml+xml") ||
+    lower.includes("xml")
+  )
+}
+
 // --- Orchestration ------------------------------------------------------------
 
 // Fetch and parse metadata for a page, ending in the per-host adapter and then
@@ -507,28 +558,28 @@ export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
 
   try {
     const response = await fetchRawSafely(url.toString(), {
-      timeoutMs: 8000,
-      maxBytes: 256 * 1024,
-      maxRedirects: 3,
+      timeoutMs: PAGE_TIMEOUT_MS,
+      maxBytes: PAGE_MAX_BYTES,
+      maxRedirects: PAGE_MAX_REDIRECTS,
       headers: {
-        "user-agent": "HarborMarksBot/1.0 (+metadata-fetch)",
+        "user-agent": USER_AGENT,
       },
     })
 
     // On any non-2xx, fall back to the per-host adapter, then to the fallback.
     if (!response.ok) {
+      console.warn(`[metadata] non-2xx ${response.status} for ${url.href}`)
       const adapter = await fetchAdapterMetadata(url)
       return mergeAdapter(fallback, adapter, fallback)
     }
 
+    const contentType = response.contentType ?? ""
+
     // Only HTML / XHTML / XML / plain-text content makes sense to parse.
-    const contentType = response.contentType.toLowerCase()
-    if (
-      !contentType.includes("text/html") &&
-      !contentType.includes("text/plain") &&
-      !contentType.includes("application/xhtml+xml") &&
-      !contentType.includes("xml")
-    ) {
+    if (!isParseableContentType(contentType)) {
+      console.warn(
+        `[metadata] unparseable content-type "${contentType}" for ${url.href}`
+      )
       const adapter = await fetchAdapterMetadata(url)
       return mergeAdapter(fallback, adapter, fallback)
     }
@@ -536,21 +587,24 @@ export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
     // Decode with the response's charset (falling back to <meta charset> in the
     // first 1KB, then to UTF-8). This is the Story 7 fix for Latin-1 pages.
     const charset =
-      response.rawCharset ?? resolveCharset(response.contentType, response.body)
+      response.rawCharset ?? resolveCharset(contentType, response.body)
     const html = decodeWithCharset(response.body, charset)
 
     // Bot-challenge pages skip HTML extraction entirely and use the adapter.
     if (isBotChallengePage(html)) {
+      console.warn(`[metadata] bot challenge page for ${url.href}`)
       const adapter = await fetchAdapterMetadata(url)
       return mergeAdapter(buildFallbackMetadata(url), adapter, fallback)
     }
 
     // Default path: parse the page's HTML and extract every field.
     //
-    // finalUrl MUST be the response's post-redirect URL, not the requested URL,
-    // so every relative URL we place on the wire (favicon, previewImage,
-    // canonical) anchors to the origin that actually served the document.
-    const finalUrl = new URL(response.url)
+    // finalUrl SHOULD be the response's post-redirect URL, not the requested
+    // URL, so every relative URL we place on the wire (favicon, previewImage,
+    // canonical) anchors to the origin that actually served the document. If
+    // the response URL is missing or malformed we fall back to the requested
+    // URL rather than failing the whole extraction.
+    const finalUrl = resolveFinalUrl(response.url, url)
     const extracted = extractHTMLMetadata(html, finalUrl)
 
     // If the default path produced a title, ship it.
@@ -562,10 +616,16 @@ export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
     // to the base fallback.
     const adapter = await fetchAdapterMetadata(url)
     return mergeAdapter(extracted, adapter, fallback)
-  } catch {
+  } catch (error) {
+    logMetadataFailure("page fetch", url, error)
     // Any fetch / parse failure — try the adapter, then fall back.
-    const adapter = await fetchAdapterMetadata(url)
-    return mergeAdapter(fallback, adapter, fallback)
+    try {
+      const adapter = await fetchAdapterMetadata(url)
+      return mergeAdapter(fallback, adapter, fallback)
+    } catch (adapterError) {
+      logMetadataFailure("adapter", url, adapterError)
+      return fallback
+    }
   }
 }
 

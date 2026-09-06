@@ -11,94 +11,17 @@ import {
   removeOperatorFromQuery,
 } from "@/lib/bookmark-query"
 
-import { CreateBookmarkDialog } from "@/components/dialog/CreateBookmarkDialog"
-import { SearchOperatorChips } from "@/components/dashboard/SearchOperatorChips"
+import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar"
+import { DashboardSubBar } from "@/components/dashboard/DashboardSubBar"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { Button } from "@/components/ui/button"
 import { HarborCard } from "@/components/ui/HarborCard"
-import { ModeToggle } from "@/components/ui/ModeToggle"
-import { Separator } from "@/components/ui/separator"
 import {
-  SidebarInput,
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { useSidebar } from "@/components/ui/sidebar-context"
 
 import { Toaster } from "@/components/ui/sonner"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-const DashboardTopBar = ({
-  searchInput,
-  setSearchInput,
-  setDebouncedSearch,
-  isRefreshingBookmarks,
-  hasActiveSearch,
-  onBookmarkSaved,
-  preselectedTags,
-  defaultFavorite,
-}: {
-  searchInput: string
-  setSearchInput: (value: string) => void
-  setDebouncedSearch: (value: string) => void
-  isRefreshingBookmarks: boolean
-  hasActiveSearch: boolean
-  onBookmarkSaved: (bookmark: BookmarkCardData) => void
-  preselectedTags?: string[]
-  defaultFavorite?: boolean
-}) => {
-  const { open, openMobile, isMobile } = useSidebar()
-  const isSidebarOpen = isMobile ? openMobile : open
-
-  return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-      <a
-        href="/"
-        aria-hidden={isSidebarOpen}
-        className={[
-          "hidden overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out sm:block",
-          isSidebarOpen
-            ? "pointer-events-none max-w-0 -translate-x-2 opacity-0"
-            : "max-w-52 shrink-0 translate-x-0 opacity-100",
-        ].join(" ")}
-      >
-        <span className="text-lg font-semibold">
-          Harbor<span className="text-primary">Marks</span>
-        </span>
-      </a>
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-2 h-full" />
-      <SidebarInput
-        id="search"
-        placeholder="Search your harbor..."
-        value={searchInput}
-        onChange={(event) => setSearchInput(event.target.value)}
-        onClear={() => {
-          setSearchInput("")
-          setDebouncedSearch("")
-        }}
-        hint="tag: site: is:favorite"
-      />
-      {isRefreshingBookmarks && (
-        <span
-          className="text-xs text-muted-foreground"
-          aria-live="polite"
-          role="status"
-        >
-          {hasActiveSearch ? "Searching..." : "Refreshing..."}
-        </span>
-      )}
-      <CreateBookmarkDialog
-        onSaved={onBookmarkSaved}
-        preselectedTags={preselectedTags}
-        defaultFavorite={defaultFavorite}
-      />
-      <Separator orientation="vertical" className="mr-2 h-full" />
-      <ModeToggle />
-    </header>
-  )
-}
 
 export const DashboardLayout = ({
   bookmarks,
@@ -387,123 +310,77 @@ export const DashboardLayout = ({
 
   const hasActiveSearch = debouncedSearch.length > 0
 
+  // Client-side navigation that rides the app's ClientRouter: click a
+  // transient link so the transition (and the route-sync effect) run without
+  // a full page reload. Mirrors how the sidebar's <a href> links behave.
+  const navigateTo = (path: string) => {
+    const link = document.createElement("a")
+    link.href = path
+    link.style.display = "none"
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
   return (
     <AppErrorBoundary>
       <SidebarProvider>
-        <AppSidebar currentUser={currentUser ?? null} />
+        <AppSidebar
+          currentUser={currentUser ?? null}
+          onBookmarkSaved={applyBookmarkUpdate}
+          preselectedTags={routeTagFilter ? [routeTagFilter] : undefined}
+          defaultFavorite={routeOnlyFavorites}
+        />
         <SidebarInset>
           <DashboardTopBar
             searchInput={searchInput}
-            setSearchInput={(value) => {
+            onSearchChange={(value) => {
               setPage(1)
               setSearchInput(value)
             }}
-            setDebouncedSearch={(value) => {
+            onSearchClear={() => {
               setPage(1)
-              setDebouncedSearch(value)
+              setSearchInput("")
+              setDebouncedSearch("")
             }}
-            isRefreshingBookmarks={isRefreshingBookmarks}
+            isRefreshing={isRefreshingBookmarks}
             hasActiveSearch={hasActiveSearch}
-            onBookmarkSaved={applyBookmarkUpdate}
-            preselectedTags={routeTagFilter ? [routeTagFilter] : undefined}
-            defaultFavorite={routeOnlyFavorites}
           />
-          <div className="flex flex-1 flex-col gap-4 p-4">
-            <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min">
-              <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {hasActiveSearch ? (
-                  <>
-                    <div className="text-md pt-4 font-medium text-muted-foreground">
-                      Looking at results for "{debouncedSearch}".
-                    </div>
-                    <SearchOperatorChips
-                      operators={queryOperators}
-                      onRemove={(token) => {
-                        const next = removeOperatorFromQuery(searchInput, token)
-                        setPage(1)
-                        setSearchInput(next)
-                        setDebouncedSearch(next)
-                      }}
-                    />
-                  </>
-                ) : routeOnlyFavorites ? (
-                  <>
-                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
-                      Favorite Bookmarks
-                    </h2>
-                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
-                      {visibleBookmarks.length} favorite links
-                    </h3>
-                  </>
-                ) : routeTagFilter ? (
-                  <>
-                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
-                      Tag: {routeTagFilter}
-                    </h2>
-                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
-                      {visibleBookmarks.length} links with this tag
-                    </h3>
-                  </>
-                ) : routeTrashOnly ? (
-                  <>
-                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
-                      Trash
-                    </h2>
-                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
-                      {visibleBookmarks.length} deleted bookmarks
-                    </h3>
-                  </>
-                ) : (
-                  <>
-                    <div className="col-span-full flex flex-wrap gap-2">
-                      <Tabs defaultValue={activeView} className="w-auto">
-                        <TabsList variant="line">
-                          <TabsTrigger
-                            value="recent"
-                            onClick={() => {
-                              setPage(1)
-                              setActiveView("recent")
-                            }}
-                          >
-                            Recent
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="mostVisited"
-                            onClick={() => {
-                              setPage(1)
-                              setActiveView("mostVisited")
-                            }}
-                          >
-                            Most visited
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="unorganized"
-                            onClick={() => {
-                              setPage(1)
-                              setActiveView("unorganized")
-                            }}
-                          >
-                            Unorganized
-                          </TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    </div>
-                    <h2 className="col-span-full text-2xl font-medium text-muted-foreground">
-                      {activeView === "recent" && "Recent Bookmarks"}
-                      {activeView === "mostVisited" && "Most Visited Bookmarks"}
-                      {activeView === "unorganized" && "Unorganized Bookmarks"}
-                    </h2>
-                    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
-                      {activeView === "recent" &&
-                        `${visibleBookmarks.length} links sorted by creation date`}
-                      {activeView === "mostVisited" &&
-                        `${visibleBookmarks.length} links sorted by total visits`}
-                      {activeView === "unorganized" &&
-                        `${visibleBookmarks.length} links without tags`}
-                    </h3>
-                  </>
-                )}
-
+          <DashboardSubBar
+            activeView={activeView}
+            routeTagFilter={routeTagFilter}
+            routeOnlyFavorites={routeOnlyFavorites ?? false}
+            routeTrashOnly={routeTrashOnly}
+            hasActiveSearch={hasActiveSearch}
+            debouncedSearch={debouncedSearch}
+            count={visibleBookmarks.length}
+            queryOperators={queryOperators}
+            onIndexViewChange={(view) => {
+              setPage(1)
+              setSearchInput("")
+              setDebouncedSearch("")
+              setRouteOnlyFavorites(false)
+              setRouteTrashOnly(false)
+              setRouteTagFilter(undefined)
+              setActiveView(view)
+              navigateTo("/")
+            }}
+            onNavigate={(path) => {
+              setPage(1)
+              setSearchInput("")
+              setDebouncedSearch("")
+              navigateTo(path)
+            }}
+            onRemoveOperator={(token) => {
+              const next = removeOperatorFromQuery(searchInput, token)
+              setPage(1)
+              setSearchInput(next)
+              setDebouncedSearch(next)
+            }}
+          />
+          <div className="flex flex-1 flex-col p-4">
+            <div className="min-h-screen flex-1 md:min-h-min">
+              <div className="grid gap-4 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
                 {visibleBookmarks.map((bookmark) => (
                   <HarborCard
                     key={bookmark.id}

@@ -241,6 +241,20 @@ cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harborma
 
 ## Recent Changes
 
+### 2026-09-05 (v0.9.8)
+
+- Redesigned the bookmark card (`src/components/ui/HarborCard.tsx`) into a more
+  compact layout: the URL and a relative timestamp in the header, the description
+  and tags in the body, and the visit count plus the favorite/edit/delete actions
+  in a footer. Relative timestamps use the Temporal date API
+  (`@js-temporal/polyfill`) with `Intl.RelativeTimeFormat`.
+- Preview images render at full brightness (the previous dimmed/grayscale
+  treatment is gone), and card action buttons use a smaller `icon-xs` size.
+- The AI-summarize and visit-count-reset actions are temporarily disabled (commented
+  out) while the card is redesigned; they are not removed.
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
+
 ### 2026-09-03 (v0.9.7)
 
 - Search now parses the `q` parameter into operators (`tag:`, `site:`, `is:`,
