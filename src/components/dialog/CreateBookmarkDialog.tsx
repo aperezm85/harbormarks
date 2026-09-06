@@ -164,7 +164,7 @@ export const CreateBookmarkDialog = ({
   }
 
   const applyBookmarkValues = useCallback(
-     (values?: EditableBookmark) => {
+    (values?: EditableBookmark) => {
       setUrl(values?.url ?? "")
       setTitle(values?.title ?? "")
       setDescription(values?.description ?? "")
@@ -180,9 +180,9 @@ export const CreateBookmarkDialog = ({
       setIsTagSuggestionsOpen(false)
       setMetadataError("")
       setSubmitError("")
-     },
-     [preselectedTags]
-   )
+    },
+    [preselectedTags]
+  )
 
   function resetForm() {
     applyBookmarkValues(bookmark)
@@ -246,28 +246,26 @@ export const CreateBookmarkDialog = ({
       }
 
       setPreviewImage(
-         typeof metadata?.previewImage === "string"
-            ? metadata.previewImage
-            : null
-        )
+        typeof metadata?.previewImage === "string"
+          ? metadata.previewImage
+          : null
+      )
 
       setSiteName(
-         typeof metadata?.siteName === "string" ? metadata.siteName : null
-        )
+        typeof metadata?.siteName === "string" ? metadata.siteName : null
+      )
       setAuthor(typeof metadata?.author === "string" ? metadata.author : null)
       setPublishedAt(
-         typeof metadata?.publishedAt === "string"
-            ? metadata.publishedAt
-            : null
-        )
+        typeof metadata?.publishedAt === "string" ? metadata.publishedAt : null
+      )
       setLanguage(
-         typeof metadata?.language === "string" ? metadata.language : null
-        )
+        typeof metadata?.language === "string" ? metadata.language : null
+      )
       setCanonicalUrl(
-         typeof metadata?.canonicalUrl === "string"
-            ? metadata.canonicalUrl
-            : null
-        )
+        typeof metadata?.canonicalUrl === "string"
+          ? metadata.canonicalUrl
+          : null
+      )
 
       setStatusMessage("Metadata fetched and fields updated.")
     } catch (error) {
@@ -347,7 +345,7 @@ export const CreateBookmarkDialog = ({
           publishedAt: publishedAt ?? undefined,
           language: language ?? undefined,
           canonicalUrl: canonicalUrl ?? undefined,
-          }),
+        }),
       })
 
       const payload = await response.json()
@@ -579,76 +577,74 @@ export const CreateBookmarkDialog = ({
                   : "Choose an existing tag or type a new one."}
               </p>
             </Field>
-              <input type="hidden" name="favicon" value={favicon} />
-              {/* Story 7 enrichments are editable only in edit mode; on create
+            <input type="hidden" name="favicon" value={favicon} />
+            {/* Story 7 enrichments are editable only in edit mode; on create
                   they arrive from metadata extraction and stay read-only. */}
-               {isEditMode ? (
-                 <details className="group w-full">
-                   <summary
-                    className="cursor-pointer select-none text-sm font-medium"
-                    aria-label="Advanced bookmark metadata"
-                    onClick={(event) => event.stopPropagation()}
-                   >
-                     Advanced
-                   </summary>
-                   <div className="mt-2 flex flex-col gap-3 border-t pt-2">
-                     <Field>
-                       <Label htmlFor="advanced-author">Author</Label>
-                       <Input
-                       id="advanced-author"
-                        name="author"
-                        placeholder="Author name"
-                        value={author ?? ""}
-                        onChange={(event) =>
-                          setAuthor(event.target.value || null)
-                           }
-                       />
-                     </Field>
-                     <Field>
-                       <Label htmlFor="advanced-published-at">Published</Label>
-                       <Input
-                       id="advanced-published-at"
-                        name="publishedAt"
-                        placeholder="YYYY-MM-DD or ISO date"
-                        value={publishedAt ?? ""}
-                        onChange={(event) =>
-                          setPublishedAt(event.target.value || null)
-                           }
-                       />
-                     </Field>
-                     <Field>
-                       <Label htmlFor="advanced-language">
-                        Language
-                       </Label>
-                       <Input
-                       id="advanced-language"
-                        name="language"
-                        placeholder="e.g. en or es"
-                        value={language ?? ""}
-                        onChange={(event) =>
-                          setLanguage(event.target.value || null)
-                           }
-                       />
-                     </Field>
-                     <Field>
-                       <Label htmlFor="advanced-canonical-url">
-                        Canonical URL
-                       </Label>
-                       <Input
-                       id="advanced-canonical-url"
-                        name="canonicalUrl"
-                        type="url"
-                        placeholder="https://example.com/canonical"
-                        value={canonicalUrl ?? ""}
-                        onChange={(event) =>
-                          setCanonicalUrl(event.target.value || null)
-                           }
-                       />
-                     </Field>
-                   </div>
-                 </details>
-               ) : null}
-            </FieldGroup>
+            {isEditMode ? (
+              <details className="group w-full">
+                <summary
+                  className="cursor-pointer text-sm font-medium select-none"
+                  aria-label="Advanced bookmark metadata"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Advanced
+                </summary>
+                <div className="mt-2 flex flex-col gap-3 border-t pt-2">
+                  <Field>
+                    <Label htmlFor="advanced-author">Author</Label>
+                    <Input
+                      id="advanced-author"
+                      name="author"
+                      placeholder="Author name"
+                      value={author ?? ""}
+                      onChange={(event) =>
+                        setAuthor(event.target.value || null)
+                      }
+                    />
+                  </Field>
+                  <Field>
+                    <Label htmlFor="advanced-published-at">Published</Label>
+                    <Input
+                      id="advanced-published-at"
+                      name="publishedAt"
+                      placeholder="YYYY-MM-DD or ISO date"
+                      value={publishedAt ?? ""}
+                      onChange={(event) =>
+                        setPublishedAt(event.target.value || null)
+                      }
+                    />
+                  </Field>
+                  <Field>
+                    <Label htmlFor="advanced-language">Language</Label>
+                    <Input
+                      id="advanced-language"
+                      name="language"
+                      placeholder="e.g. en or es"
+                      value={language ?? ""}
+                      onChange={(event) =>
+                        setLanguage(event.target.value || null)
+                      }
+                    />
+                  </Field>
+                  <Field>
+                    <Label htmlFor="advanced-canonical-url">
+                      Canonical URL
+                    </Label>
+                    <Input
+                      id="advanced-canonical-url"
+                      name="canonicalUrl"
+                      type="url"
+                      placeholder="https://example.com/canonical"
+                      value={canonicalUrl ?? ""}
+                      onChange={(event) =>
+                        setCanonicalUrl(event.target.value || null)
+                      }
+                    />
+                  </Field>
+                </div>
+              </details>
+            ) : null}
+          </FieldGroup>
           {submitError ? (
             <p className="text-sm text-destructive" role="alert">
               {submitError}
@@ -673,14 +669,9 @@ export const CreateBookmarkDialog = ({
               </Button>
             </DialogClose>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? (
+              {isSaving && (
                 <ArrowsClockwiseIcon
                   className="size-4 animate-spin"
-                  data-icon="inline-start"
-                />
-              ) : (
-                <BookmarkSimpleIcon
-                  className="size-4"
                   data-icon="inline-start"
                 />
               )}

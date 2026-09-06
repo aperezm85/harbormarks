@@ -17,6 +17,7 @@ export type BookmarkCardData = {
   publishedAt: string | null
   language: string | null
   canonicalUrl: string | null
+  note?: string | null
 }
 
 export type BookmarkTagSummary = {
