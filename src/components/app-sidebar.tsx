@@ -378,6 +378,24 @@ export function AppSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ) : null}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  size="sm"
+                  isActive={pathname === "/tags"}
+                >
+                  <a
+                    href="/tags"
+                    onClick={() => {
+                      setOptimisticRoute("/tags")
+                    }}
+                  >
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Manage tags...
+                    </span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

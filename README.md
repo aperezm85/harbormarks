@@ -23,7 +23,10 @@ It helps you save links, enrich them with metadata, organize them with tags, and
 - Soft delete with a Trash view: deleted bookmarks can be restored from the card
   or the undo toast, or deleted permanently from Trash.
 - URL canonicalization on write (host, trailing slash, and tracking parameters)
-  with duplicate detection per user on create and edit.
+  with duplicate detection per user on create and edit. Saving an existing URL
+  returns the existing bookmark and offers open / merge-tags / save-anyway.
+- Tag management screen (`/tags`, linked from the sidebar): rename a tag
+  everywhere, merge one tag into another, or delete a tag from all bookmarks.
 - Metadata extraction (title, description, favicon, preview image).
 - Local proxying and caching for bookmark favicons and preview images to avoid hotlinking.
 - Indexed PostgreSQL full-text search with relevance ranking.
@@ -51,6 +54,8 @@ It helps you save links, enrich them with metadata, organize them with tags, and
   - SSRF-guarded outbound fetches for metadata, summaries, and assets,
   - rate limiting on login, registration, and recovery endpoints,
   - automatic cleanup of expired sessions and tokens.
+- Unauthenticated liveness probe at `GET /api/healthz` (no DB touch) for
+  Docker healthchecks and reverse proxies.
 
 ## Tech Stack
 
@@ -131,126 +136,9 @@ docker compose down
 
 ## Recent Changes
 
-### 2026-09-06 (v0.9.11)
-
-- Opening an unread bookmark now marks it as reading automatically. The status
-  badge clears right away and rolls back if the update fails; archived
-  bookmarks are never touched.
-- The save/edit dialog got a cleaner layout with a preview image header, a
-  favorites switch that saves inline, and delete moved inside the dialog.
-- Press `N` anywhere on the dashboard to open the save-a-link dialog (ignored
-  while typing or when a menu or dialog is already open).
-- Bookmarks saved via a Freedium mirror now show the real article title,
-  description, and image instead of the mirror's own chrome; the saved URL
-  itself is untouched.
-- You can now upload a profile picture from your profile page, with safer
-  avatar handling and notifications that float instead of shifting the page.
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-
-### 2026-09-06 (v0.9.10)
-
-- Every bookmark now has your own private note, separate from the scraped page
-  description. Add it when creating or editing; it shows on grid and list cards,
-  and in compact view a note icon opens it in a dialog. Notes are full-text
-  searchable, and refetching page metadata never overwrites them.
-- Track reading progress with a status on every bookmark (`unread`, `reading`,
-  `archived`), changed from a control on the card. A new Unread filter sits next
-  to the view chips, and the `is:unread` / `is:reading` / `is:archived` search
-  operators now filter instead of being ignored.
-- Two additive migrations ship in this release (`0006` for the note plus a search
-  index rebuild, `0007` for the status with a `unread` default). Existing
-  bookmarks keep an empty note and `unread` status. Back up before upgrading, as
-  usual.
-
-### 2026-09-06 (v0.9.9)
-
-- Switch how bookmarks are displayed from the top bar: card view (the current
-  grid), card list view (stacked horizontal cards with a small thumbnail), or
-  compact view (dense single rows with no preview images). Your choice is
-  remembered between visits.
-- All card actions (favorite, edit, delete, restore) work the same in every
-  view, and the list stays hidden until your saved view is applied, so the page
-  never flashes the wrong layout on reload.
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-
-### 2026-09-05 (v0.9.8)
-
-- Bookmark cards got a cleaner, more compact layout. The URL and a relative
-  timestamp (for example, 3 days ago) now sit in the card header, and the visit
-  count moves to a small footer, so each card reads at a glance.
-- Card actions (favorite, edit, delete) are smaller and subtler, and preview
-  images show at full brightness instead of dimmed and grayscale.
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-
-### 2026-09-03 (v0.9.7)
-
-- Search now understands operators, so you can filter by tag, site, favorite
-  status, whether a preview image exists, and save date, alongside free-text
-  search. Combine them to narrow results precisely (for example
-  `tag:rust site:github.com`); the active operators show as removable chips
-  under the search box, which also hints at the operators you can use.
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-
-### 2026-09-03 (v0.9.6)
-
-- Bookmark cards now show the site name, and the edit dialog surfaces the author,
-  publish date, language, and canonical URL when a page provides them.
-- Metadata is extracted with a real HTML parser instead of hand-rolled regexes, so
-  titles, descriptions, and images come through more reliably, including on pages
-  that sit behind bot protection.
-- Pages served in a non-UTF-8 encoding (for example Latin-1) now decode their
-  accents correctly instead of arriving as garbled text.
-- A new `0005` migration adds the enrichment columns; they are all nullable, so
-  upgrading is a drop-in swap that adds columns without rewriting existing rows.
-
-### 2026-09-02 (v0.9.5)
-
-- Added import, so a bookmark collection can come in instead of one URL at a
-  time. A new "Import bookmarks" item in the sidebar account menu accepts a
-  dropped or chosen file, auto-detects JSON (this app's export format) and
-  Netscape HTML, and imports against the user's own existing bookmarks,
-  reconciling duplicate URLs rather than creating dupes.
-- Fixed toasts rendering off-screen or pushing the page content: the Sonner
-  stylesheet is now loaded, so toasts render floating in place and styled.
-- Brought the README, changelog, and package version back in sync for the release.
-- No new schema migration ships in this release, so upgrading is a drop-in image
-  swap with no restart-time table rewrite.
-
-### 2026-08-31 (v0.9.4)
-
-- Added permanent delete from Trash, so a bookmark can be removed for good after
-  a second, explicit confirmation.
-- Moved search onto an indexed full-text column; it previously rebuilt the search
-  index on every row of every query.
-- Fixed the sidebar tag list returning a 500 on databases upgraded from an
-  earlier release, where `tags` was still a scalar text column.
-- Made the tags migration convert existing data instead of dropping the column.
-  **Anyone upgrading from 0.9.2 or earlier should read the upgrade note below.**
-- Fixed favicons and preview images 404ing when the origin serves them with an
-  empty or generic content type.
-- Fixed four React state-in-effect bugs and cleared the remaining lint errors, so
-  `pnpm lint`, `pnpm typecheck`, and `pnpm build` all pass.
-
-### 2026-08-30
-
-- Added local caching and proxying for bookmark favicons and preview images.
-- Fixed sidebar tag navigation and dashboard route syncing on Astro client-side swaps.
-- Brought the README, changelog, and package version back in sync for the release.
-
-### 2026-03-16
-
-- Migrated authentication to DB-backed users and session tokens.
-- Added self-service registration, profile update, password change, forgot/reset password, and email verification request/confirm flows.
-- Added admin user management (`/admin/users`) for creating users, assigning roles, and toggling active status.
-- Scoped bookmark APIs and listing/tag queries to the authenticated user.
-- Added sidebar user menu with account/admin navigation and logout.
-- Redesigned the profile page to match the dashboard/admin visual pattern.
-- Updated Docker env conventions to bootstrap-admin variables under Compose.
-- Added GHCR publish workflow and image-based deploy compose file.
+See [CHANGELOG.md](./CHANGELOG.md) for release notes. It is the single source
+of truth; the in-app changelog (`src/lib/changelog.ts`) is synced from it on
+every release.
 
 ## Upgrading
 

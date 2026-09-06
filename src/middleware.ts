@@ -20,6 +20,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isForgotPasswordPage = pathname === "/forgot-password"
   const isResetPasswordPage = pathname === "/reset-password"
   const isPublicAuthApi = pathname.startsWith("/api/auth/")
+  const isHealthCheck =
+    pathname === "/api/healthz" || pathname === "/healthz"
   const isAdminPage = pathname.startsWith("/admin")
   const isAdminApi = pathname.startsWith("/api/admin/")
 
@@ -37,7 +39,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     !isVerifyEmailPage &&
     !isForgotPasswordPage &&
     !isResetPasswordPage &&
-    !isPublicAuthApi
+    !isPublicAuthApi &&
+    !isHealthCheck
   ) {
     return context.redirect("/login")
   }

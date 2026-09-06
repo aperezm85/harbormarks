@@ -239,7 +239,55 @@ Restore example:
 cat harbormarks_backup.sql | docker compose exec -T db psql -U astro -d harbormarks
 ```
 
+User-uploaded avatars live in the `uploads_data` volume (`/app/public/uploads`
+in the container). Back it up alongside the database, or profile pictures are
+lost on a fresh host:
+
+```bash
+docker run --rm -v harbormarks_uploads_data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/harbormarks_uploads_backup.tar.gz -C /data .
+```
+
+Restore example:
+
+```bash
+docker run --rm -v harbormarks_uploads_data:/data -v "$PWD":/backup alpine \
+  tar xzf /backup/harbormarks_uploads_backup.tar.gz -C /data
+```
+
+Use `docker volume ls` to confirm the exact volume name if your project
+directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
+
 ## Recent Changes
+
+### 2026-09-06 (v1.0.0)
+
+- Duplicate resolution: `POST /api/bookmarks` returns a structured 409
+  (`code: "duplicate_bookmark"` with the existing row) instead of a bare
+  error; `resolve: "merge-tags"` unions tags into the existing bookmark,
+  `"create-anyway"` inserts a true duplicate. `CreateBookmarkDialog.tsx`
+  surfaces all three options (open existing / merge / save anyway).
+- Tag management: `renameBookmarkTag`, `mergeBookmarkTags`, and
+  `deleteBookmarkTag` in `src/lib/bookmarks.ts` (per-user, trash-excluded,
+  case-insensitive), a new `POST /api/bookmarks/tags/manage` route, and a
+  `/tags` page (`TagManager.tsx` behind a single `client:only` `TagsPage`
+  island) linked from the sidebar.
+- Liveness probe: `GET /api/healthz` (unauthenticated, no DB touch,
+  allowlisted in `src/middleware.ts`); both Compose files and the Portainer
+  stack probe it instead of `/login`.
+- Uploads persistence: `uploads_data:/app/public/uploads` volume in both
+  Compose files plus `mkdir -p` in the runtime image; section 9 documents
+  backup/restore of the volume.
+- Deploy defaults: `docker-compose.deploy.yml` ships
+  `HARBOR_ALLOW_SIGNUP: "false"` with a non-default bootstrap password
+  placeholder.
+- Release hygiene: `.github/workflows/ci.yml` runs lint + typecheck + test
+  on pull requests; `CHANGELOG.md` is the single source of truth (README
+  links to it); new `SECURITY.md` and issue templates.
+- Bumped `package.json` to 1.0.0 and synced the in-app changelog
+  (`src/lib/changelog.ts`), `CHANGELOG.md`, and INSTRUCTIONS.
+- No new schema migration ships in this release, so upgrading is a drop-in
+  image swap with no restart-time table rewrite.
 
 ### 2026-09-06 (v0.9.11)
 
@@ -495,8 +543,11 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     command: ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]
+    volumes:
+      # Persist user-uploaded avatars across image updates.
+      - uploads_data:/app/public/uploads
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/login >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/healthz >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -509,6 +560,7 @@ services:
 
 volumes:
   db_data:
+  uploads_data:
 ```
 
 Notes:

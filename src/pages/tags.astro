@@ -1,0 +1,16 @@
+---
+export const prerender = false
+
+import { TagsPage } from "@/components/tags/TagsPage"
+import Layout from "@/layouts/main.astro"
+
+const user = Astro.locals.user
+
+if (!user) {
+  return Astro.redirect("/login")
+}
+---
+
+<Layout page="Manage tags | HarborMarks">
+  <TagsPage client:only="react" currentUser={user} />
+</Layout>

@@ -25,8 +25,10 @@ services:
       # Used only for first-start bootstrap when the users table is empty.
       HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
       HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
-      HARBOR_BOOTSTRAP_ADMIN_PASSWORD: change_this_now
-      HARBOR_ALLOW_SIGNUP: "true"
+      HARBOR_BOOTSTRAP_ADMIN_PASSWORD: use_a_long_unique_password
+      # Public default is closed registration. Set to "true" only for a
+      # private instance where you want self-service signup.
+      HARBOR_ALLOW_SIGNUP: "false"
       HARBOR_CHECK_ORIGIN: "true"
       HOST: 0.0.0.0
       PORT: 3000
@@ -37,8 +39,10 @@ services:
     # accepts requests; if one fails the container stops instead of serving against
     # a half-migrated database.
     command: ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]
+    volumes:
+      - uploads_data:/app/public/uploads
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/login >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/healthz >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -49,3 +53,4 @@ services:
 
 volumes:
   db_data:
+  uploads_data:

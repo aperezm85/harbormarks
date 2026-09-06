@@ -4,10 +4,12 @@ import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
 import {
   createBookmark,
   DEFAULT_BOOKMARK_PAGE_SIZE,
-  hasDuplicateBookmarkUrl,
+  findDuplicateBookmark,
   listBookmarks,
+  updateBookmarkById,
   type BookmarkView,
 } from "@/lib/bookmarks"
+import { normalizeTags } from "@/lib/bookmark-tags"
 
 function parseBookmarkView(rawValue: string | null): BookmarkView {
   if (rawValue === "mostVisited") {
@@ -128,6 +130,10 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   // Reading-queue toggle: JSON-only status passthrough. createBookmark
   // validates and defaults to unread; the form path stays unread.
   let status: string | null = null
+  // Duplicate resolution: JSON-only. "merge-tags" merges incoming tags into
+  // the existing row, "create-anyway" inserts a true duplicate. Anything else
+  // returns a structured 409 with the existing bookmark.
+  let resolve: string | null = null
 
   if (isJsonRequest(contentType)) {
     const body = await request.json()
@@ -154,6 +160,7 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     // Pass through as-is (string or null): createBookmark applies `trim() || null`.
     note = typeof body?.note === "string" ? body.note : null
     status = typeof body?.status === "string" ? body.status : null
+    resolve = typeof body?.resolve === "string" ? body.resolve : null
     } else {
     const form = await request.formData()
     url = parseAndValidateUrl(
@@ -191,20 +198,48 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     return redirect("/?error=invalid_bookmark_url")
   }
 
-  if (await hasDuplicateBookmarkUrl(locals.userId, url)) {
-    if (isJsonRequest(contentType)) {
-      return new Response(
-        JSON.stringify({ error: "A bookmark with this URL already exists" }),
-        {
-          status: 409,
-          headers: {
-            "content-type": "application/json",
-          },
-        }
-      )
-    }
+  const existing = await findDuplicateBookmark(locals.userId, url)
 
-    return redirect("/?error=duplicate_bookmark_url")
+  if (existing) {
+    if (isJsonRequest(contentType)) {
+      if (resolve === "create-anyway") {
+        // Fall through to the createBookmark call below.
+      } else if (resolve === "merge-tags") {
+        const incoming = normalizeTags(tags ?? []) ?? []
+        const merged = [...existing.tags]
+        for (const tag of incoming) {
+          if (!merged.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+            merged.push(tag)
+          }
+        }
+        const updated = await updateBookmarkById(
+          locals.userId,
+          Number(existing.id),
+          { url: existing.url, tags: merged }
+        )
+        return new Response(
+          JSON.stringify({ data: updated ?? existing, merged: true }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        )
+      } else {
+        return new Response(
+          JSON.stringify({
+            error: "A bookmark with this URL already exists",
+            code: "duplicate_bookmark",
+            existing,
+          }),
+          {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          }
+        )
+      }
+    } else {
+      return redirect("/?error=duplicate_bookmark_url")
+    }
   }
 
   const bookmark = await createBookmark(locals.userId, {

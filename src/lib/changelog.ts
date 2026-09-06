@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.0.0",
+    date: "2026-09-06",
+    changes: [
+      "Saving an existing URL now shows the existing bookmark with options to open it, merge your tags, or save anyway.",
+      "New tag management screen (sidebar → Manage tags): rename a tag everywhere, merge one tag into another, or delete it from all bookmarks.",
+      "Avatars now survive rebuilds, health checks run against a lightweight probe, and public installs default to closed registration. See CHANGELOG.md for the full list.",
+    ],
+  },
+  {
     version: "v0.9.11",
     date: "2026-09-06",
     changes: [
