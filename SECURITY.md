@@ -13,8 +13,9 @@ within 72 hours.
 
 ## Deployment notes
 
-- Keep `HARBOR_CHECK_ORIGIN: "true"`. If a reverse proxy causes origin
-  mismatches, forward the real host/proto instead of disabling the check.
+- Keep `HARBOR_CHECK_ORIGIN: "true"`. If a reverse proxy or tunnel causes
+  origin mismatches, add your public hostname to `HARBOR_ALLOWED_DOMAINS`
+  instead of disabling the check.
 - Set `HARBOR_ALLOW_SIGNUP: "false"` on any internet-reachable instance unless
   you explicitly want open registration.
 - Replace all bootstrap admin defaults before first start.

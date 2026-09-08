@@ -1,9 +1,26 @@
 import { defineMiddleware } from "astro:middleware"
 
 import { getSessionCookieName, getUserBySessionToken } from "@/lib/auth"
+import {
+  createCrossOriginForbiddenResponse,
+  isForbiddenCrossOriginRequest,
+} from "@/lib/origin-check"
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url
+
+  // Runs before anything else so an untrusted origin never reaches a handler.
+  // Astro's built-in check is disabled in astro.config.mjs because it is baked
+  // in at build time and cannot be configured on a published image.
+  if (
+    isForbiddenCrossOriginRequest(
+      context.request,
+      context.url,
+      context.isPrerendered,
+    )
+  ) {
+    return createCrossOriginForbiddenResponse(context.request)
+  }
 
   // Allow static assets
   if (

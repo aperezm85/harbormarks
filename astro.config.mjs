@@ -5,19 +5,17 @@ import react from "@astrojs/react"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "astro/config"
 
-const checkOrigin = process.env.HARBOR_CHECK_ORIGIN !== "false"
-const allowedDomains = process.env.HARBOR_ALLOWED_DOMAINS?.split(",")
-  .map((domain) => domain.trim())
-  .filter(Boolean)
-  .map((hostname) => ({ hostname }))
-
 // https://astro.build/config
 export default defineConfig({
   adapter: node({ mode: "standalone" }),
   output: "server",
   security: {
-    checkOrigin,
-    ...(allowedDomains?.length ? { allowedDomains } : {}),
+    // Astro freezes `checkOrigin` and `allowedDomains` into the build manifest,
+    // so they can only ever reflect the machine that ran `astro build`. Because
+    // HarborMarks ships a prebuilt image, the CSRF origin check is done at
+    // request time in src/lib/origin-check.ts instead, where operators can
+    // configure it with HARBOR_CHECK_ORIGIN and HARBOR_ALLOWED_DOMAINS.
+    checkOrigin: false,
   },
   server: {
     host: process.env.HOST || "localhost",

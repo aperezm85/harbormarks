@@ -2,9 +2,6 @@
 FROM node:lts-alpine AS build
 WORKDIR /app
 
-ARG HARBOR_CHECK_ORIGIN=true
-ENV HARBOR_CHECK_ORIGIN=$HARBOR_CHECK_ORIGIN
-
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 

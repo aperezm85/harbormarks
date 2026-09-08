@@ -109,10 +109,18 @@ Optional / deployment-specific:
 ```bash
 NODE_ENV=production
 HARBOR_ALLOW_SIGNUP=true
-HARBOR_CHECK_ORIGIN=false
+HARBOR_CHECK_ORIGIN=true
+HARBOR_ALLOWED_DOMAINS=harbormarks.example.com
 ```
 
-Setting `HARBOR_CHECK_ORIGIN=false` disables Astro's CSRF origin protection for form submissions.
+`HARBOR_CHECK_ORIGIN` controls the CSRF origin check on form submissions and is
+read on every request, so changing it never requires a rebuild. Keep it `true`.
+
+If you serve HarborMarks through a reverse proxy or tunnel, the app sees the
+internal host it was forwarded to, not the public URL your browser used, and
+rejects the mismatch with `Cross-site POST form submissions are forbidden`. List
+your public hostname in `HARBOR_ALLOWED_DOMAINS` (comma-separated, hostname
+only) instead of turning the check off.
 
 ## Run With Docker Compose
 
