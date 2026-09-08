@@ -41,12 +41,22 @@ Notes:
 - In this repository, `docker-compose.yml` already sets the internal database URL to the `db` service.
 - `HOST` and `PORT` are also forced by Compose for container runtime.
 - Keep `HARBOR_CHECK_ORIGIN: "true"`. This is the CSRF origin check and turning it
-  off on an internet-reachable deployment removes a real protection. If a reverse
-  proxy causes an origin mismatch, the cause is the proxy dropping the original
-  host: the app sees an internal host such as `172.27.0.2:3000` while the browser
-  sends `Origin: https://your-domain`. Forward the real host instead
-  (`proxy_set_header Host $host` in nginx, or the equivalent) rather than
-  disabling the check.
+  off on an internet-reachable deployment removes a real protection. It is read
+  on every request, so changing it takes effect on restart without a rebuild.
+- Behind a reverse proxy or tunnel the app sees the internal host it was
+  forwarded to, such as `172.27.0.2:3000` or `192.168.1.50:7878`, while the
+  browser sends `Origin: https://your-domain`. That mismatch is rejected with
+  `Cross-site POST form submissions are forbidden`. Forwarding the `Host` header
+  is not enough on its own, because the scheme still differs (`http` internally
+  versus `https` publicly). Add your public hostname to `HARBOR_ALLOWED_DOMAINS`
+  instead:
+
+  ```yaml
+  HARBOR_CHECK_ORIGIN: "true"
+  HARBOR_ALLOWED_DOMAINS: harbormarks.example.com
+  ```
+
+  The value is a comma-separated list of hostnames, without scheme or port.
 - Do not add `SESSION_SECRET`. The application has never read it. Sessions are
   opaque random tokens stored in the database.
 - Bootstrap admin values are used only when the users table is empty.
@@ -464,6 +474,7 @@ HARBOR_BOOTSTRAP_ADMIN_NAME: Harbor Admin
 HARBOR_BOOTSTRAP_ADMIN_PASSWORD: use_a_long_unique_password
 HARBOR_ALLOW_SIGNUP: "false"
 HARBOR_CHECK_ORIGIN: "true"
+HARBOR_ALLOWED_DOMAINS: harbormarks.example.com
 ```
 
 The `app` service must also keep the `command:`, `healthcheck:`, and
@@ -540,6 +551,8 @@ services:
       HARBOR_BOOTSTRAP_ADMIN_PASSWORD: use_a_long_unique_password
       HARBOR_ALLOW_SIGNUP: "false"
       HARBOR_CHECK_ORIGIN: "true"
+      # Your public hostname, required behind a reverse proxy or tunnel.
+      HARBOR_ALLOWED_DOMAINS: harbormarks.example.com
       HOST: 0.0.0.0
       PORT: 3000
     command: ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]
@@ -566,7 +579,8 @@ volumes:
 Notes:
 
 - **Do not add `SESSION_SECRET`.** The application has never read it.
-- **Do not set `HARBOR_CHECK_ORIGIN: "false"`.** See section 3 for the proxy fix.
+- **Do not set `HARBOR_CHECK_ORIGIN: "false"`.** Set `HARBOR_ALLOWED_DOMAINS` to
+  your public hostname instead. See section 3.
 - After updating the stack, use Portainer's **Update the stack** with
   *Re-pull image* enabled, so the container is recreated rather than restarted.
   A restarted container keeps its old definition, including a missing `command:`.

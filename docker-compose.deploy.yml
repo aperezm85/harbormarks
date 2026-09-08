@@ -29,7 +29,11 @@ services:
       # Public default is closed registration. Set to "true" only for a
       # private instance where you want self-service signup.
       HARBOR_ALLOW_SIGNUP: "false"
-      HARBOR_CHECK_ORIGIN: "false"
+      # CSRF origin check, evaluated per request — no rebuild needed to change it.
+      HARBOR_CHECK_ORIGIN: "true"
+      # Required when a reverse proxy serves a public hostname and forwards to a
+      # different internal host or port. Comma-separated, hostname only.
+      HARBOR_ALLOWED_DOMAINS: harbormarks.example.com
       HOST: 0.0.0.0
       PORT: 3000
     ports:
