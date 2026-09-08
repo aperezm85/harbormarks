@@ -29,10 +29,7 @@ services:
       # Public default is closed registration. Set to "true" only for a
       # private instance where you want self-service signup.
       HARBOR_ALLOW_SIGNUP: "false"
-      HARBOR_CHECK_ORIGIN: "true"
-      # Set this to the public hostnames that should be trusted behind a
-      # reverse proxy, for example:
-      # HARBOR_ALLOWED_DOMAINS: your-domain.example.com,*.your-domain.example.com
+      HARBOR_CHECK_ORIGIN: "false"
       HOST: 0.0.0.0
       PORT: 3000
     ports:
