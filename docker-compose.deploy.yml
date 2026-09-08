@@ -30,6 +30,9 @@ services:
       # private instance where you want self-service signup.
       HARBOR_ALLOW_SIGNUP: "false"
       HARBOR_CHECK_ORIGIN: "true"
+      # Set this to the public hostnames that should be trusted behind a
+      # reverse proxy, for example:
+      # HARBOR_ALLOWED_DOMAINS: your-domain.example.com,*.your-domain.example.com
       HOST: 0.0.0.0
       PORT: 3000
     ports:
@@ -38,11 +41,16 @@ services:
     # be skipped by a stale container definition. Migrations run before the server
     # accepts requests; if one fails the container stops instead of serving against
     # a half-migrated database.
-    command: ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]
+    command:
+      ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]
     volumes:
       - uploads_data:/app/public/uploads
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/healthz >/dev/null 2>&1 || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/api/healthz >/dev/null 2>&1 || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
