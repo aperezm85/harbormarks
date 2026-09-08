@@ -109,12 +109,10 @@ Optional / deployment-specific:
 ```bash
 NODE_ENV=production
 HARBOR_ALLOW_SIGNUP=true
-HARBOR_CHECK_ORIGIN=true
-HARBOR_ALLOWED_DOMAINS=your-domain.example.com,*.your-domain.example.com
+HARBOR_CHECK_ORIGIN=false
 ```
 
-Keep `HARBOR_CHECK_ORIGIN` enabled. If a reverse proxy causes origin mismatches, fix the forwarded host/proto headers instead of disabling the check globally.
-If Astro still sees the proxy host instead of the public host, set `HARBOR_ALLOWED_DOMAINS` to the public domain pattern(s) that should be trusted.
+Setting `HARBOR_CHECK_ORIGIN=false` disables Astro's CSRF origin protection for form submissions.
 
 ## Run With Docker Compose
 
