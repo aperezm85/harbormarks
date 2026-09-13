@@ -689,6 +689,19 @@ services:
       HARBOR_CHECK_ORIGIN: "true"
       # Your public hostname, required behind a reverse proxy or tunnel.
       HARBOR_ALLOWED_DOMAINS: harbormarks.example.com
+      # Public base URL for links inside emails (digest, reset, verification).
+      # HARBOR_APP_BASE_URL: https://harbormarks.example.com
+      # Email delivery (SMTP). Uncomment to activate the weekly digest and real
+      # password reset / verification emails (see section 3b; Gmail App
+      # Password steps apply here too).
+      # HARBOR_SMTP_HOST: mail.example.com
+      # HARBOR_SMTP_PORT: "587"
+      # HARBOR_SMTP_SECURE: "false"
+      # HARBOR_SMTP_USER: harbormarks
+      # HARBOR_SMTP_PASS: use_a_long_unique_password
+      # HARBOR_SMTP_FROM: HarborMarks <marks@example.com>
+      # Optional shared secret for POST /api/digest/run (external schedulers).
+      # HARBOR_CRON_SECRET: use_a_long_random_secret
       HOST: 0.0.0.0
       PORT: 3000
     command: ["sh", "-c", "node ./scripts/migrate.mjs && node ./dist/server/entry.mjs"]
