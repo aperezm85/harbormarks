@@ -164,6 +164,75 @@ if (error?.startsWith("Password must be at least")) {
 
         <Card>
           <CardHeader>
+            <CardTitle>Weekly digest</CardTitle>
+            <CardDescription>
+              Get an email on Sunday morning with your unread links. Pick
+              what it contains, then save.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-4">
+              <label
+                for="digest-enabled"
+                class="flex cursor-pointer items-center gap-2 text-sm font-medium"
+              >
+                <input
+                  id="digest-enabled"
+                  type="checkbox"
+                  class="h-4 w-4 accent-current"
+                />
+                Send me the weekly digest
+              </label>
+              <fieldset class="space-y-2 text-sm">
+                <legend class="text-muted-foreground">
+                  What should the email contain?
+                </legend>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="digest-scope"
+                    value="unread_7d"
+                    class="h-4 w-4 accent-current"
+                  />
+                  Unread links from the last 7 days
+                </label>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="digest-scope"
+                    value="all_unread"
+                    class="h-4 w-4 accent-current"
+                  />
+                  All unread links
+                </label>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="digest-scope"
+                    value="all_7d"
+                    class="h-4 w-4 accent-current"
+                  />
+                  All links saved in the last 7 days
+                </label>
+              </fieldset>
+              <p id="digest-message" class="hidden text-sm"></p>
+              <div class="flex flex-wrap gap-2">
+                <Button type="button" id="digest-save">Save digest</Button>
+                <Button type="button" id="digest-send" variant="outline">
+                  Send now
+                </Button>
+              </div>
+              <p class="text-xs text-muted-foreground">
+                "Send now" emails the current selection immediately (max 10
+                per hour). If email is not set up by the administrator, saving
+                still works but sending reports an error.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Change password</CardTitle>
             <CardDescription>
               Updating password will sign you out on all devices.
@@ -316,5 +385,116 @@ if (error?.startsWith("Password must be at least")) {
     removeBtn?.addEventListener("click", () => {
       void postAvatar(JSON.stringify({ avatarUrl: "" }))
     })
+  </script>
+
+  <script>
+    const digestEnabled = document.getElementById(
+      "digest-enabled"
+    ) as HTMLInputElement | null
+    const digestMessage = document.getElementById("digest-message")
+    const digestSave = document.getElementById("digest-save")
+    const digestSend = document.getElementById("digest-send")
+
+    function selectedDigestScope(): string {
+      const checked = document.querySelector(
+        'input[name="digest-scope"]:checked'
+      ) as HTMLInputElement | null
+      return checked?.value ?? "unread_7d"
+    }
+
+    function showDigestMessage(message: string, ok: boolean) {
+      if (!digestMessage) return
+      digestMessage.textContent = message
+      digestMessage.classList.remove("hidden")
+      digestMessage.classList.toggle("text-destructive", !ok)
+      digestMessage.classList.toggle("text-muted-foreground", ok)
+    }
+
+    function notifyDigestToast(type: "success" | "error", message: string) {
+      window.dispatchEvent(
+        new CustomEvent("profile:toast", { detail: { type, message } })
+      )
+    }
+
+    async function loadDigestPrefs() {
+      try {
+        const response = await fetch("/api/digest/preferences")
+        if (!response.ok) return
+        const result = (await response.json()) as {
+          data?: { enabled?: boolean; scope?: string }
+        }
+        if (digestEnabled && typeof result.data?.enabled === "boolean") {
+          digestEnabled.checked = result.data.enabled
+        }
+        const scope = result.data?.scope
+        if (scope) {
+          const radio = document.querySelector(
+            `input[name="digest-scope"][value="${scope}"]`
+          ) as HTMLInputElement | null
+          if (radio) radio.checked = true
+        }
+      } catch {
+        // Preferences stay at their defaults; saving still works.
+      }
+    }
+
+    digestSave?.addEventListener("click", () => {
+      const payload = {
+        enabled: digestEnabled?.checked ?? false,
+        scope: selectedDigestScope(),
+      }
+      void fetch("/api/digest/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then(async (response) => {
+          const result = (await response.json().catch(() => null)) as {
+            error?: string
+          } | null
+          if (!response.ok) {
+            const message = result?.error ?? "Could not save digest settings."
+            showDigestMessage(message, false)
+            notifyDigestToast("error", message)
+            return
+          }
+          showDigestMessage("Digest settings saved.", true)
+          notifyDigestToast("success", "Digest settings saved.")
+        })
+        .catch(() => {
+          showDigestMessage("Could not save digest settings.", false)
+        })
+    })
+
+    digestSend?.addEventListener("click", () => {
+      void fetch("/api/digest/send-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: selectedDigestScope() }),
+      })
+        .then(async (response) => {
+          const result = (await response.json().catch(() => null)) as {
+            error?: string
+            data?: { status?: string; count?: number }
+          } | null
+          if (!response.ok) {
+            const message = result?.error ?? "Could not send digest."
+            showDigestMessage(message, false)
+            notifyDigestToast("error", message)
+            return
+          }
+          const message =
+            result?.data?.status === "empty"
+              ? "Nothing to send right now — no links match this selection."
+              : `Digest sent (${result?.data?.count ?? 0} links). Check your inbox.`
+          showDigestMessage(message, true)
+          notifyDigestToast("success", message)
+        })
+        .catch(() => {
+          showDigestMessage("Could not send digest.", false)
+        })
+    })
+
+    void loadDigestPrefs()
   </script>
 </Layout>

@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { getMinPasswordLength, resetPasswordByToken } from "@/lib/auth"
+import { resetPasswordByToken } from "@/lib/auth"
 import { getRequestClientIp, rateLimitRequest } from "@/lib/request-security"
 
 function isJsonRequest(contentType: string | null) {
@@ -58,7 +58,5 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     })
   }
 
-  return redirect(
-    `/login?error=password_reset_success&minPassword=${getMinPasswordLength()}`
-  )
+  return redirect(`/login?status=password_reset_success`)
 }

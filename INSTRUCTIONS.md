@@ -63,6 +63,127 @@ Notes:
 - Always replace any example/default bootstrap credentials before starting in shared or production environments.
 - You usually only need to set bootstrap admin values in `docker-compose.yml`.
 
+## 3b. Configure Email (Digest, Password Reset, Verification)
+
+Without this section, password reset and verification links are only logged in
+the app container output (`docker compose logs app`), and the digest "Send
+now" button reports that email is not configured. To activate real emails, set
+these values under `services.app.environment` (see `.env.example` for the full
+list):
+
+```yaml
+HARBOR_APP_BASE_URL: https://harbormarks.example.com
+HARBOR_SMTP_HOST: mail.example.com
+HARBOR_SMTP_PORT: "587"
+HARBOR_SMTP_SECURE: "false"
+HARBOR_SMTP_USER: harbormarks
+HARBOR_SMTP_PASS: use_a_long_unique_password
+HARBOR_SMTP_FROM: HarborMarks <marks@example.com>
+```
+
+Notes:
+
+- `HARBOR_SMTP_HOST` + `HARBOR_SMTP_FROM` are the on/off switch. Everything
+  else has working defaults for a standard STARTTLS submission server.
+- Use `HARBOR_SMTP_SECURE: "true"` only for port 465 (implicit TLS).
+  Port 587 uses `"false"` (STARTTLS upgrade).
+- `HARBOR_APP_BASE_URL` must be your public address. Email links built from
+  the internal container host (e.g. `http://172.27.0.2:3000`) are unreachable
+  from an inbox; this override fixes that behind any reverse proxy.
+- Any SMTP provider works (your NAS mail server, Gmail App Password, Mailgun,
+  Postmark SMTP, etc.).
+- Restart after changing these: `docker compose up -d --build` (they are read
+  per send, but a restart guarantees a clean transporter).
+
+### Gmail setup
+
+Gmail works with these values:
+
+```yaml
+HARBOR_SMTP_HOST: smtp.gmail.com
+HARBOR_SMTP_PORT: "587"
+HARBOR_SMTP_SECURE: "false"
+HARBOR_SMTP_USER: you@gmail.com
+HARBOR_SMTP_PASS: xxxx-xxxx-xxxx-xxxx
+HARBOR_SMTP_FROM: HarborMarks <you@gmail.com>
+```
+
+Two Gmail requirements:
+
+1. **Use an App Password, not your normal password.** Google disabled plain
+   password SMTP logins. Create one at Google Account → Security → 2-Step
+   Verification (must be on) → App passwords, then paste the 16-character code
+   (spaces optional) as `HARBOR_SMTP_PASS`.
+2. **`HARBOR_SMTP_FROM` must be your Gmail address** (or a "Send mail as"
+   alias verified in Gmail settings), otherwise Gmail rejects the send.
+
+Step by step to get the App Password:
+
+1. Go to https://myaccount.google.com/security and sign in.
+2. Under "How you sign in to Google", click **2-Step Verification** and turn
+   it on (phone number or authenticator app). This is required — without it
+   Google hides the App Passwords option entirely.
+3. Go to https://myaccount.google.com/apppasswords (or search "App passwords"
+   in the account search bar).
+4. Type a name like `HarborMarks` and click **Create**.
+5. Copy the 16-character code from the yellow box. You only see it once — if
+   you close the dialog, generate a new one.
+6. Paste it as `HARBOR_SMTP_PASS` in `docker-compose.yml` (spaces are fine,
+   they are ignored) and restart: `docker compose up -d --build`.
+7. If you ever change your Google password, Google revokes all App Passwords
+   — repeat steps 3–6 to make a fresh one. To remove access later, delete it
+   at the same App Passwords page.
+
+Note: App Passwords are unavailable on accounts that use only security keys
+for 2-Step Verification, accounts under Advanced Protection, or Workspace
+accounts where the admin disabled them.
+
+Limits are generous for this use case: roughly 500 emails/day on free Gmail
+(2,000 on Workspace), and the digest sends one email per opted-in user per
+week. Test with Profile → Weekly digest → **Send now** after restarting.
+
+Then each user opts in from **Profile → Weekly digest**:
+
+1. Tick "Send me the weekly digest".
+2. Pick the content: unread links from the last 7 days, all unread links, or
+   all links saved in the last 7 days. Each item shows its title, description,
+   your private note, tags, and saved date.
+3. Save. Use **Send now** to test immediately (max 10 per hour).
+4. The automatic run goes out **Sunday morning** (server-local 07:00–08:00
+   window). Users with nothing matching get no email that week.
+
+About digest link tracking:
+
+- Email links route through `GET /api/bookmarks/:id/open?sig=...`, which
+  verifies an HMAC signature, mirrors the in-app open (unread → reading plus
+  one visit), and 302-redirects to the saved page. Clicking works logged out
+  on any device; archived bookmarks are never changed.
+- The signing secret is generated automatically on the first digest send and
+  stored in the `app_settings` table — no configuration needed, and signatures
+  never expire. To invalidate all previously sent links (e.g. after forwarding
+  an email somewhere it should not have gone), delete the row and restart:
+  `DELETE FROM app_settings WHERE key = 'email_link_secret';` — a fresh secret
+  is minted on the next send.
+- Privacy: clicks are recorded only in your own database (read status + visit
+  count). No third party sees them; the redirect target always comes from your
+  stored bookmarks, never from link parameters.
+
+Prefer your own scheduler (NAS task runner, Uptime Kuma, host cron)? Set:
+
+```yaml
+HARBOR_CRON_SECRET: use_a_long_random_secret
+```
+
+and trigger weekly with:
+
+```bash
+curl -X POST https://harbormarks.example.com/api/digest/run \
+  -H "x-cron-secret: use_a_long_random_secret"
+```
+
+The endpoint is allowlisted without a session cookie and rate-limited; a wrong
+or missing secret returns 401.
+
 ## 4. Build And Start
 
 Run:
@@ -269,6 +390,21 @@ Use `docker volume ls` to confirm the exact volume name if your project
 directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
+
+### 2026-09-13 (v1.1.0)
+
+- Weekly digest email (opt-in per user on the profile page): unread links from
+  the last 7 days, all unread, or everything saved in the last 7 days, sent
+  Sunday morning plus an on-demand "Send now" action. See section 3b for SMTP
+  setup and activation.
+- Real password reset and email verification delivery over SMTP; without SMTP
+  the links keep falling back to the server log.
+- One additive migration ships in this release (`0008_digest_prefs.sql`,
+  digest preferences defaulting to off) plus `0009_link_secret.sql`
+  (`app_settings` for email link signing). Take a dump before upgrading as usual
+  (section 9); migrations run automatically at container start.
+- Bumped `package.json` to 1.1.0 and synced the README, INSTRUCTIONS, and
+  in-app changelog (`src/lib/changelog.ts`).
 
 ### 2026-09-06 (v1.0.0)
 

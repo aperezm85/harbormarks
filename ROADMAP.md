@@ -24,6 +24,8 @@ The following items are complete and reflected in the changelog:
 - Tag management screen for rename, merge, and global delete.
 - Save/edit UX improvements, keyboard shortcuts, and avatar/profile improvements.
 - Private bookmark notes and read-state tracking.
+- Weekly digest email with click tracking, plus real SMTP delivery for password
+  reset and email verification.
 - Liveness probe, deployment hardening, CI workflow, and security defaults.
 - Public repo hardening: CODEOWNERS, branch protection, and squash-only merge policy.
 

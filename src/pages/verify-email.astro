@@ -64,7 +64,7 @@ if (error === "invalid_token") {
         <CardHeader>
           <CardTitle>Resend verification</CardTitle>
           <CardDescription>
-            We'll log a new verification link in the server logs.
+            We'll send a new verification link to your inbox.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -97,7 +97,8 @@ if (error === "invalid_token") {
       {
         status === "sent" ? (
           <p class="text-sm text-muted-foreground">
-            A verification link has been generated. Check server logs.
+            A verification link has been sent. Check your inbox (and spam
+            folder).
           </p>
         ) : null
       }

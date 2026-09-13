@@ -15,6 +15,8 @@ import {
   sessions,
   users,
 } from "@/db/schema"
+import { buildAuthLinkEmail } from "@/lib/email-templates"
+import { isMailerConfigured, resolveAppBaseUrl, sendMail } from "@/lib/mailer"
 
 const SESSION_COOKIE_NAME = "session"
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
@@ -383,6 +385,15 @@ export async function ensureAuthSchema() {
       await backfillLegacyBookmarks()
       await cleanupExpiredAuthArtifacts()
       scheduleAuthCleanup()
+      // Weekly digest scheduler (src/lib/digest.ts). Lazy import avoids a
+      // static import cycle: digest.ts calls ensureAuthSchema() at runtime.
+      void import("@/lib/digest")
+        .then((digest) => {
+          digest.scheduleDigest()
+        })
+        .catch((error) => {
+          console.error("[digest] scheduler failed to start", error)
+        })
 
       isAuthSchemaReady = true
     } finally {
@@ -612,6 +623,30 @@ export async function requestEmailVerification(
     baseUrl,
     `/verify-email?token=${encodeURIComponent(token.value)}`
   )
+  if (isMailerConfigured()) {
+    const base = resolveAppBaseUrl(baseUrl)
+    const absoluteVerificationUrl = createAbsoluteUrl(
+      base,
+      `/verify-email?token=${encodeURIComponent(token.value)}`
+    )
+    const email = buildAuthLinkEmail({
+      kind: "verify",
+      actionUrl: absoluteVerificationUrl,
+      expiresNote: "This link expires in 24 hours.",
+      recipientEmail: user.email,
+    })
+    try {
+      await sendMail({
+        to: user.email,
+        subject: email.subject,
+        text: email.text,
+        html: email.html,
+      })
+      return
+    } catch (error) {
+      console.error(`[auth] verification email failed for ${user.email}`, error)
+    }
+  }
   console.info(
     `[auth] Email verification link for ${user.email}: ${verificationUrl}`
   )
@@ -691,6 +726,30 @@ export async function requestPasswordReset(
     baseUrl,
     `/reset-password?token=${encodeURIComponent(token.value)}`
   )
+  if (isMailerConfigured()) {
+    const base = resolveAppBaseUrl(baseUrl)
+    const absoluteResetUrl = createAbsoluteUrl(
+      base,
+      `/reset-password?token=${encodeURIComponent(token.value)}`
+    )
+    const email = buildAuthLinkEmail({
+      kind: "reset",
+      actionUrl: absoluteResetUrl,
+      expiresNote: "This link expires in 30 minutes.",
+      recipientEmail: user.email,
+    })
+    try {
+      await sendMail({
+        to: user.email,
+        subject: email.subject,
+        text: email.text,
+        html: email.html,
+      })
+      return
+    } catch (error) {
+      console.error(`[auth] Password reset email failed for ${user.email}`, error)
+    }
+  }
   console.info(`[auth] Password reset link for ${user.email}: ${resetUrl}`)
 }
 

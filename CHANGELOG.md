@@ -4,6 +4,16 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.1.0 — 2026-09-13
+
+- Weekly digest email: opt-in from the profile page ("Weekly digest" card), sent Sunday morning with your unread links — title, description, your private note, tags, and saved date. Choose the content: unread from the last 7 days, all unread, or everything saved in the last 7 days. A "Send now" button emails the current selection on demand (10/hour limit).
+- Digest links are tracked: clicking one records unread → reading plus a visit (same as opening the card in-app) via a signed redirect, then lands on the saved page. Works logged out on any device; archived bookmarks are never changed. Signatures use an auto-generated secret stored in a new `app_settings` table — no setup needed.
+- Real password reset and email verification delivery over SMTP (`HARBOR_SMTP_*`). Without SMTP configured, links keep falling back to the server log so single-user setups keep working.
+- Email templates follow the emailcn.run registry blocks (newsletter block for the digest, auth link block for reset/verify); the registry alias lives in `components.json` (`@emailcn`).
+- New `digest_preferences` table via migration `0008` (additive, per-user opt-in defaulting to off). Migration `0009` adds `app_settings` for the link-signing secret. Back up before upgrading, as usual.
+- Operators can trigger the weekly run from an external scheduler via `POST /api/digest/run` with `HARBOR_CRON_SECRET` instead of the built-in Sunday timer.
+- Login page shows password-reset and email-verification confirmations as success notices instead of misusing the error toast.
+
 ## v1.0.0 — 2026-09-06
 
 - Saving an existing URL now returns the existing bookmark and offers open, merge-tags, or save-anyway instead of a bare error.

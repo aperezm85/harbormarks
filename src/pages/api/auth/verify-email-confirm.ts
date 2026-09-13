@@ -43,5 +43,5 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return redirect("/verify-email?error=invalid_token")
   }
 
-  return redirect("/login?error=email_verified")
+  return redirect("/login?status=email_verified")
 }
