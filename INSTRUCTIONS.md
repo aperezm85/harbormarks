@@ -57,6 +57,15 @@ Notes:
   ```
 
   The value is a comma-separated list of hostnames, without scheme or port.
+- If you expose the app through a Cloudflare Tunnel, the same applies: set
+  `HARBOR_ALLOWED_DOMAINS` to the public hostname (e.g.
+  `harbormarks.example.com`) or logins and form submissions through the tunnel
+  are rejected. A Cloudflare `Error 1033` on an emailed link means the tunnel
+  itself cannot reach the app (cloudflared offline or no ingress rule for that
+  hostname) — check the tunnel's health in Zero Trust → Networks → Tunnels and
+  confirm the public hostname routes to `http://<nas>:3000` before suspecting
+  the app; the app logs will show the `/open` hit once the tunnel passes it
+  through.
 - Do not add `SESSION_SECRET`. The application has never read it. Sessions are
   opaque random tokens stored in the database.
 - Bootstrap admin values are used only when the users table is empty.
