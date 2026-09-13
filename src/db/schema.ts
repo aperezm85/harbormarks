@@ -84,3 +84,28 @@ export const bookmarks = pgTable("bookmarks", {
   // (migrations/0007_bookmark_status.sql).
   status: text("status").notNull().default("unread"),
 })
+
+// Weekly digest preferences: one row per user, created lazily on first save
+// (migrations/0008_digest_prefs.sql). Scope picks which bookmarks land in the
+// Sunday email: unread saved in the last 7 days, all unread, or all bookmarks
+// saved in the last 7 days.
+export const digestPreferences = pgTable("digest_preferences", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  scope: text("scope").notNull().default("unread_7d"),
+  lastSentAt: timestamp("last_sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+})
+
+// App-wide key-value settings (migrations/0009_link_secret.sql). Currently
+// holds the auto-generated HMAC secret that signs email tracking links
+// (see src/lib/link-tokens.ts).
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+})

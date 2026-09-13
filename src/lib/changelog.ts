@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.1.0",
+    date: "2026-09-13",
+    changes: [
+      "Weekly digest email: turn it on from your profile page and get your unread links every Sunday morning. Pick what it contains — unread from the last 7 days, all unread, or everything saved last week — or hit Send now any time.",
+      "Clicking a digest link now marks it as reading automatically (just like opening it here) and takes you straight to the article, even on devices where you are not logged in.",
+      "Password reset and email verification now arrive as real emails once the administrator sets up SMTP; without it, links keep appearing in the server log as before.",
+      "Two additive migrations ship in this release (digest preferences, off by default, plus a settings table for email link signing). Back up your database before upgrading, as usual.",
+    ],
+  },
+  {
     version: "v1.0.0",
     date: "2026-09-06",
     changes: [

@@ -31,6 +31,19 @@ services:
       HARBOR_ALLOW_SIGNUP: "true"
       # Checked at request time, so this can be changed without rebuilding.
       HARBOR_CHECK_ORIGIN: "true"
+      # Public base URL for links inside emails (digest, reset, verification).
+      # HARBOR_APP_BASE_URL: https://harbormarks.example.com
+      # Email delivery (SMTP). Uncomment to activate the weekly digest and real
+      # password reset / verification emails. Without these, links are only
+      # logged in the app container output.
+      # HARBOR_SMTP_HOST: mail.example.com
+      # HARBOR_SMTP_PORT: "587"
+      # HARBOR_SMTP_SECURE: "false"
+      # HARBOR_SMTP_USER: harbormarks
+      # HARBOR_SMTP_PASS: change_me
+      # HARBOR_SMTP_FROM: HarborMarks <marks@example.com>
+      # Optional shared secret for POST /api/digest/run (external schedulers).
+      # HARBOR_CRON_SECRET: use_a_long_random_secret
       HOST: 0.0.0.0
       PORT: 3000
     ports:

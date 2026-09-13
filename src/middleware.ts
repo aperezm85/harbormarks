@@ -39,6 +39,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isPublicAuthApi = pathname.startsWith("/api/auth/")
   const isHealthCheck =
     pathname === "/api/healthz" || pathname === "/healthz"
+  // Cron-secret endpoint for external schedulers (Uptime Kuma, host cron);
+  // authenticated via HARBOR_CRON_SECRET header, not the session cookie.
+  const isDigestCronApi = pathname === "/api/digest/run"
+  // Signed email click-through (GET /api/bookmarks/:id/open?sig=...);
+  // authenticated via HMAC signature, not the session cookie, so logged-out
+  // email clicks on any device still record the open.
+  const isBookmarkOpenApi = /^\/api\/bookmarks\/\d+\/open$/.test(pathname)
   const isAdminPage = pathname.startsWith("/admin")
   const isAdminApi = pathname.startsWith("/api/admin/")
 
@@ -57,7 +64,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
     !isForgotPasswordPage &&
     !isResetPasswordPage &&
     !isPublicAuthApi &&
-    !isHealthCheck
+    !isHealthCheck &&
+    !isDigestCronApi &&
+    !isBookmarkOpenApi
   ) {
     return context.redirect("/login")
   }

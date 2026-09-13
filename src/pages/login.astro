@@ -23,18 +23,26 @@ import { Toaster } from "sonner"
 
 const signupEnabled = isSignupEnabled()
 
-let error = Astro.url.searchParams.get("error")
+const rawError = Astro.url.searchParams.get("error")
+let error = rawError
 if (error === "invalid_credentials") {
   error = "Invalid username or password. Please try again."
 }
 if (error === "account_disabled") {
   error = "Your account has been disabled. Contact an administrator."
 }
-if (error === "password_reset_success") {
-  error = "Password updated. Please log in with your new password."
-}
 if (error === "password_changed") {
   error = "Password changed. Please log in again."
+}
+const status = Astro.url.searchParams.get("status")
+let notice: string | null = null
+if (status === "password_reset_success" || rawError === "password_reset_success") {
+  notice = "Password updated. Please log in with your new password."
+  error = null
+}
+if (status === "email_verified" || rawError === "email_verified") {
+  notice = "Email verified. Please log in."
+  error = null
 }
 ---
 
@@ -66,6 +74,16 @@ if (error === "password_changed") {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {
+            notice ? (
+              <p
+                role="status"
+                class="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
+              >
+                {notice}
+              </p>
+            ) : null
+          }
           <form method="POST" action="/api/auth/login" class="space-y-4">
             <FieldGroup>
               <Field data-invalid={!!error}>

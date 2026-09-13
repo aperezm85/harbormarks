@@ -56,6 +56,13 @@ It helps you save links, enrich them with metadata, organize them with tags, and
   - automatic cleanup of expired sessions and tokens.
 - Unauthenticated liveness probe at `GET /api/healthz` (no DB touch) for
   Docker healthchecks and reverse proxies.
+- Weekly digest email (opt-in per user on the profile page): unread links from
+  the last 7 days, all unread, or everything saved in the last 7 days, sent
+  Sunday morning plus an on-demand "Send now" action. Clicking a digest link
+  records it as reading (with a visit, like opening the card) via a signed
+  redirect, then lands on the saved page — no login needed.
+- Real password reset and email verification delivery over SMTP, with server-log
+  fallback when SMTP is not configured.
 
 ## Tech Stack
 
@@ -112,6 +119,45 @@ HARBOR_ALLOW_SIGNUP=true
 HARBOR_CHECK_ORIGIN=true
 HARBOR_ALLOWED_DOMAINS=harbormarks.example.com
 ```
+
+Email delivery (weekly digest, password reset, email verification) needs SMTP:
+
+```bash
+HARBOR_APP_BASE_URL=https://harbormarks.example.com
+HARBOR_SMTP_HOST=mail.example.com
+HARBOR_SMTP_PORT=587
+HARBOR_SMTP_SECURE=false
+HARBOR_SMTP_USER=harbormarks
+HARBOR_SMTP_PASS=change_me
+HARBOR_SMTP_FROM=HarborMarks <marks@example.com>
+# Optional: shared secret so an external scheduler can trigger the digest
+# via POST /api/digest/run instead of the built-in Sunday-morning timer.
+HARBOR_CRON_SECRET=use_a_long_random_secret
+```
+
+Without `HARBOR_SMTP_HOST`/`HARBOR_SMTP_FROM`, reset and verification links are
+logged in the app container output instead of emailed, and the digest "Send
+now" button reports that email is not configured. Templates follow the
+emailcn.run registry blocks (newsletter block for the digest, auth link block
+for reset/verify); see `components.json` (`@emailcn`) and
+`src/lib/email-templates.ts`.
+
+### Activating the weekly digest
+
+1. Set the SMTP variables above (and `HARBOR_APP_BASE_URL` so links point at
+   your public address), then restart (`docker compose up -d --build`).
+2. Each user opts in from **Profile → Weekly digest**: tick "Send me the
+   weekly digest", pick the content (unread from the last 7 days / all unread /
+   everything saved in the last 7 days), Save. Each item shows its title,
+   description, your private note, tags, and saved date; clicking a title
+   marks it as reading and opens the article.
+3. The digest goes out automatically on **Sunday morning** (server-local
+   07:00–08:00 window, one email per opted-in user, skipped when empty).
+4. Use **Send now** on the same card to email the current selection
+   immediately (limited to 10 per hour per user).
+5. Prefer your own scheduler? Set `HARBOR_CRON_SECRET` and call
+   `POST /api/digest/run` with the `x-cron-secret` header from host cron,
+   Uptime Kuma, or a NAS task (weekly cadence recommended).
 
 `HARBOR_CHECK_ORIGIN` controls the CSRF origin check on form submissions and is
 read on every request, so changing it never requires a rebuild. Keep it `true`.
