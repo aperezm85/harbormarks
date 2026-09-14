@@ -791,6 +791,12 @@ export const CreateBookmarkDialog = ({
                       spellCheck={false}
                       value={url}
                       onChange={(event) => setUrl(event.target.value)}
+                      onBlur={(event) => {
+                        const val = event.target.value.trim()
+                        if (val && !/^https?:\/\//i.test(val)) {
+                          setUrl(`https://${val}`)
+                        }
+                      }}
                     />
                   </InputGroup>
                   {isEditMode ? (
