@@ -40,7 +40,9 @@ import { parse, type HTMLElement } from "node-html-parser"
  *
  * Fields 1-4 are pre-Story-7 (with previewImage nullable). Fields 5-9 are the
  * Story 7 enrichments from roadmap item 9: nullable, best-effort extraction where
- * present, left null where not.
+ * present, left null where not. `tags` is best-effort keyword extraction
+ * (article:tag, keywords/news_keywords, rel=tag links, article:section
+ * fallback) — always an array, empty where nothing was found.
  */
 export type PageMetadata = {
   title: string
@@ -52,6 +54,7 @@ export type PageMetadata = {
   publishedAt: string | null
   language: string | null
   canonicalUrl: string | null
+  tags: string[]
 }
 
 export type PartialPageMetadata = Partial<PageMetadata>
@@ -238,6 +241,178 @@ function firstMeaningfulParagraph(doc: HTMLElement): string | null {
   return null
 }
 
+// Max tags returned from page keywords. Matches the dialog's tag-input cap.
+const MAX_METADATA_TAGS = 8
+const MAX_METADATA_TAG_LENGTH = 32
+
+// Strip a single pair of surrounding single/double quotes, if present.
+function unquoteTag(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.length >= 2) {
+    const first = trimmed.charAt(0)
+    const last = trimmed.charAt(trimmed.length - 1)
+    if (
+      (first === '"' && last === '"') ||
+      (first === "'" && last === "'")
+    ) {
+      return trimmed.slice(1, -1).trim()
+    }
+  }
+  return trimmed
+}
+
+// Split a comma/semicolon keyword list ("a, b; c") without regex on HTML —
+// plain string splits on delimiter literals only.
+function splitKeywordList(value: string): string[] {
+  const parts: string[] = []
+  for (const commaPart of value.split(",")) {
+    for (const semiPart of commaPart.split(";")) {
+      parts.push(semiPart)
+    }
+  }
+  return parts
+}
+
+// Dedupe case-insensitively, preserving first-seen casing. Drops empties,
+// over-long entries, and caps the result.
+function normalizeTagList(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const raw of values) {
+    if (typeof raw !== "string") {
+      continue
+    }
+    const cleaned = unquoteTag(raw)
+    if (cleaned.length === 0 || cleaned.length > MAX_METADATA_TAG_LENGTH) {
+      continue
+    }
+    const key = cleaned.toLowerCase()
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    result.push(cleaned)
+    if (result.length >= MAX_METADATA_TAGS) {
+      break
+    }
+  }
+  return result
+}
+
+// Tag text from a rel=tag anchor: prefer visible text; when the text itself
+// looks like a URL/path, fall back to its last path segment.
+function tagTextFromAnchor(anchor: HTMLElement): string | null {
+  const text = nodeText(anchor)
+  if (!text) {
+    return null
+  }
+  const trimmed = text.trim()
+  if (!trimmed.includes("/") && !trimmed.includes(":")) {
+    return trimmed
+  }
+  try {
+    const asUrl = new URL(trimmed, "https://example.com")
+    const last = asUrl.pathname.split("/").filter(Boolean).at(-1)
+    if (last) {
+      return decodeURIComponent(last).replace(/[-_]+/g, " ").trim() || null
+    }
+    return null
+  } catch {
+    const last = trimmed.split("/").filter(Boolean).at(-1)
+    return last ? last.trim() : null
+  }
+}
+
+// Best-effort keyword/tag extraction, all selector-based (no regex on HTML):
+//   1. meta[property="article:tag"] (one tag per element, may repeat)
+//   2. meta keywords / news_keywords (comma/semicolon separated lists)
+//   3. a[rel="tag"] anchor text
+//   4. meta[property="article:section"] fallback (single section name)
+export function extractTags(doc: HTMLElement): string[] {
+  const collected: string[] = []
+
+  for (const meta of doc.querySelectorAll('meta[property="article:tag"]')) {
+    const content = attrText(meta, "content")
+    if (content) {
+      collected.push(content)
+    }
+  }
+  // Case-variant property values (rare) via case-insensitive sweep.
+  for (const meta of doc.querySelectorAll("meta")) {
+    const property = meta.getAttribute("property")
+    if (
+      typeof property === "string" &&
+      property.toLowerCase() === "article:tag" &&
+      meta.getAttribute("property") !== "article:tag"
+    ) {
+      const content = attrText(meta, "content")
+      if (content) {
+        collected.push(content)
+      }
+    }
+  }
+
+  for (const meta of doc.querySelectorAll("meta")) {
+    const name = meta.getAttribute("name")
+    const property = meta.getAttribute("property")
+    const nameLower =
+      typeof name === "string" ? name.toLowerCase() : ""
+    const propertyLower =
+      typeof property === "string" ? property.toLowerCase() : ""
+    const isKeywordMeta =
+      nameLower === "keywords" ||
+      nameLower === "news_keywords" ||
+      propertyLower === "news_keywords"
+    if (!isKeywordMeta) {
+      continue
+    }
+    const content = attrText(meta, "content")
+    if (content) {
+      for (const part of splitKeywordList(content)) {
+        collected.push(part)
+      }
+    }
+  }
+
+  for (const anchor of doc.querySelectorAll('a[rel="tag"]')) {
+    const text = tagTextFromAnchor(anchor)
+    if (text) {
+      collected.push(text)
+    }
+  }
+  // rel attribute may carry extra tokens ("tag author") — sweep anchors whose
+  // rel token list includes "tag" but which the exact selector above missed.
+  for (const anchor of doc.querySelectorAll("a")) {
+    const rel = anchor.getAttribute("rel")
+    if (typeof rel !== "string") {
+      continue
+    }
+    const tokens = rel.toLowerCase().split(" ").filter(Boolean)
+    if (!tokens.includes("tag")) {
+      continue
+    }
+    if (anchor.getAttribute("rel") === "tag") {
+      continue
+    }
+    const text = tagTextFromAnchor(anchor)
+    if (text) {
+      collected.push(text)
+    }
+  }
+
+  let normalized = normalizeTagList(collected)
+  if (normalized.length === 0) {
+    const section = attrText(
+      doc.querySelector('meta[property="article:section"]'),
+      "content"
+    )
+    if (section) {
+      normalized = normalizeTagList([section])
+    }
+  }
+  return normalized
+}
+
 // --- HTML extraction (all selector-based; no regex on HTML) -------------------
 
 export function extractHTMLMetadata(html: string, finalUrl: URL): PageMetadata {
@@ -332,6 +507,9 @@ export function extractHTMLMetadata(html: string, finalUrl: URL): PageMetadata {
     finalUrl
   )
 
+  // tags: article:tag → keywords/news_keywords → rel=tag → article:section
+  const tags = extractTags(doc)
+
   return {
     title,
     description,
@@ -342,6 +520,7 @@ export function extractHTMLMetadata(html: string, finalUrl: URL): PageMetadata {
     publishedAt,
     language,
     canonicalUrl,
+    tags,
   }
 }
 
@@ -361,6 +540,7 @@ export function buildFallbackMetadata(url: URL): PageMetadata {
     publishedAt: null,
     language: null,
     canonicalUrl: null,
+    tags: [],
   }
 }
 
@@ -394,6 +574,10 @@ function mergeAdapter(
     adapter.language?.trim() ?? base.language ?? fallback.language
   const canonicalUrl =
     adapter.canonicalUrl?.trim() ?? base.canonicalUrl ?? fallback.canonicalUrl
+  const tags =
+    adapter.tags && adapter.tags.length > 0
+      ? normalizeTagList(adapter.tags)
+      : (base.tags ?? fallback.tags ?? [])
 
   return {
     title,
@@ -405,6 +589,7 @@ function mergeAdapter(
     publishedAt,
     language,
     canonicalUrl,
+    tags,
   }
 }
 
@@ -435,7 +620,8 @@ const FEED_VOID_TAGS = FED_DEFAULT_VOID_TAGS.filter((tag) => tag !== "link")
 
 // The Medium /feed fallback. Matched by the medium.com host (and any subdomain
 // of blog/medium.com). Returns Partial<PageMetadata> with title, description,
-// and previewImage only — no favicon, no enrichments.
+// previewImage, and tags (from <category> elements) — no favicon, no other
+// enrichments.
 async function fetchMediumFeedMetadata(
   pageUrl: URL
 ): Promise<PartialPageMetadata | null> {
@@ -501,11 +687,15 @@ async function fetchMediumFeedMetadata(
       const description = nodeText(snippet) ?? nodeText(descriptionEl) ?? ""
       const imageHref = attrText(descriptionEl?.querySelector("img"), "src")
       const previewImage = imageHref ? resolveAgainst(imageHref, feedUrl) : null
+      const tags = normalizeTagList(
+        item.querySelectorAll("category").map((c) => nodeText(c))
+      )
 
       return {
         title: titleText ?? undefined,
         description: description ?? "",
         previewImage,
+        tags,
       }
     }
 
@@ -655,7 +845,8 @@ export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
   const innerYieldedOnlyFallback =
     innerMeta.title === innerFallbackTitle &&
     innerMeta.description === "" &&
-    innerMeta.previewImage === null
+    innerMeta.previewImage === null &&
+    innerMeta.tags.length === 0
 
   if (!innerYieldedOnlyFallback) {
     return innerMeta
