@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.1.2",
+    date: "2026-09-20",
+    changes: [
+      "Saving a link now suggests tags from the page itself (article keywords and tags), filling the tag field only when it is empty — your own tags are never overwritten.",
+      "Pasting a link into the URL field fetches its metadata automatically, so you can skip the Fetch button.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.1.1",
     date: "2026-09-20",
     changes: [

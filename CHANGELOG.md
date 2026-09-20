@@ -4,6 +4,13 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.1.2 — 2026-09-20
+
+- Metadata fetch now suggests tags: the API returns `tags` extracted from `article:tag` entries, `keywords`/`news_keywords` lists, `rel="tag"` links, and `article:section` as a fallback (deduped, capped at 8, Medium `<category>` items included). The save dialog fills an empty tag field with the suggestions and never overwrites tags you already chose — even ones added while the fetch is in flight.
+- Pasting a link into the URL field triggers the metadata fetch automatically (manual Fetch button stays as fallback, and edit mode won't refetch when the pasted URL is unchanged).
+- New unit tests cover the tag extraction sources, fallback, cap, and empty case.
+- No schema migration: drop-in image swap.
+
 ## v1.1.1 — 2026-09-20
 
 - Per-user digest schedule: each user picks a weekday (dropdown, Sunday by default) and an hour (`00:00`–`23:00`, `07:00` by default) on the profile page. The in-process scheduler ticks every minute with a once-per-day guard and a startup catch-up run; manual "Send now" never touches the guard, so it can't block the automatic send. Migration `0010` is additive (`send_day`/`send_time` on `digest_preferences`, Sunday 07:00 defaults). `TZ` is pinned to UTC in the image and both Compose files — override it to run the schedule in local time.

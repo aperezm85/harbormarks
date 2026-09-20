@@ -393,6 +393,18 @@ directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
 
+### 2026-09-20 (v1.1.2)
+
+- Metadata fetch suggests tags: `GET /api/bookmarks/metadata` returns
+  `tags` from `article:tag`, `keywords`/`news_keywords`, `rel="tag"`
+  links, and `article:section` fallback (deduped, capped at 8). The save
+  dialog fills an empty tag field only and never overwrites existing
+  tags; pasting a link into the URL field auto-fetches.
+- No schema migration ships in this release (drop-in image swap); unit
+  tests cover the new extraction.
+- Bumped `package.json` to 1.1.2 and synced the CHANGELOG and in-app
+  changelog (`src/lib/changelog.ts`).
+
 ### 2026-09-20 (v1.1.1)
 
 - Per-user digest schedule: each user picks a weekday (Sunday by default) and

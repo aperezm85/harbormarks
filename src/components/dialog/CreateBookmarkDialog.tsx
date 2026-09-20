@@ -1,5 +1,12 @@
 import type { BookmarkCardData, BookmarkStatus } from "@/lib/bookmark-types"
-import { useCallback, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type ReactNode,
+} from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -62,6 +69,7 @@ type BookmarkMetadataPayload = {
   publishedAt?: string | null
   language?: string | null
   canonicalUrl?: string | null
+  tags?: string[]
 }
 
 type CreateBookmarkDialogProps = {
@@ -181,6 +189,19 @@ export const CreateBookmarkDialog = ({
   const [editIsFavorite, setEditIsFavorite] = useState(false)
   const isEditMode = Boolean(bookmark)
   const isPending = isFetchingMetadata || isSaving
+  // Dedupe key for paste-triggered auto-fetch (manual Fetch always refetches).
+  const lastAutoFetchedUrlRef = useRef<string | null>(null)
+  // Mirrors of the tag field so an in-flight fetch can tell at apply time
+  // whether the user typed something meanwhile (state in the closure is
+  // stale). Synced in effects so refs are never written during render.
+  const tagInputRef = useRef(tagInput)
+  const selectedTagsRef = useRef(selectedTags)
+  useEffect(() => {
+    tagInputRef.current = tagInput
+  }, [tagInput])
+  useEffect(() => {
+    selectedTagsRef.current = selectedTags
+  }, [selectedTags])
 
   function hasTag(tag: string) {
     const normalized = tag.toLowerCase()
@@ -274,6 +295,7 @@ export const CreateBookmarkDialog = ({
       setIsPreviewThumbBroken(false)
       setEditStatus(values?.status ?? "unread")
       setEditIsFavorite(values?.isFavorite ?? false)
+      lastAutoFetchedUrlRef.current = null
     },
     [preselectedTags, defaultFavorite]
   )
@@ -298,8 +320,10 @@ export const CreateBookmarkDialog = ({
     resetForm()
   }
 
-  async function handleFetchMetadata() {
-    if (!url.trim()) {
+  async function handleFetchMetadata(overrideUrl?: string) {
+    const sourceUrl =
+      typeof overrideUrl === "string" ? overrideUrl.trim() : url.trim()
+    if (!sourceUrl) {
       setMetadataError("Enter a URL first.")
       setStatusMessage("Enter a URL first.")
       return
@@ -311,7 +335,7 @@ export const CreateBookmarkDialog = ({
 
     try {
       const response = await fetch(
-        `/api/bookmarks/metadata?url=${encodeURIComponent(url.trim())}`
+        `/api/bookmarks/metadata?url=${encodeURIComponent(sourceUrl)}`
       )
       const payload = (await response.json()) as {
         data?: BookmarkMetadataPayload
@@ -361,11 +385,44 @@ export const CreateBookmarkDialog = ({
           : null
       )
 
-      // A re-fetch updates title/description/metadata only — note and tags are
-      // never touched.
+      // A re-fetch updates title/description/metadata only — note is never
+      // touched. Tags are fill-only-if-empty: suggested keywords populate an
+      // empty tag field, but never overwrite tags the user already chose
+      // (checked at apply time so tags added while fetching are preserved).
+      const incomingTags = Array.isArray(metadata?.tags)
+        ? metadata.tags
+            .filter((tag): tag is string => typeof tag === "string")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+            .slice(0, 8)
+        : []
+      let filledTags = 0
+      if (
+        incomingTags.length > 0 &&
+        selectedTagsRef.current.length === 0 &&
+        !tagInputRef.current.trim()
+      ) {
+        const seen = new Set<string>()
+        const deduped = incomingTags.filter((tag) => {
+          const key = tag.toLowerCase()
+          if (seen.has(key)) {
+            return false
+          }
+          seen.add(key)
+          return true
+        })
+        if (deduped.length > 0) {
+          setSelectedTags(deduped)
+          filledTags = deduped.length
+        }
+      }
       setHasFetchedMetadata(true)
       setIsPreviewThumbBroken(false)
-      setStatusMessage("Metadata fetched and fields updated.")
+      setStatusMessage(
+        filledTags > 0
+          ? `Metadata fetched and fields updated (${filledTags} tag${filledTags === 1 ? "" : "s"} suggested).`
+          : "Metadata fetched and fields updated."
+      )
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to fetch metadata."
@@ -374,6 +431,58 @@ export const CreateBookmarkDialog = ({
     } finally {
       setIsFetchingMetadata(false)
     }
+  }
+
+  // Paste-to-fetch: when the user pastes a link into the URL field, fetch its
+  // metadata right away (the manual Fetch button stays as fallback). The
+  // default paste is left intact — we predict the post-paste value from the
+  // selection so the fetch doesn't wait on state.
+  function handleUrlPaste(event: ClipboardEvent<HTMLInputElement>) {
+    const pasted = event.clipboardData?.getData("text") ?? ""
+    if (!pasted.trim()) {
+      return
+    }
+    const input = event.currentTarget
+    const value = input.value ?? ""
+    const start = input.selectionStart ?? value.length
+    const end = input.selectionEnd ?? value.length
+    const nextValue = `${value.slice(0, start)}${pasted}${value.slice(end)}`
+
+    // A paste may carry surrounding prose — fetch the first URL-like token.
+    const token = nextValue
+      .split(/[ \t\r\n]+/)
+      .find((part) => part.includes("."))
+    const candidate = (token ?? nextValue).trim()
+    if (!candidate) {
+      return
+    }
+    // normalizeBookmarkUrl prepends https:// when missing and rejects garbage.
+    const normalized = normalizeBookmarkUrl(candidate)
+    if (!normalized) {
+      return
+    }
+    if (isFetchingMetadata) {
+      return
+    }
+    if (lastAutoFetchedUrlRef.current === normalized) {
+      return
+    }
+    // In edit mode a paste that doesn't change the URL is just a copy quirk —
+    // don't clobber the user's customized title/description.
+    if (isEditMode) {
+      const currentNormalized = normalizeBookmarkUrl(url.trim())
+      if (currentNormalized === normalized && hasFetchedMetadata) {
+        return
+      }
+      const savedNormalized = bookmark?.url
+        ? normalizeBookmarkUrl(bookmark.url)
+        : null
+      if (savedNormalized === normalized && hasFetchedMetadata) {
+        return
+      }
+    }
+    lastAutoFetchedUrlRef.current = normalized
+    void handleFetchMetadata(candidate)
   }
 
   async function handleSubmit(form?: HTMLFormElement) {
@@ -791,6 +900,7 @@ export const CreateBookmarkDialog = ({
                       spellCheck={false}
                       value={url}
                       onChange={(event) => setUrl(event.target.value)}
+                      onPaste={handleUrlPaste}
                       onBlur={(event) => {
                         const val = event.target.value.trim()
                         if (val && !/^https?:\/\//i.test(val)) {
@@ -804,9 +914,9 @@ export const CreateBookmarkDialog = ({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={handleFetchMetadata}
+                      onClick={() => void handleFetchMetadata()}
                       disabled={isPending}
-                      title="Re-fetch metadata (never overwrites your note or tags)"
+                      title="Re-fetch metadata (never overwrites your note; tags only filled when empty)"
                       aria-label="Re-fetch metadata"
                     >
                       <ArrowsClockwiseIcon
@@ -817,7 +927,7 @@ export const CreateBookmarkDialog = ({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleFetchMetadata}
+                      onClick={() => void handleFetchMetadata()}
                       disabled={isPending}
                     >
                       <ArrowsClockwiseIcon data-icon="inline-start" />

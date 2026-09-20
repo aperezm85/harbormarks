@@ -332,3 +332,65 @@ describe("fetchPageMetadata — routing", () => {
     expect(meta.title).toBe("Good Title")
   })
 })
+
+describe("extractHTMLMetadata — tags", () => {
+  it("collects article:tag entries in order", () => {
+    const html = `<html><head><title>T</title>
+<meta property="article:tag" content="React">
+<meta property="article:tag" content="TypeScript">
+</head></html>`
+    const meta = extractHTMLMetadata(html, new URL("https://example.com/a"))
+
+    expect(meta.tags).toEqual(["React", "TypeScript"])
+  })
+
+  it("splits keywords lists and dedupes case-insensitively", () => {
+    const html = `<html><head><title>T</title>
+<meta name="keywords" content="React, react , TypeScript; Astro">
+</head></html>`
+    const meta = extractHTMLMetadata(html, new URL("https://example.com/a"))
+
+    expect(meta.tags).toEqual(["React", "TypeScript", "Astro"])
+  })
+
+  it("reads news_keywords and rel=tag anchors", () => {
+    const html = `<html><head><title>T</title>
+<meta name="news_keywords" content="Space, NASA">
+</head><body>
+<a rel="tag" href="/tags/open-source">Open Source</a>
+</body></html>`
+    const meta = extractHTMLMetadata(html, new URL("https://example.com/a"))
+
+    expect(meta.tags).toEqual(["Space", "NASA", "Open Source"])
+  })
+
+  it("falls back to article:section and caps at 8 short tags", () => {
+    const sectionHtml = `<html><head><title>T</title>
+<meta property="article:section" content="Technology">
+</head></html>`
+    expect(
+      extractHTMLMetadata(sectionHtml, new URL("https://example.com/a")).tags
+    ).toEqual(["Technology"])
+
+    const many = Array.from({ length: 12 }, (_, i) => `Tag${i + 1}`).join(", ")
+    const longTag = "x".repeat(40)
+    const capped = extractHTMLMetadata(
+      `<html><head><title>T</title><meta name="keywords" content="${many}, ${longTag}"></head></html>`,
+      new URL("https://example.com/a")
+    )
+    expect(capped.tags).toHaveLength(8)
+    expect(capped.tags).not.toContain(longTag)
+  })
+
+  it("returns an empty array when no keyword source exists", () => {
+    const meta = extractHTMLMetadata(
+      "<html><head><title>T</title></head></html>",
+      new URL("https://example.com/a")
+    )
+
+    expect(meta.tags).toEqual([])
+    expect(buildFallbackMetadata(new URL("https://example.com/a")).tags).toEqual(
+      []
+    )
+  })
+})
