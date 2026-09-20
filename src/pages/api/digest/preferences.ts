@@ -2,7 +2,9 @@ import type { APIRoute } from "astro"
 
 import {
   getDigestPreference,
+  isDigestDay,
   isDigestScope,
+  isDigestTime,
   setDigestPreference,
 } from "@/lib/digest"
 
@@ -26,9 +28,9 @@ export const PUT: APIRoute = async ({ locals, request }) => {
   if (!user) {
     return json({ error: "Unauthorized" }, 401)
   }
-  let body: { enabled?: unknown; scope?: unknown }
+  let body: { enabled?: unknown; scope?: unknown; sendDay?: unknown; sendTime?: unknown }
   try {
-    body = (await request.json()) as { enabled?: unknown; scope?: unknown }
+    body = (await request.json()) as { enabled?: unknown; scope?: unknown; sendDay?: unknown; sendTime?: unknown }
   } catch {
     return json({ error: "Invalid JSON body" }, 400)
   }
@@ -41,11 +43,25 @@ export const PUT: APIRoute = async ({ locals, request }) => {
   if (body.enabled !== undefined && typeof body.enabled !== "boolean") {
     return json({ error: "Invalid enabled flag" }, 400)
   }
+  if (body.sendDay !== undefined && !isDigestDay(body.sendDay)) {
+    return json(
+      { error: "Invalid send day (expected 0-6, Sunday-Saturday)" },
+      400
+    )
+  }
+  if (body.sendTime !== undefined && !isDigestTime(body.sendTime)) {
+    return json(
+      { error: "Invalid send time (expected HH:MM, 00:00-23:59)" },
+      400
+    )
+  }
   try {
     const data = await setDigestPreference(user.id, {
       enabled:
         typeof body.enabled === "boolean" ? body.enabled : undefined,
       scope: body.scope,
+      sendDay: body.sendDay,
+      sendTime: body.sendTime,
     })
     return json({ data })
   } catch (error) {

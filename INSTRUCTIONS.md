@@ -149,8 +149,10 @@ Then each user opts in from **Profile → Weekly digest**:
    all links saved in the last 7 days. Each item shows its title, description,
    your private note, tags, and saved date.
 3. Save. Use **Send now** to test immediately (max 10 per hour).
-4. The automatic run goes out **Sunday morning** (server-local 07:00–08:00
-   window). Users with nothing matching get no email that week.
+4. Pick the weekday (Sunday by default) and hour (`07:00` by default, server
+   timezone) for the automatic run. Users with nothing matching get no email
+   that week. Changing the schedule later the same day does not re-trigger an
+   automatic send that already went out.
 
 About digest link tracking:
 
@@ -390,6 +392,27 @@ Use `docker volume ls` to confirm the exact volume name if your project
 directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
+
+### 2026-09-20 (v1.1.1)
+
+- Per-user digest schedule: each user picks a weekday (Sunday by default) and
+  an hour (`07:00` by default) on the profile page; the scheduler ticks every
+  minute with a once-per-day guard plus a startup catch-up run. "Send now"
+  never blocks the automatic send. Times use the server timezone (`TZ` is
+  pinned to UTC in the image and both Compose files — override it for local
+  time).
+- One additive migration ships in this release
+  (`0010_digest_schedule.sql`, `send_day`/`send_time` on
+  `digest_preferences`). Take a dump before upgrading as usual (section 9);
+  migrations run automatically at container start.
+- Security dependencies: `pnpm audit` is clean (was 9 findings) via `astro`
+  7.3.3, `shadcn` 4.21.0, and bumped workspace overrides; `clsx` +
+  `tailwind-merge` were replaced with the drop-in `cn` package.
+- Profile page: Account details card removed, single-column order (picture,
+  profile, password, digest). Profile and admin Users pages share a
+  dashboard-style header.
+- Bumped `package.json` to 1.1.1 and synced the README, INSTRUCTIONS, and
+  in-app changelog (`src/lib/changelog.ts`).
 
 ### 2026-09-13 (v1.1.0)
 

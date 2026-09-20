@@ -27,6 +27,7 @@ RUN corepack enable \
 	&& rm -rf /root/.cache /root/.local/share/pnpm \
 	&& mkdir -p public/uploads/avatars
 
+ENV TZ=UTC
 ENV HOST=0.0.0.0
 ENV PORT=3000
 

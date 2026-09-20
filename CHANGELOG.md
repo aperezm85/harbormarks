@@ -4,6 +4,17 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.1.1 — 2026-09-20
+
+- Per-user digest schedule: each user picks a weekday (dropdown, Sunday by default) and an hour (`00:00`–`23:00`, `07:00` by default) on the profile page. The in-process scheduler ticks every minute with a once-per-day guard and a startup catch-up run; manual "Send now" never touches the guard, so it can't block the automatic send. Migration `0010` is additive (`send_day`/`send_time` on `digest_preferences`, Sunday 07:00 defaults). `TZ` is pinned to UTC in the image and both Compose files — override it to run the schedule in local time.
+- Bookmark asset proxy (`/api/bookmarks/assets`) no longer throws a 500 for unfetchable targets: SSRF-blocked hosts, DNS failures, timeouts, and redirect loops now return `404 { error: "Unable to fetch asset" }`, and cache writes are best-effort so disk errors can't fail an otherwise good fetch.
+- Profile page redesign: removed the redundant Account details card (name/email already live in the editable Profile card) and reordered to a single column — Profile picture, Profile, Change password, Weekly digest.
+- Profile and admin Users pages share a new dashboard-style header (logo home link, title, theme toggle, logout); Users rows use design-system `Badge` pills and surface create/update feedback in a banner under the header.
+- Security dependencies: `pnpm audit` went from 9 findings (1 critical) to 0 via `astro` 7.2.6 → 7.3.3, `shadcn` 4.19.0 → 4.21.0, and bumped `pnpm-workspace.yaml` overrides (`hono`, `js-yaml`, plus new `svgo`/`devalue` pins, all as caret minimums so future patches flow).
+- Replaced `clsx` + `tailwind-merge` with the drop-in `cn` package (Tailwind v4 compatible); `src/lib/utils.ts` is now a single re-export and all 24 `cn` consumers are unchanged.
+- New unit tests cover the digest schedule helpers (`normalize`/`is` day/time validators and the due-date guard, extracted DB-free into `src/lib/digest-schedule.ts`).
+- No breaking changes; one additive migration (`0010`). Back up before upgrading, as usual.
+
 ## v1.1.0 — 2026-09-13
 
 - Weekly digest email: opt-in from the profile page ("Weekly digest" card), sent Sunday morning with your unread links — title, description, your private note, tags, and saved date. Choose the content: unread from the last 7 days, all unread, or everything saved in the last 7 days. A "Send now" button emails the current selection on demand (10/hour limit).

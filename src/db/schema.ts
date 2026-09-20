@@ -95,6 +95,8 @@ export const digestPreferences = pgTable("digest_preferences", {
     .references(() => users.id, { onDelete: "cascade" }),
   enabled: boolean("enabled").notNull().default(false),
   scope: text("scope").notNull().default("unread_7d"),
+  sendDay: integer("send_day").notNull().default(0),
+  sendTime: text("send_time").notNull().default("07:00"),
   lastSentAt: timestamp("last_sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

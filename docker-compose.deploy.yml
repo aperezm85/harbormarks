@@ -21,6 +21,7 @@ services:
     container_name: harbormarks-app
     restart: unless-stopped
     environment:
+      TZ: UTC
       DATABASE_URL: postgresql://astro:astro@db:5432/harbormarks
       # Used only for first-start bootstrap when the users table is empty.
       HARBOR_BOOTSTRAP_ADMIN_EMAIL: admin@example.com
