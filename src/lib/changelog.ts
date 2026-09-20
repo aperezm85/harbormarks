@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.1.1",
+    date: "2026-09-20",
+    changes: [
+      "You can now pick your own digest day and hour from the profile page instead of Sunday morning for everyone.",
+      "The profile page got a cleaner single-column layout, and the admin users page matches the dashboard look.",
+      "Behind the scenes: unfetchable bookmark images no longer error out, and all reported dependency vulnerabilities are fixed.",
+    ],
+  },
+  {
     version: "v1.1.0",
     date: "2026-09-13",
     changes: [

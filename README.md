@@ -151,8 +151,9 @@ for reset/verify); see `components.json` (`@emailcn`) and
    everything saved in the last 7 days), Save. Each item shows its title,
    description, your private note, tags, and saved date; clicking a title
    marks it as reading and opens the article.
-3. The digest goes out automatically on **Sunday morning** (server-local
-   07:00–08:00 window, one email per opted-in user, skipped when empty).
+3. The digest goes out automatically on each user's chosen weekday and
+   hour (Sunday 07:00 server time by default, one email per opted-in user,
+   skipped when empty).
 4. Use **Send now** on the same card to email the current selection
    immediately (limited to 10 per hour per user).
 5. Prefer your own scheduler? Set `HARBOR_CRON_SECRET` and call

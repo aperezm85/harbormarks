@@ -191,21 +191,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     })
   }
 
-  const response = await fetchBinarySafely(assetUrl, {
-    timeoutMs: 8000,
-    maxBytes: 2 * 1024 * 1024,
-    maxRedirects: 3,
-    headers: {
-      "user-agent": "HarborMarksBot/1.0 (+bookmark-assets)",
-      accept: "image/*,*/*;q=0.1",
-    },
-  })
-
-  const resolvedContentType = response.ok
-    ? resolveImageContentType(response.contentType, response.body)
-    : null
-
-  if (!resolvedContentType) {
+  function assetUnavailable() {
     return new Response(JSON.stringify({ error: "Unable to fetch asset" }), {
       status: 404,
       headers: {
@@ -214,7 +200,39 @@ export const GET: APIRoute = async ({ request, locals }) => {
     })
   }
 
-  await writeCachedAsset(assetUrl, response.body, resolvedContentType)
+  let response: Awaited<ReturnType<typeof fetchBinarySafely>>
+  try {
+    response = await fetchBinarySafely(assetUrl, {
+      timeoutMs: 8000,
+      maxBytes: 2 * 1024 * 1024,
+      maxRedirects: 3,
+      headers: {
+        "user-agent": "HarborMarksBot/1.0 (+bookmark-assets)",
+        accept: "image/*,*/*;q=0.1",
+      },
+    })
+  } catch {
+    // fetchBinarySafely throws on SSRF blocks ("Blocked address"), DNS
+    // failures, timeouts, and redirect loops. Those are fetch failures, not
+    // server errors — surface them as 404 like any other unfetchable asset
+    // instead of letting Astro turn the throw into a 500.
+    return assetUnavailable()
+  }
+
+  const resolvedContentType = response.ok
+    ? resolveImageContentType(response.contentType, response.body)
+    : null
+
+  if (!resolvedContentType) {
+    return assetUnavailable()
+  }
+
+  try {
+    await writeCachedAsset(assetUrl, response.body, resolvedContentType)
+  } catch {
+    // Cache writes are best-effort: a full disk or bad permissions must not
+    // turn an otherwise successful fetch into a 500.
+  }
 
   return new Response(new Uint8Array(response.body), {
     status: 200,

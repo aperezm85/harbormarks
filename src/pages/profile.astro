@@ -10,8 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import Header from "@/components/ui/Header.astro"
 import { Input } from "@/components/ui/input"
+import PageTopBar from "@/components/ui/PageTopBar.astro"
 import ProfileToast from "@/components/ui/ProfileToast"
 import Layout from "@/layouts/main.astro"
 import { Toaster } from "sonner"
@@ -30,54 +30,36 @@ if (error?.startsWith("Password must be at least")) {
 ---
 
 <Layout page="Profile | HarborMarks">
-  <div class="relative mx-auto max-w-5xl px-4 py-6">
-    <div
-      aria-hidden="true"
-      class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-40"
-    >
-    </div>
+  <PageTopBar />
 
-    <Header />
-
-    <div class="mt-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+  <div class="mx-auto max-w-3xl space-y-4 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Your profile</h1>
         <p class="text-sm text-muted-foreground">
           Manage account details and keep your login secure.
         </p>
       </div>
-      <a href="/">
-        <Button type="button" variant="outline">&larr; Go back</Button>
+      <a
+        href="/"
+        class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-all outline-none select-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4 shrink-0"
+        >
+          <path d="m12 19-7-7 7-7"></path>
+          <path d="M19 12H5"></path>
+        </svg>
+        Go back
       </a>
     </div>
-
-    <div class="grid gap-6 lg:grid-cols-[1fr_1.35fr]">
-      <Card className="h-fit">
-        <CardHeader>
-          <CardTitle>Account details</CardTitle>
-          <CardDescription>
-            This is how your profile appears across HarborMarks.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <dl class="space-y-3 text-sm">
-            <div class="rounded-lg border bg-background p-3">
-              <dt class="text-muted-foreground">Display name</dt>
-              <dd class="mt-1 font-medium">{user.displayName ?? "Not set"}</dd>
-            </div>
-            <div class="rounded-lg border bg-background p-3">
-              <dt class="text-muted-foreground">Email address</dt>
-              <dd class="mt-1 font-medium">{user.email}</dd>
-            </div>
-            <div class="rounded-lg border bg-background p-3">
-              <dt class="text-muted-foreground">Role</dt>
-              <dd class="mt-1 font-medium capitalize">{user.role}</dd>
-            </div>
-          </dl>
-        </CardContent>
-      </Card>
-
-      <div class="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Profile picture</CardTitle>
@@ -164,10 +146,55 @@ if (error?.startsWith("Password must be at least")) {
 
         <Card>
           <CardHeader>
+            <CardTitle>Change password</CardTitle>
+            <CardDescription>
+              Updating password will sign you out on all devices.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              method="POST"
+              action="/api/auth/profile-password"
+              class="space-y-4"
+            >
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="currentPassword"
+                    >Current password</FieldLabel
+                  >
+                  <Input
+                    id="currentPassword"
+                    name="currentPassword"
+                    type="password"
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="nextPassword">New password</FieldLabel>
+                  <Input
+                    id="nextPassword"
+                    name="nextPassword"
+                    type="password"
+                    minLength={8}
+                    required
+                  />
+                </Field>
+                <Field>
+                  <Button type="submit" variant="outline"
+                    >Update password</Button
+                  >
+                </Field>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Weekly digest</CardTitle>
             <CardDescription>
-              Get an email on Sunday morning with your unread links. Pick
-              what it contains, then save.
+              Get an email on your chosen day and time with your unread
+              links. Pick what it contains, then save.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -215,6 +242,105 @@ if (error?.startsWith("Password must be at least")) {
                   All links saved in the last 7 days
                 </label>
               </fieldset>
+              <fieldset class="space-y-2 text-sm">
+                <legend class="text-muted-foreground">When to send</legend>
+                <div class="flex flex-wrap gap-2">
+                  <label class="flex flex-col gap-1">
+                    <span class="text-xs text-muted-foreground">Day</span>
+                    <div class="relative">
+                      <select
+                        id="digest-day"
+                        class="h-9 appearance-none rounded-lg border border-input bg-transparent py-2 pr-9 pl-2.5 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
+                      >
+                        <option value="0" selected>Sunday</option>
+                        <option value="1">Monday</option>
+                        <option value="2">Tuesday</option>
+                        <option value="3">Wednesday</option>
+                        <option value="4">Thursday</option>
+                        <option value="5">Friday</option>
+                        <option value="6">Saturday</option>
+                      </select>
+                      <span
+                        aria-hidden="true"
+                        class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                      >
+                        <svg
+                          class="size-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M6 9L12 15L18 9"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </label>
+                  <label class="flex flex-col gap-1">
+                    <span class="text-xs text-muted-foreground">
+                      Time (24h)
+                    </span>
+                    <div class="relative">
+                      <select
+                        id="digest-time"
+                        class="h-9 appearance-none rounded-lg border border-input bg-transparent py-2 pr-9 pl-2.5 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
+                      >
+                        <option value="00:00">00:00</option>
+                        <option value="01:00">01:00</option>
+                        <option value="02:00">02:00</option>
+                        <option value="03:00">03:00</option>
+                        <option value="04:00">04:00</option>
+                        <option value="05:00">05:00</option>
+                        <option value="06:00">06:00</option>
+                        <option value="07:00" selected>07:00</option>
+                        <option value="08:00">08:00</option>
+                        <option value="09:00">09:00</option>
+                        <option value="10:00">10:00</option>
+                        <option value="11:00">11:00</option>
+                        <option value="12:00">12:00</option>
+                        <option value="13:00">13:00</option>
+                        <option value="14:00">14:00</option>
+                        <option value="15:00">15:00</option>
+                        <option value="16:00">16:00</option>
+                        <option value="17:00">17:00</option>
+                        <option value="18:00">18:00</option>
+                        <option value="19:00">19:00</option>
+                        <option value="20:00">20:00</option>
+                        <option value="21:00">21:00</option>
+                        <option value="22:00">22:00</option>
+                        <option value="23:00">23:00</option>
+                      </select>
+                      <span
+                        aria-hidden="true"
+                        class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-muted-foreground"
+                      >
+                        <svg
+                          class="size-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M6 9L12 15L18 9"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </label>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  Times use the server's timezone.
+                </p>
+              </fieldset>
               <p id="digest-message" class="hidden text-sm"></p>
               <div class="flex flex-wrap gap-2">
                 <Button type="button" id="digest-save">Save digest</Button>
@@ -230,53 +356,6 @@ if (error?.startsWith("Password must be at least")) {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Change password</CardTitle>
-            <CardDescription>
-              Updating password will sign you out on all devices.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              method="POST"
-              action="/api/auth/profile-password"
-              class="space-y-4"
-            >
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="currentPassword"
-                    >Current password</FieldLabel
-                  >
-                  <Input
-                    id="currentPassword"
-                    name="currentPassword"
-                    type="password"
-                    required
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="nextPassword">New password</FieldLabel>
-                  <Input
-                    id="nextPassword"
-                    name="nextPassword"
-                    type="password"
-                    minLength={8}
-                    required
-                  />
-                </Field>
-                <Field>
-                  <Button type="submit" variant="outline"
-                    >Update password</Button
-                  >
-                </Field>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
 
     <ProfileToast status={status} error={error} client:load />
   <Toaster client:load />
@@ -391,6 +470,12 @@ if (error?.startsWith("Password must be at least")) {
     const digestEnabled = document.getElementById(
       "digest-enabled"
     ) as HTMLInputElement | null
+    const digestDay = document.getElementById(
+      "digest-day"
+    ) as HTMLSelectElement | null
+    const digestTime = document.getElementById(
+      "digest-time"
+    ) as HTMLSelectElement | null
     const digestMessage = document.getElementById("digest-message")
     const digestSave = document.getElementById("digest-save")
     const digestSend = document.getElementById("digest-send")
@@ -421,7 +506,7 @@ if (error?.startsWith("Password must be at least")) {
         const response = await fetch("/api/digest/preferences")
         if (!response.ok) return
         const result = (await response.json()) as {
-          data?: { enabled?: boolean; scope?: string }
+          data?: { enabled?: boolean; scope?: string; sendDay?: number; sendTime?: string }
         }
         if (digestEnabled && typeof result.data?.enabled === "boolean") {
           digestEnabled.checked = result.data.enabled
@@ -433,15 +518,34 @@ if (error?.startsWith("Password must be at least")) {
           ) as HTMLInputElement | null
           if (radio) radio.checked = true
         }
+        if (digestDay && typeof result.data?.sendDay === "number") {
+          digestDay.value = String(result.data.sendDay)
+        }
+        if (digestTime && typeof result.data?.sendTime === "string") {
+          // The dropdown only offers whole hours. Older settings saved as
+          // free text (e.g. "09:10") fall back to their hour; the stored
+          // value is unchanged until the next save.
+          const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(
+            result.data.sendTime.trim()
+          )
+          if (match) {
+            digestTime.value = `${match[1]}:00`
+          }
+        }
       } catch {
         // Preferences stay at their defaults; saving still works.
       }
     }
 
     digestSave?.addEventListener("click", () => {
+      const rawDay = digestDay?.value.trim() ?? ""
+      const parsedDay = rawDay === "" ? undefined : Number.parseInt(rawDay, 10)
+      const rawTime = digestTime?.value.trim() ?? ""
       const payload = {
         enabled: digestEnabled?.checked ?? false,
         scope: selectedDigestScope(),
+        sendDay: parsedDay,
+        sendTime: rawTime === "" ? undefined : rawTime,
       }
       void fetch("/api/digest/preferences", {
         method: "PUT",
