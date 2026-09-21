@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <main class="settings">
+      <h1>HarborMarks Quick Save settings</h1>
+      <p class="muted">
+        Create an API key from your HarborMarks
+        <strong>Profile → API keys</strong> card, then paste it here with
+        your instance address.
+      </p>
+      <form id="settings-form" class="form">
+        <label class="field">
+          <span class="label">HarborMarks URL</span>
+          <input
+            id="harbormarks-url"
+            type="url"
+            required
+            placeholder="https://harbormarks.example.com"
+            autocomplete="url"
+          />
+        </label>
+        <label class="field">
+          <span class="label">API key</span>
+          <input
+            id="api-key"
+            type="password"
+            required
+            placeholder="hm_…"
+            autocomplete="off"
+          />
+        </label>
+        <p id="status" class="status" role="status"></p>
+        <div class="row">
+          <button type="submit" class="primary">Save</button>
+          <button type="button" id="test" class="ghost">Test connection</button>
+        </div>
+      </form>
+    </main>
+    <script src="settings.js"></script>
+  </body>
+</html>

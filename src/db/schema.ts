@@ -85,6 +85,21 @@ export const bookmarks = pgTable("bookmarks", {
   status: text("status").notNull().default("unread"),
 })
 
+// API keys for quick-save clients (browser extension, iOS Shortcuts).
+// Only sha256 hashes are stored; the raw key is shown once at creation
+// (migrations/0011_api_keys.sql). Revocation sets revoked_at.
+export const apiKeys = pgTable("api_keys", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  lastUsedAt: timestamp("last_used_at"),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+})
+
 // Weekly digest preferences: one row per user, created lazily on first save
 // (migrations/0008_digest_prefs.sql). Scope picks which bookmarks land in the
 // Sunday email: unread saved in the last 7 days, all unread, or all bookmarks

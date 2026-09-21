@@ -6,6 +6,17 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.2.0",
+    date: "2026-09-21",
+    changes: [
+      "Save links from anywhere: create per-device API keys from the new Profile → API keys card for the browser extension and iOS Shortcuts.",
+      "New quick-save page (/save?url=…) for mobile share sheets and bookmarklets — one tap to save, with the title fetched automatically and a friendly already-saved card for duplicates.",
+      "Browser extension for Chrome/Edge (load unpacked from the extension/ folder): popup save form plus right-click save.",
+      "Every bookmark card now has a copy-link button so you can share a URL in one click.",
+      "One additive migration ships in this release (API keys); back up your database before upgrading, as usual.",
+    ],
+  },
+  {
     version: "v1.1.2",
     date: "2026-09-20",
     changes: [

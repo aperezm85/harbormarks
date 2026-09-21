@@ -10,6 +10,7 @@ import {
   type BookmarkView,
 } from "@/lib/bookmarks"
 import { normalizeTags } from "@/lib/bookmark-tags"
+import { rateLimitRequest } from "@/lib/request-security"
 
 function parseBookmarkView(rawValue: string | null): BookmarkView {
   if (rawValue === "mostVisited") {
@@ -108,6 +109,24 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   }
 
   const contentType = request.headers.get("content-type")
+
+  // Quick-save clients (extension, Shortcuts) share this route via Bearer
+  // auth. Bound per-user write throughput so a leaked key cannot hammer the
+  // database; session browser writes stay unthrottled as before.
+  if (request.headers.get("authorization")?.match(/^Bearer\s+/i)) {
+    const limited = rateLimitRequest(
+      `bookmarks:create:key:${locals.userId}`,
+      { limit: 60, windowMs: 60 * 1000 }
+    )
+    if (!limited.allowed) {
+      return new Response(JSON.stringify({ error: "Rate limited. Try again later." }), {
+        status: 429,
+        headers: {
+          "content-type": "application/json",
+        },
+      })
+    }
+  }
 
   let url: string | null
   let title: string | null

@@ -1,0 +1,71 @@
+---
+export const prerender = false
+
+import PageTopBar from "@/components/ui/PageTopBar.astro"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { QuickSave } from "@/components/save/QuickSave"
+import Layout from "@/layouts/main.astro"
+import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
+
+// Quick-save target for iOS Shortcuts, the browser extension docs, and the
+// desktop bookmarklet: /save?url=…&title=…&description=…&tags=…&note=….
+// Protected by the default middleware session check — logged-out visits
+// bounce to /login?next=/save… and land back here after signing in.
+const rawUrl = (Astro.url.searchParams.get("url") ?? "").trim()
+const canonical = normalizeBookmarkUrl(rawUrl || null)
+const title = (Astro.url.searchParams.get("title") ?? "").trim().slice(0, 500)
+const description = (Astro.url.searchParams.get("description") ?? "")
+  .trim()
+  .slice(0, 2000)
+const note = (Astro.url.searchParams.get("note") ?? "").trim().slice(0, 5000)
+const tags = (Astro.url.searchParams.get("tags") ?? "")
+  .split(",")
+  .map((tag) => tag.trim())
+  .filter(Boolean)
+  .slice(0, 8)
+---
+
+<Layout page="Save | HarborMarks">
+  <PageTopBar />
+  <div class="mx-auto w-full max-w-md p-4">
+    {
+      canonical ? (
+        <QuickSave
+          client:load
+          url={canonical}
+          initialTitle={title}
+          initialDescription={description}
+          initialTags={tags}
+          initialNote={note}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {rawUrl ? "That link looks invalid" : "No link to save"}
+            </CardTitle>
+            <CardDescription>
+              {rawUrl
+                ? "The shared URL isn't a valid http(s) link. Go back and try sharing again."
+                : "Open this page with a ?url=… query — for example from the iOS Shortcut or the bookmarklet in the setup guide."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a
+              href="/"
+              class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
+            >
+              Back to HarborMarks
+            </a>
+          </CardContent>
+        </Card>
+      )
+    }
+  </div>
+</Layout>

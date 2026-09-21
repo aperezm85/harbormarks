@@ -357,6 +357,43 @@ if (error?.startsWith("Password must be at least")) {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>API keys</CardTitle>
+            <CardDescription>
+              Keys for the browser extension and iOS Shortcuts. A key saves
+              bookmarks as you — keep it secret. The raw key is shown once
+              at creation and never again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-4">
+              <div class="flex flex-wrap gap-2">
+                <Input
+                  id="apikey-name"
+                  type="text"
+                  placeholder="e.g. iPhone Shortcut"
+                  maxLength={64}
+                  className="max-w-xs"
+                />
+                <Button type="button" id="apikey-create">Create key</Button>
+              </div>
+              <p id="apikey-once" class="hidden text-sm">
+                <span class="font-medium">Copy this now — it won't be shown again:</span>
+                <code id="apikey-once-value" class="ml-1 break-all rounded bg-muted px-1.5 py-0.5"></code>
+                <Button type="button" id="apikey-copy" variant="outline" className="ml-2">Copy</Button>
+              </p>
+              <p id="apikey-message" class="hidden text-sm"></p>
+              <ul id="apikey-list" class="space-y-2 text-sm"></ul>
+              <p class="text-xs text-muted-foreground">
+                Use as <code class="rounded bg-muted px-1">Authorization: Bearer &lt;key&gt;</code> against
+                <code class="rounded bg-muted px-1">POST /api/bookmarks</code>. Keys cannot
+                create or revoke other keys.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
     <ProfileToast status={status} error={error} client:load />
   <Toaster client:load />
   </div>
@@ -600,5 +637,139 @@ if (error?.startsWith("Password must be at least")) {
     })
 
     void loadDigestPrefs()
+  </script>
+
+  <script>
+    const apiKeyName = document.getElementById(
+      "apikey-name"
+    ) as HTMLInputElement | null
+    const apiKeyCreate = document.getElementById("apikey-create")
+    const apiKeyOnce = document.getElementById("apikey-once")
+    const apiKeyOnceValue = document.getElementById("apikey-once-value")
+    const apiKeyCopy = document.getElementById("apikey-copy")
+    const apiKeyMessage = document.getElementById("apikey-message")
+    const apiKeyList = document.getElementById("apikey-list")
+
+    function showApiKeyMessage(message: string, ok: boolean) {
+      if (!apiKeyMessage) return
+      apiKeyMessage.textContent = message
+      apiKeyMessage.classList.remove("hidden")
+      apiKeyMessage.classList.toggle("text-destructive", !ok)
+      apiKeyMessage.classList.toggle("text-muted-foreground", ok)
+    }
+
+    function notifyApiKeyToast(type: "success" | "error", message: string) {
+      window.dispatchEvent(
+        new CustomEvent("profile:toast", { detail: { type, message } })
+      )
+    }
+
+    async function loadApiKeys() {
+      if (!apiKeyList) return
+      try {
+        const response = await fetch("/api/api-keys")
+        if (!response.ok) return
+        const result = (await response.json()) as {
+          data?: { id?: number; name?: string; lastUsedAt?: string | null; createdAt?: string }[]
+        }
+        const keys = result.data ?? []
+        apiKeyList.innerHTML = ""
+        if (keys.length === 0) {
+          const empty = document.createElement("li")
+          empty.className = "text-muted-foreground"
+          empty.textContent = "No API keys yet."
+          apiKeyList.appendChild(empty)
+          return
+        }
+        for (const key of keys) {
+          if (typeof key.id !== "number" || typeof key.name !== "string") continue
+          const item = document.createElement("li")
+          item.className = "flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-1.5"
+          const label = document.createElement("span")
+          label.className = "font-medium"
+          label.textContent = key.name
+          item.appendChild(label)
+          const meta = document.createElement("span")
+          meta.className = "text-xs text-muted-foreground"
+          meta.textContent = key.lastUsedAt
+            ? `last used ${new Date(key.lastUsedAt).toLocaleString()}`
+            : "never used"
+          item.appendChild(meta)
+          const revoke = document.createElement("button")
+          revoke.type = "button"
+          revoke.className =
+            "ml-auto inline-flex h-7 items-center justify-center rounded-md border px-2 text-xs font-medium hover:bg-muted"
+          revoke.textContent = "Revoke"
+          revoke.addEventListener("click", () => {
+            void fetch(`/api/api-keys/${key.id}`, { method: "DELETE" })
+              .then(async (response) => {
+                if (!response.ok) {
+                  const message = "Could not revoke key."
+                  showApiKeyMessage(message, false)
+                  notifyApiKeyToast("error", message)
+                  return
+                }
+                showApiKeyMessage("Key revoked.", true)
+                notifyApiKeyToast("success", "Key revoked.")
+                void loadApiKeys()
+              })
+              .catch(() => {
+                showApiKeyMessage("Could not revoke key.", false)
+              })
+          })
+          item.appendChild(revoke)
+          apiKeyList.appendChild(item)
+        }
+      } catch {
+        // List stays as-is; creating still works.
+      }
+    }
+
+    apiKeyCreate?.addEventListener("click", () => {
+      const name = apiKeyName?.value ?? ""
+      void fetch("/api/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      })
+        .then(async (response) => {
+          const result = (await response.json().catch(() => null)) as {
+            error?: string
+            data?: { key?: string }
+          } | null
+          if (!response.ok || !result || typeof result.data?.key !== "string") {
+            const message = result?.error ?? "Could not create key."
+            showApiKeyMessage(message, false)
+            notifyApiKeyToast("error", message)
+            return
+          }
+          if (apiKeyOnce && apiKeyOnceValue) {
+            apiKeyOnceValue.textContent = result.data.key
+            apiKeyOnce.classList.remove("hidden")
+          }
+          if (apiKeyName) apiKeyName.value = ""
+          showApiKeyMessage("Key created. Copy it now — it won't be shown again.", true)
+          notifyApiKeyToast("success", "API key created.")
+          void loadApiKeys()
+        })
+        .catch(() => {
+          showApiKeyMessage("Could not create key.", false)
+        })
+    })
+
+    apiKeyCopy?.addEventListener("click", () => {
+      const value = apiKeyOnceValue?.textContent ?? ""
+      if (!value) return
+      void navigator.clipboard?.writeText(value).then(
+        () => {
+          notifyApiKeyToast("success", "Key copied.")
+        },
+        () => {
+          showApiKeyMessage("Copy failed — select the key manually.", false)
+        }
+      )
+    })
+
+    void loadApiKeys()
   </script>
 </Layout>
