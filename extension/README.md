@@ -46,7 +46,10 @@ Two save paths, same as the rest of quick-save:
 
 - Popup prefills title from the tab and description from the page's
   `<meta name="description">` / `og:description` (best-effort; empty on
-  `chrome://`, Web Store, and other script-blocked pages).
+  `chrome://`, Web Store, and other script-blocked pages), then enriches
+  via `GET /api/bookmarks/metadata` — favicon, preview image, and detail
+  fields plus tag suggestions for an untouched tag field, same as the
+  desktop save dialog.
 - Re-saving a URL reports `Already saved: <title>` (the API's
   `duplicate_bookmark` 409) instead of erroring.
 - A `TypeError` on save almost always means: wrong instance URL, offline
