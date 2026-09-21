@@ -10,6 +10,13 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   ArrowCounterClockwiseIcon,
   EyeIcon,
   HeartStraightIcon,
@@ -20,13 +27,6 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react"
 import { CreateBookmarkDialog } from "../dialog/CreateBookmarkDialog"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 
 import {
   AlertDialog,
@@ -232,7 +232,11 @@ export const HarborCard = ({
     onVisit?.()
 
     if (wasUnread) {
-      onSaved?.({ ...bookmarkData, visitCount: visitCount + 1, status: "reading" })
+      onSaved?.({
+        ...bookmarkData,
+        visitCount: visitCount + 1,
+        status: "reading",
+      })
     }
 
     void fetch(`/api/bookmarks/${id}/visit`, {
@@ -347,7 +351,11 @@ export const HarborCard = ({
   }
 
   const nextStatus: BookmarkStatus =
-    status === "unread" ? "reading" : status === "reading" ? "archived" : "unread"
+    status === "unread"
+      ? "reading"
+      : status === "reading"
+        ? "archived"
+        : "unread"
 
   const cycleStatus = () => {
     if (isCyclingStatus || isDeleting) {
@@ -394,7 +402,11 @@ export const HarborCard = ({
         : "bg-emerald-500"
 
   const statusLabel =
-    status === "unread" ? "Unread" : status === "reading" ? "Reading" : "Archived"
+    status === "unread"
+      ? "Unread"
+      : status === "reading"
+        ? "Reading"
+        : "Archived"
 
   const renderStatusControl = () => {
     // Card shows the unread state only — no dot for reading/archived.
@@ -403,29 +415,29 @@ export const HarborCard = ({
     }
 
     return (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      className="hover:cursor-pointer"
-      type="button"
-      aria-label={`Mark as ${nextStatus}`}
-      title={`Mark as ${nextStatus} (now ${statusLabel})`}
-      disabled={isCyclingStatus || isDeleting}
-      hidden={isTrashItem}
-      onClick={(event) => {
-        event.stopPropagation()
-        cycleStatus()
-      }}
-    >
-      {isCyclingStatus ? (
-        <SpinnerIcon className="size-3 animate-spin" />
-      ) : (
-        <span
-          aria-hidden="true"
-          className={`size-2.5 rounded-full ${statusDotClassName}`}
-        />
-      )}
-    </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="hover:cursor-pointer"
+        type="button"
+        aria-label={`Mark as ${nextStatus}`}
+        title={`Mark as ${nextStatus} (now ${statusLabel})`}
+        disabled={isCyclingStatus || isDeleting}
+        hidden={isTrashItem}
+        onClick={(event) => {
+          event.stopPropagation()
+          cycleStatus()
+        }}
+      >
+        {isCyclingStatus ? (
+          <SpinnerIcon className="size-3 animate-spin" />
+        ) : (
+          <span
+            aria-hidden="true"
+            className={`size-2.5 rounded-full ${statusDotClassName}`}
+          />
+        )}
+      </Button>
     )
   }
 
@@ -466,9 +478,26 @@ export const HarborCard = ({
         area.style.position = "fixed"
         area.style.opacity = "0"
         document.body.appendChild(area)
+        area.focus()
         area.select()
-        const ok = document.execCommand("copy")
+
+        const selection = document.getSelection()
+        const selectedText = selection?.toString() ?? ""
+        const legacyExecCommand = (
+          document as Document & {
+            execCommand?: (commandId: string) => boolean
+          }
+        ).execCommand
+        const ok = legacyExecCommand
+          ? legacyExecCommand.call(document, "copy")
+          : false
+
         document.body.removeChild(area)
+
+        if (selection && selectedText) {
+          selection.removeAllRanges()
+        }
+
         return ok
       } catch {
         return false
@@ -477,14 +506,16 @@ export const HarborCard = ({
 
     const clipboard =
       typeof navigator !== "undefined" ? navigator.clipboard : undefined
+
     if (clipboard?.writeText) {
       void clipboard
         .writeText(url)
         .then(() => report(true))
         .catch(() => report(legacyCopy()))
-    } else {
-      report(legacyCopy())
+      return
     }
+
+    report(legacyCopy())
   }
 
   const deleteBookmark = () => {
@@ -1059,10 +1090,7 @@ export const HarborCard = ({
             >
               <NotepadIcon className="size-3 text-primary" />
             </Button>
-            <Dialog
-              open={isNoteDialogOpen}
-              onOpenChange={setIsNoteDialogOpen}
-            >
+            <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
               <DialogContent
                 onClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => event.stopPropagation()}

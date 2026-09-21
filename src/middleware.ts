@@ -3,11 +3,12 @@ import { defineMiddleware } from "astro:middleware"
 import { getApiKeyUser, parseBearerToken } from "@/lib/api-key"
 import { getSessionCookieName, getUserBySessionToken } from "@/lib/auth"
 import { buildCorsHeaders } from "@/lib/cors"
-import { resolveNextPath } from "@/lib/safe-next"
 import {
   createCrossOriginForbiddenResponse,
   isForbiddenCrossOriginRequest,
 } from "@/lib/origin-check"
+import { isPublicRoute } from "@/lib/public-routes"
+import { resolveNextPath } from "@/lib/safe-next"
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url
@@ -19,7 +20,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     isForbiddenCrossOriginRequest(
       context.request,
       context.url,
-      context.isPrerendered,
+      context.isPrerendered
     )
   ) {
     return createCrossOriginForbiddenResponse(context.request)
@@ -50,8 +51,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isForgotPasswordPage = pathname === "/forgot-password"
   const isResetPasswordPage = pathname === "/reset-password"
   const isPublicAuthApi = pathname.startsWith("/api/auth/")
-  const isHealthCheck =
-    pathname === "/api/healthz" || pathname === "/healthz"
+  const isHealthCheck = pathname === "/api/healthz" || pathname === "/healthz"
   // Cron-secret endpoint for external schedulers (Uptime Kuma, host cron);
   // authenticated via HARBOR_CRON_SECRET header, not the session cookie.
   const isDigestCronApi = pathname === "/api/digest/run"
@@ -61,6 +61,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isBookmarkOpenApi = /^\/api\/bookmarks\/\d+\/open$/.test(pathname)
   const isAdminPage = pathname.startsWith("/admin")
   const isAdminApi = pathname.startsWith("/api/admin/")
+  const isPublicRoutePath = isPublicRoute(pathname)
 
   const session = context.cookies.get(getSessionCookieName())?.value
   let user = await getUserBySessionToken(session)
@@ -90,7 +91,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     !isPublicAuthApi &&
     !isHealthCheck &&
     !isDigestCronApi &&
-    !isBookmarkOpenApi
+    !isBookmarkOpenApi &&
+    !isPublicRoutePath
   ) {
     // Preserve page navigations (e.g. /save?url=… from an iOS Shortcut) so
     // login lands back where the user was headed. API calls keep the plain
