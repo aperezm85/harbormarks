@@ -63,6 +63,19 @@ It helps you save links, enrich them with metadata, organize them with tags, and
   redirect, then lands on the saved page — no login needed.
 - Real password reset and email verification delivery over SMTP, with server-log
   fallback when SMTP is not configured.
+- API keys for external clients (Profile → API keys, shown once, revokable):
+  `POST /api/bookmarks` and the metadata read accept `Authorization: Bearer`,
+  with per-key rate limits and session-only key management. Browser clients
+  need their origin in `HARBOR_CORS_ORIGINS`; native clients need nothing.
+- Quick-save page (`/save?url=…&title=…&tags=…&note=…`) for mobile share
+  sheets, iOS Shortcuts, and bookmarklets: one-tap save, server title fetch
+  on empty titles, already-saved card on duplicates, login return-to for
+  logged-out visits. Setup in `INSTRUCTIONS.md` §12.
+- Browser extension for Chrome/Edge (`extension/`, load unpacked, Manifest
+  V3): popup save form with connection test plus right-click save via
+  `/save`. Setup in `extension/README.md`.
+- Copy-link button on every bookmark card (grid, list, compact, Trash) with
+  a clipboard fallback for plain-HTTP origins.
 
 ## Tech Stack
 

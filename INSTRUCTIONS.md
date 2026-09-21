@@ -393,6 +393,25 @@ directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
 
+### 2026-09-21 (v1.2.0)
+
+- Quick-save from anywhere: per-device API keys (Profile → API keys, shown
+  once, revokable) with `Bearer` auth on `POST /api/bookmarks`; browser
+  clients additionally need `HARBOR_CORS_ORIGINS` (see `.env.example`).
+- New `/save` quick-save page (`/save?url=…&title=…&tags=…&note=…`, section
+  12): one-tap save from iOS Shortcuts and bookmarklets, server title
+  fetch on empty titles, already-saved card on duplicates, and login
+  return-to for logged-out visits.
+- Browser extension (Chrome/Edge, `extension/`, load unpacked): popup form
+  plus right-click save; setup in `extension/README.md`.
+- Cards gained a copy-link button in every density, with a clipboard
+  fallback for plain-HTTP origins.
+- One additive migration ships in this release (`0011_api_keys.sql`).
+  Take a dump before upgrading as usual (section 9); migrations run
+  automatically at container start.
+- Bumped `package.json` to 1.2.0 and synced the CHANGELOG and in-app
+  changelog (`src/lib/changelog.ts`).
+
 ### 2026-09-20 (v1.1.2)
 
 - Metadata fetch suggests tags: `GET /api/bookmarks/metadata` returns
@@ -757,3 +776,62 @@ Notes:
   A restarted container keeps its old definition, including a missing `command:`.
 - Confirm migrations ran by checking the app log for `Applied migration ...`
   lines, or that `schema_migrations` is populated.
+
+## 12. Save From iPhone / iPad (Shortcuts) And Desktop (Bookmarklet)
+
+The quick-save page accepts shared links with no API key setup:
+
+```text
+https://YOUR-HOST/save?url=<encoded-url>&title=<encoded-title>&tags=<a,b>&note=<text>
+```
+
+Only `url` is required. An empty title triggers a server-side metadata
+fetch; tags are comma-separated (max 8); duplicates show the existing
+bookmark instead of an error. Log in once in Safari — later saves reuse
+that session, and a logged-out visit returns to `/save` after login.
+
+### iOS Shortcut (Share Sheet → Save to HarborMarks)
+
+1. Shortcuts app → `+` → name it `Save to HarborMarks`.
+2. Add `Receive [URLs, Safari web pages] input from [Share Sheet]`
+   (enable `Show in Share Sheet`).
+3. Add `Get Details of Safari Web Page` → `Page URL` → new variable
+   `PageURL`. Add again → `Page Title` → `PageTitle`.
+4. Add `URL Encode` on `PageURL` → `EncURL`; add `URL Encode` on
+   `PageTitle` → `EncTitle`.
+5. Add `Text`: `https://YOUR-HOST/save?url=EncURL&title=EncTitle`
+   (use the `Select Variable` tokens for `EncURL`/`EncTitle`).
+6. Add `Open URLs` with that text.
+
+Usage: Safari → Share → Save to HarborMarks → tap Save. Replace
+`YOUR-HOST` with your public address (same value as
+`HARBOR_APP_BASE_URL`).
+
+### Background Shortcut (API key, no Safari open)
+
+Needs an API key from Profile → API keys (see the API key rollout in
+the changelog). Use `Get Contents of URL`:
+
+- URL: `https://YOUR-HOST/api/bookmarks`, method `POST`.
+- Headers: `Authorization: Bearer <key>`, `Content-Type: application/json`.
+- Body (JSON): `{"url": "PageURL", "title": "PageTitle", "status": "unread"}`.
+- A `409` response with `code: "duplicate_bookmark"` means the link is
+  already saved; show its `existing.title` in a notification.
+
+### Desktop bookmarklet
+
+Create a bookmark with this URL (replace `YOUR-HOST`):
+
+```js
+javascript:(function(){location.href='https://YOUR-HOST/save?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title)})()
+```
+
+Click it on any page to open the quick-save form with the title prefilled.
+
+### Desktop browser extension (Chrome / Edge)
+
+For a toolbar button instead of a bookmarklet, load the MV3 extension in
+`extension/` unpacked — full setup (API key, `HARBOR_CORS_ORIGINS`, test
+button) is in `extension/README.md`. You get a popup save form plus a
+right-click "Save to HarborMarks" entry that uses the `/save` page above,
+so the menu works even before an API key is configured.

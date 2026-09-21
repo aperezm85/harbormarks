@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="popup-header">
+        <img src="logo.svg" class="logo" alt="" aria-hidden="true" />
+        <h1>Save to HarborMarks</h1>
+      </header>
+
+      <p id="needs-setup" class="notice" hidden>
+        Point the extension at your HarborMarks instance first.
+        <button id="open-settings-missing" type="button" class="linklike">
+          Open settings
+        </button>
+      </p>
+
+      <form id="save-form" class="form">
+        <label class="field">
+          <span class="label">Page</span>
+          <span id="page-url" class="url">…</span>
+        </label>
+        <label class="field">
+          <span class="label">Title</span>
+          <input id="title" name="title" type="text" maxlength="500" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="label">Tags <span class="hint">(comma-separated)</span></span>
+          <input id="tags" name="tags" type="text" maxlength="500" autocomplete="off" placeholder="reading, dev" />
+        </label>
+        <label class="field">
+          <span class="label">Note <span class="hint">(private)</span></span>
+          <textarea id="note" name="note" rows="2" maxlength="5000" placeholder="Why did you save this?"></textarea>
+        </label>
+        <label class="check">
+          <input id="favorite" type="checkbox" />
+          <span>Favorite</span>
+        </label>
+        <p id="status" class="status" role="status"></p>
+        <button id="save" type="submit" class="primary">Save</button>
+      </form>
+
+      <footer class="footer">
+        <button id="open-settings" type="button" class="linklike">Settings</button>
+        <span aria-hidden="true">·</span>
+        <button id="open-quicksave" type="button" class="linklike">Open quick-save page</button>
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

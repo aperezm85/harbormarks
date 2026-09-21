@@ -64,11 +64,20 @@ describe.skipIf(!TEST_DATABASE_URL)(
         const indexExists = await client.query(
             `SELECT 1
               FROM pg_indexes
-             WHERE indexname = 'idx_bookmarks_search_vector'`
-             )
+              WHERE indexname = 'idx_bookmarks_search_vector'`
+              )
             .then((r) => r.rowCount)
           expect(indexExists).toBe(1)
-       } finally {
+
+        const apiKeysTable = await client.query(
+            `SELECT 1
+               FROM information_schema.tables
+              WHERE table_schema = 'public'
+                AND table_name = 'api_keys'`
+              )
+            .then((r) => r.rowCount)
+          expect(apiKeysTable).toBe(1)
+        } finally {
         await client.end()
        }
    }

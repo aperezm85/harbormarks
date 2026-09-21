@@ -34,7 +34,7 @@ The following items are complete and reflected in the changelog:
 
 ### 1) Bulk actions on bookmarks
 
-Target: v1.2.0 (next up — unlocks cleanup of large imported collections).
+Target: v1.3.0 (next up — unlocks cleanup of large imported collections).
 
 Why:
 
@@ -120,7 +120,7 @@ These are intentionally omitted because they are already done or no longer worth
 
 ## Suggested order
 
-1. Bulk actions on bookmarks (next up, target v1.2.0)
+1. Bulk actions on bookmarks (next up, target v1.3.0)
 2. Broken link monitoring
 3. Search and filter polish
 4. Keyboard-first workflow (remainder)
@@ -129,7 +129,9 @@ This keeps the roadmap focused on the remaining work that meaningfully improves 
 
 Release history: v1.0.0 closed duplicate UX, tag management, and
 operational hardening; v1.1.0 added the out-of-scope weekly digest plus
-real SMTP delivery, which is why the minor version moved.
+real SMTP delivery, which is why the minor version moved; v1.2.0 added the
+out-of-scope quick-save suite (API keys, `/save` page, browser extension,
+copy-link), which is why the minor moved again.
 
 ## Engineering Notes
 

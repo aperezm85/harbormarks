@@ -4,6 +4,17 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.2.0 — 2026-09-21
+
+- Quick-save from anywhere. API keys (Profile → API keys, one per device) let external clients save as you: the raw key is shown once, keys are revokable from the same card, and key management stays session-only so a leaked key can never mint further keys.
+- `POST /api/bookmarks` (plus the metadata read) now accepts `Authorization: Bearer <key>` alongside the session cookie, with per-key write rate limits. Browser clients (the extension popup) additionally need their origin in the new `HARBOR_CORS_ORIGINS` setting; native clients (iOS Shortcuts, curl) send no `Origin` and need nothing.
+- New `/save` quick-save page for mobile share sheets and bookmarklets: `/save?url=…&title=…&tags=…&note=…` with one-tap save, server-side title fetch when only a URL is shared, and an already-saved card instead of an error on duplicates.
+- Logged-out `/save` visits return there after login: the middleware preserves `?next=` on page navigations and the login flow honors it (validated same-origin; foreign targets are dropped).
+- iOS Shortcut and desktop bookmarklet setup is documented in INSTRUCTIONS §12 (no-key share-sheet flow, background API-key variant, bookmarklet).
+- Browser extension for Chrome/Edge in `extension/` (load unpacked, Manifest V3): popup save form with a connection test, right-click "Save to HarborMarks" via `/save`, and its own setup guide in `extension/README.md`.
+- Bookmark cards gained a copy-link button in every density (grid, list, compact, Trash) with a clipboard fallback for plain-HTTP origins.
+- One additive migration ships in this release (`0011_api_keys.sql`, hashes only — raw keys are never stored). Back up before upgrading, as usual.
+
 ## v1.1.2 — 2026-09-20
 
 - Metadata fetch now suggests tags: the API returns `tags` extracted from `article:tag` entries, `keywords`/`news_keywords` lists, `rel="tag"` links, and `article:section` as a fallback (deduped, capped at 8, Medium `<category>` items included). The save dialog fills an empty tag field with the suggestions and never overwrites tags you already chose — even ones added while the fetch is in flight.

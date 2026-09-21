@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "HarborMarks Quick Save",
+  "version": "1.0.0",
+  "description": "Save the current tab to your self-hosted HarborMarks library in one click.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "settings/settings.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
+  "host_permissions": ["http://*/*", "https://*/*"]
+}

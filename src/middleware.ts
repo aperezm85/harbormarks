@@ -1,6 +1,9 @@
 import { defineMiddleware } from "astro:middleware"
 
+import { getApiKeyUser, parseBearerToken } from "@/lib/api-key"
 import { getSessionCookieName, getUserBySessionToken } from "@/lib/auth"
+import { buildCorsHeaders } from "@/lib/cors"
+import { resolveNextPath } from "@/lib/safe-next"
 import {
   createCrossOriginForbiddenResponse,
   isForbiddenCrossOriginRequest,
@@ -20,6 +23,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
     )
   ) {
     return createCrossOriginForbiddenResponse(context.request)
+  }
+
+  // CORS preflight for API clients (browser extension popup). Native
+  // clients (curl, iOS Shortcuts, MV3 service workers) send no Origin and
+  // need no preflight; buildCorsHeaders returns null for those.
+  if (pathname.startsWith("/api/") && context.request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: buildCorsHeaders(context.request) ?? {},
+    })
   }
 
   // Allow static assets
@@ -50,7 +63,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isAdminApi = pathname.startsWith("/api/admin/")
 
   const session = context.cookies.get(getSessionCookieName())?.value
-  const user = await getUserBySessionToken(session)
+  let user = await getUserBySessionToken(session)
+  // Quick-save clients (browser extension, iOS Shortcuts) authenticate with
+  // `Authorization: Bearer <api-key>` instead of the session cookie. Session
+  // wins when both are present; key-management routes reject Bearer explicitly.
+  if (!user) {
+    const bearer = parseBearerToken(
+      context.request.headers.get("authorization")
+    )
+    if (bearer) {
+      user = await getApiKeyUser(bearer)
+    }
+  }
   const isAuthenticated = user !== null
   context.locals.isAuthenticated = isAuthenticated
   context.locals.userId = user?.id ?? null
@@ -68,6 +92,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
     !isDigestCronApi &&
     !isBookmarkOpenApi
   ) {
+    // Preserve page navigations (e.g. /save?url=… from an iOS Shortcut) so
+    // login lands back where the user was headed. API calls keep the plain
+    // /login redirect — they carry no navigable session to return to.
+    if (context.request.method === "GET" && !pathname.startsWith("/api/")) {
+      const next = `${pathname}${context.url.search}`
+      return context.redirect(`/login?next=${encodeURIComponent(next)}`)
+    }
     return context.redirect("/login")
   }
 
@@ -80,8 +111,20 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   if (isAuthenticated && (isLoginPage || isRegisterPage)) {
-    return context.redirect("/")
+    // Already signed in (e.g. opened /login?next=/save… on a logged-in
+    // device): go to the requested page instead of the dashboard.
+    const next = resolveNextPath(context.url.searchParams.get("next"), "/")
+    return context.redirect(next)
   }
 
-  return next()
+  const response = await next()
+  if (pathname.startsWith("/api/")) {
+    const corsHeaders = buildCorsHeaders(context.request)
+    if (corsHeaders) {
+      for (const [name, value] of Object.entries(corsHeaders)) {
+        response.headers.set(name, value)
+      }
+    }
+  }
+  return response
 })

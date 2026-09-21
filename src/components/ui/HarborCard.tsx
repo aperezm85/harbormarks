@@ -13,6 +13,7 @@ import {
   ArrowCounterClockwiseIcon,
   EyeIcon,
   HeartStraightIcon,
+  LinkIcon,
   NotepadIcon,
   PencilSimpleIcon,
   SpinnerIcon,
@@ -445,6 +446,47 @@ export const HarborCard = ({
     )
   }
 
+  const copyBookmarkUrl = () => {
+    const report = (ok: boolean) => {
+      if (ok) {
+        toast.success("Link copied to clipboard.")
+      } else {
+        toast.error("Unable to copy link.")
+      }
+    }
+
+    // Fallback for contexts without the async Clipboard API (older browsers,
+    // insecure origins). Synchronous document.execCommand is deprecated but
+    // still the only option there.
+    const legacyCopy = (): boolean => {
+      try {
+        const area = document.createElement("textarea")
+        area.value = url
+        area.setAttribute("readonly", "")
+        area.style.position = "fixed"
+        area.style.opacity = "0"
+        document.body.appendChild(area)
+        area.select()
+        const ok = document.execCommand("copy")
+        document.body.removeChild(area)
+        return ok
+      } catch {
+        return false
+      }
+    }
+
+    const clipboard =
+      typeof navigator !== "undefined" ? navigator.clipboard : undefined
+    if (clipboard?.writeText) {
+      void clipboard
+        .writeText(url)
+        .then(() => report(true))
+        .catch(() => report(legacyCopy()))
+    } else {
+      report(legacyCopy())
+    }
+  }
+
   const deleteBookmark = () => {
     if (isDeleting) {
       return
@@ -718,6 +760,20 @@ export const HarborCard = ({
           </Button>
         }
       />
+
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        type="button"
+        aria-label="Copy link"
+        title="Copy link"
+        onClick={(event) => {
+          event.stopPropagation()
+          copyBookmarkUrl()
+        }}
+      >
+        <LinkIcon className="size-3" />
+      </Button>
 
       {isTrashItem ? (
         <>
@@ -1224,6 +1280,20 @@ export const HarborCard = ({
               </Button>
             }
           />
+
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            aria-label="Copy link"
+            title="Copy link"
+            onClick={(event) => {
+              event.stopPropagation()
+              copyBookmarkUrl()
+            }}
+          >
+            <LinkIcon className="size-3" />
+          </Button>
 
           {isTrashItem ? (
             <>
