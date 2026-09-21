@@ -2,7 +2,9 @@
 
 /* HarborMarks Quick Save popup.
  * Reads { harbormarksUrl, apiKey } from chrome.storage.sync, prefills the
- * form from the active tab, and POSTs to /api/bookmarks with Bearer auth.
+ * form from the active tab, enriches via /api/bookmarks/metadata (favicon,
+ * preview image, detail fields — same as the desktop dialog), and POSTs to
+ * /api/bookmarks with Bearer auth.
  * No build step — plain MV3-safe JavaScript (no modules, no remote code).
  */
 
@@ -61,6 +63,39 @@ async function readPageDescription(tabId) {
   }
 }
 
+async function fetchPageMetadata(baseUrl, apiKey, pageUrl) {
+  // Same enrichment the desktop dialog and /save page use. Best-effort: a
+  // failure just means a plainer bookmark, never a blocked save.
+  try {
+    const response = await fetch(
+      `${baseUrl}/api/bookmarks/metadata?url=${encodeURIComponent(pageUrl)}`,
+      { headers: { authorization: `Bearer ${apiKey}` } }
+    );
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload || !payload.data) return null;
+    return payload.data;
+  } catch {
+    return null;
+  }
+}
+
+function cleanTags(values) {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
 async function init() {
   const { baseUrl, apiKey } = await getConfig();
   const tab = await getActiveTab();
@@ -80,10 +115,25 @@ async function init() {
   }
 
   if (tab && tab.id != null && /^https?:/.test(pageUrl)) {
-    const description = await readPageDescription(tab.id);
+    const [description, metadata] = await Promise.all([
+      readPageDescription(tab.id),
+      fetchPageMetadata(baseUrl, apiKey, pageUrl),
+    ]);
     if (description) {
       // Stash for the save payload; the popup stays compact on purpose.
       init.pageDescription = description;
+    }
+    if (metadata) {
+      init.pageMetadata = metadata;
+      if (!description && typeof metadata.description === "string") {
+        init.pageDescription = metadata.description;
+      }
+      // Fill-only-if-empty, same rule as the desktop dialog: suggested
+      // keywords populate an untouched tag field, never typed text.
+      const suggested = cleanTags(metadata.tags);
+      if (suggested.length > 0 && !$("tags").value.trim()) {
+        $("tags").value = suggested.join(", ");
+      }
     }
   }
 
@@ -103,6 +153,8 @@ async function handleSave(baseUrl, apiKey, pageUrl) {
   saveButton.disabled = true;
   setStatus("Saving…", "info");
   try {
+    const meta = init.pageMetadata || {};
+    const text = (value) => (typeof value === "string" ? value : undefined);
     const response = await fetch(`${baseUrl}/api/bookmarks`, {
       method: "POST",
       headers: {
@@ -113,12 +165,19 @@ async function handleSave(baseUrl, apiKey, pageUrl) {
         url: pageUrl,
         title: $("title").value.trim() || pageUrl,
         description: init.pageDescription || "",
+        favicon: text(meta.favicon),
+        previewImage: text(meta.previewImage),
         tags: $("tags")
           .value.split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
         isFavorite: $("favorite").checked,
         status: "unread",
+        siteName: text(meta.siteName),
+        author: text(meta.author),
+        publishedAt: text(meta.publishedAt),
+        language: text(meta.language),
+        canonicalUrl: text(meta.canonicalUrl),
         note: $("note").value.trim() ? $("note").value.trim() : null,
       }),
     });
