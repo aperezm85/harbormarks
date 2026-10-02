@@ -165,12 +165,33 @@ function resolveFinalUrl(responseUrl: string | undefined, requested: URL): URL {
 // --- Bot challenge detection --------------------------------------------------
 
 // A pure string check on the lowercased body. Not an HTML parse: we look for
-// two markers that Cloudflare's "Just a Moment" interstitial emits, and if
-// either is present we route to the per-host adapter instead of scraping a
-// challenge page.
+// markers that Cloudflare's "Just a Moment" interstitial and its hard-block
+// page ("Sorry, you have been blocked" / "Attention Required! | Cloudflare")
+// emit, and if present we route to the per-host adapter instead of scraping a
+// challenge/block page. Block-text matches additionally require a Cloudflare
+// marker (__cf / cf-ray / challenge-platform / cf-wrapper) so an article that
+// merely writes about Cloudflare is not misclassified.
 export function isBotChallengePage(html: string): boolean {
   const lower = html.toLowerCase()
-  return lower.includes("just a moment") && lower.includes("__cf_chl_opt")
+  if (lower.includes("just a moment") && lower.includes("__cf_chl_opt")) {
+    return true
+  }
+  const hasCfMarker =
+    lower.includes("__cf") ||
+    lower.includes("cf-ray") ||
+    lower.includes("challenge-platform") ||
+    lower.includes("cf-wrapper") ||
+    lower.includes("cloudflare ray id")
+  if (!hasCfMarker) {
+    return false
+  }
+  return (
+    (lower.includes("attention required") &&
+      lower.includes("cloudflare")) ||
+    (lower.includes("you have been blocked") &&
+      lower.includes("cloudflare")) ||
+    (lower.includes("sorry, you have been blocked"))
+  )
 }
 
 // --- Precedence helpers -------------------------------------------------------
@@ -415,6 +436,45 @@ export function extractTags(doc: HTMLElement): string[] {
 
 // --- HTML extraction (all selector-based; no regex on HTML) -------------------
 
+// Freedium mirrors strip og:image but keep the article cover as
+// `<img alt="Post cover image" data-zoom-src="/img/medium/4000/...">` inside
+// `<article>`. When no meta image exists, fall back to that cover (preferring
+// the full-resolution data-zoom-src), then to the first non-avatar image in
+// `<article>`. Avatar/placeholder images (data: URIs, 1px tracking pixels,
+// `rounded-full` author avatars) are skipped so the cover wins.
+function extractFallbackArticleImage(doc: HTMLElement): string | null {
+  const cover = doc.querySelector('img[alt="Post cover image"]')
+  const coverSrc =
+    attrText(cover, "data-zoom-src") ?? attrText(cover, "src")
+  if (coverSrc && !coverSrc.toLowerCase().startsWith("data:")) {
+    return coverSrc
+  }
+  for (const img of doc.querySelectorAll("article img")) {
+    if (img === cover) {
+      continue
+    }
+    const src = attrText(img, "data-zoom-src") ?? attrText(img, "src")
+    if (!src || src.toLowerCase().startsWith("data:")) {
+      continue
+    }
+    const width = img.getAttribute("width")?.trim()
+    const height = img.getAttribute("height")?.trim()
+    if ((width === "1" && height === "1") || width === "1" || height === "1") {
+      continue
+    }
+    const className = img.getAttribute("class") ?? ""
+    const lowerClass = className.toLowerCase()
+    if (
+      lowerClass.includes("rounded-full") ||
+      lowerClass.includes("avatar")
+    ) {
+      continue
+    }
+    return src
+  }
+  return null
+}
+
 export function extractHTMLMetadata(html: string, finalUrl: URL): PageMetadata {
   // The parser decodes entities on text and attribute reads, which replaces the
   // hand-rolled 5-entity decoder from the pre-Story-7 path.
@@ -441,7 +501,8 @@ export function extractHTMLMetadata(html: string, finalUrl: URL): PageMetadata {
       firstMeaningfulParagraph(doc),
     ]) ?? ""
 
-  // image: og:image → twitter:image → link[rel="image_src"]
+  // image: og:image → twitter:image → link[rel="image_src"] → meta[itemprop]
+  //   → Freedium cover / first article image.
   // All relative URLs are resolved against the FINAL response URL (the
   // redirected address) so a canonical-redirected origin keeps its host.
   const previewImage = resolveAgainst(
@@ -449,6 +510,8 @@ export function extractHTMLMetadata(html: string, finalUrl: URL): PageMetadata {
       attrText(doc.querySelector(`meta[property="og:image"]`), "content"),
       attrText(doc.querySelector(`meta[name="twitter:image"]`), "content"),
       attrText(doc.querySelector(`link[rel="image_src"]`), "href"),
+      attrText(doc.querySelector(`meta[itemprop="image"]`), "content"),
+      extractFallbackArticleImage(doc),
     ]),
     finalUrl
   )
@@ -711,7 +774,7 @@ const metadataAdapters: MetadataAdapter[] = [
   {
     hosts: (hostname) =>
       hostname === "medium.com" ||
-      hostname === "blog.medium.com" ||
+      hostname.endsWith(".medium.com") ||
       hostname.endsWith("-medium.com"),
     fetchMetadata: fetchMediumFeedMetadata,
   },
@@ -830,9 +893,22 @@ async function fetchSinglePageMetadata(url: URL): Promise<PageMetadata> {
 // serves mirror chrome (wrong title/description/image), so metadata is sourced
 // from the INNER article URL instead. The caller's saved bookmark URL is
 // untouched — only the metadata source changes. If the inner fetch yields just
-// the humanized-path fallback (inner site down / blocked), the original
-// mirror URL is fetched once more before giving up. No `metadataSource` field
-// is added to PageMetadata; the routing is server-logged only.
+// the humanized-path fallback (inner site down / blocked / post aged out of
+// the author's /feed), the original mirror URL is fetched once more before
+// giving up — the mirror page keeps the real title/description and (via the
+// article-image fallback in extractHTMLMetadata) the cover image, though it
+// carries no tags. A " - Freedium" title suffix from mirror chrome is stripped
+// so the saved title matches the article. No `metadataSource` field is added
+// to PageMetadata; the routing is server-logged only.
+function stripFreediumTitleSuffix(title: string): string {
+  const suffix = " - Freedium"
+  if (title.endsWith(suffix) && title.length > suffix.length) {
+    const stripped = title.slice(0, -suffix.length).trim()
+    return stripped || title
+  }
+  return title
+}
+
 export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
   const inner = unwrapFreediumUrl(url)
   if (!inner || inner.href === url.href) {
@@ -855,7 +931,11 @@ export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
   console.warn(
     `[metadata] freedium inner fetch yielded only fallback for ${inner.href}; trying mirror ${url.href}`
   )
-  return fetchSinglePageMetadata(url)
+  const mirrorMeta = await fetchSinglePageMetadata(url)
+  if (mirrorMeta.title) {
+    mirrorMeta.title = stripFreediumTitleSuffix(mirrorMeta.title)
+  }
+  return mirrorMeta
 }
 
 // --- Pure decode helper (for tests that skip HTTP) ---------------------------

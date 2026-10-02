@@ -274,6 +274,63 @@ describe("isBotChallengePage", () => {
   it("is case-insensitive", () => {
     expect(isBotChallengePage("JUST A MOMENT    __CF_CHL_OPT")).toBe(true)
   })
+
+  it("detects the Cloudflare hard-block page (Attention Required)", () => {
+    const block = `<html><head><title>Attention Required! | Cloudflare</title></head>
+<body><div id="cf-wrapper"><h1>Sorry, you have been blocked</h1>
+<p>You are unable to access medium.com</p>
+<p>Performance &amp; security by Cloudflare</p>
+<script>window.__CF$cv$params={r:'abc'}</script></div></body></html>`
+    expect(isBotChallengePage(block)).toBe(true)
+  })
+
+  it("does not flag an article that merely mentions Cloudflare", () => {
+    expect(
+      isBotChallengePage(
+        "<html><head><title>How Cloudflare Works</title></head><body><p>Cloudflare speeds up sites.</p></body></html>"
+      )
+    ).toBe(false)
+  })
+})
+
+describe("extractHTMLMetadata — article image fallback (Freedium)", () => {
+  it("uses the Freedium cover data-zoom-src when no og:image exists", () => {
+    const html = `<!DOCTYPE html><html><head><title>15 macOS Terminal Commands That Feel Like Hidden Superpowers - Freedium</title>
+<meta name="description" content="Your Mac already ships with a serious developer toolkit.">
+</head><body><article>
+<img src="/img/medium/700/1*abc.png" alt="Post cover image" data-zoom-src="/img/medium/4000/1*abc.png">
+<img src="/img/medium/700/avatar.png" alt="" class="w-12 h-12 rounded-full">
+</article></body></html>`
+    const meta = extractHTMLMetadata(
+      html,
+      new URL(
+        "https://freedium-mirror.cfd/https://halilozel1903.medium.com/15-macos-terminal-commands-that-feel-like-hidden-superpowers-822866029d53"
+      )
+    )
+
+    expect(meta.previewImage).toBe(
+      "https://freedium-mirror.cfd/img/medium/4000/1*abc.png"
+    )
+  })
+
+  it("skips avatar images and picks the first content image in <article>", () => {
+    const html = `<html><head><title>T</title></head><body><article>
+<img src="/avatar.png" alt="" class="w-12 h-12 rounded-full">
+<img src="/content/photo.jpg" alt="demo">
+</article></body></html>`
+    const meta = extractHTMLMetadata(html, new URL("https://example.com/a"))
+
+    expect(meta.previewImage).toBe("https://example.com/content/photo.jpg")
+  })
+
+  it("og:image still wins over the article fallback", () => {
+    const html = `<html><head><title>T</title>
+<meta property="og:image" content="/media/og.png">
+</head><body><article><img src="/content/photo.jpg" alt="demo"></article></body></html>`
+    const meta = extractHTMLMetadata(html, new URL("https://example.com/a"))
+
+    expect(meta.previewImage).toBe("https://example.com/media/og.png")
+  })
 })
 
 describe("fetchPageMetadata — routing", () => {

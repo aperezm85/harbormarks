@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.2.1",
+    date: "2026-10-02",
+    changes: [
+      "Fixed Medium and Freedium bookmarks losing their preview image: mirror pages now use the article cover image, and author subdomains (e.g. yourname.medium.com) resolve images and tags from the feed again.",
+      "Blocked Medium fetches are detected more reliably instead of being saved as error-page content.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.2.0",
     date: "2026-09-21",
     changes: [
