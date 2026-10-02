@@ -393,6 +393,20 @@ directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
 
+### 2026-10-02 (v1.2.1)
+
+- Fixed Medium/Freedium preview images: mirror pages expose no `og:image`,
+  so `GET /api/bookmarks/metadata` falls back to the article cover
+  (`img[alt="Post cover image"]`, full-resolution `data-zoom-src` first)
+  and strips the mirror ` - Freedium` title suffix.
+- Fixed the Medium `/feed` adapter matching every `*.medium.com` author
+  subdomain, and hardened Cloudflare hard-block detection so blocked
+  fetches route to the adapter instead of scraping the block page.
+- No schema migration ships in this release (drop-in image swap); unit
+  tests cover the new extraction.
+- Bumped `package.json` to 1.2.1 and synced the CHANGELOG and in-app
+  changelog (`src/lib/changelog.ts`).
+
 ### 2026-09-21 (v1.2.0)
 
 - Quick-save from anywhere: per-device API keys (Profile → API keys, shown

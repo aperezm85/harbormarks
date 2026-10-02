@@ -4,6 +4,13 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.2.1 — 2026-10-02
+
+- Fixed Medium / Freedium bookmarks losing their preview image: Freedium mirror pages carry no `og:image`, so metadata extraction now falls back to the article cover (`img[alt="Post cover image"]`, preferring the full-resolution `data-zoom-src`) and then to the first non-avatar `<article>` image. Mirror ` - Freedium` title suffixes are stripped.
+- Fixed the Medium `/feed` adapter missing all `*.medium.com` author subdomains (e.g. `halilozel1903.medium.com`), so recent posts resolve their image, description, and tags from the feed again. Posts aged out of the feed still get title/description/image from the mirror but no tags, as before.
+- Hardened bot-protection detection against Cloudflare's hard-block page (`Attention Required! | Cloudflare` / `Sorry, you have been blocked`) so blocked fetches route to the feed adapter instead of being scraped as article content.
+- No schema migration: drop-in image swap.
+
 ## v1.2.0 — 2026-09-21
 
 - Quick-save from anywhere. API keys (Profile → API keys, one per device) let external clients save as you: the raw key is shown once, keys are revokable from the same card, and key management stays session-only so a leaked key can never mint further keys.
