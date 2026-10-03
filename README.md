@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/aperezm85/harbormarks/actions/workflows/ci.yml/badge.svg)](https://github.com/aperezm85/harbormarks/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
-[![Latest release](https://img.shields.io/github/v/release/aperezm85/harbormarks?sort=semver)](./CHANGELOG.md)
+[![Version](https://img.shields.io/github/package-json/v/aperezm85/harbormarks)](./CHANGELOG.md)
 [![Node 22](https://img.shields.io/badge/node-22-green.svg)](./package.json)
 [![pnpm 12](https://img.shields.io/badge/pnpm-12-orange.svg)](./package.json)
 
