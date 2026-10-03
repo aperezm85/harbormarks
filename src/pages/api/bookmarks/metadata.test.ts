@@ -390,6 +390,165 @@ describe("fetchPageMetadata — routing", () => {
   })
 })
 
+describe("fetchPageMetadata — Medium author feed (medium.com/@user)", () => {
+  const feedXml = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
+<item>
+<title><![CDATA[How to Become a Senior Frontend Developer in 2026]]></title>
+<link>https://medium.com/@rupalsinghal/how-to-become-a-senior-frontend-developer-in-2026-76ed61b33b71?source=rss</link>
+<guid isPermaLink="false">https://medium.com/p/76ed61b33b71</guid>
+<content:encoded><![CDATA[<figure><img alt="" src="https://cdn-images-1.medium.com/max/730/1*Rku4MDH6fz_GenuXnZ5UFw.png" /></figure><h3>It&#x2019;s not about learning more technologies.</h3><p>Body paragraph.</p>]]></content:encoded>
+</item>
+</channel></rss>`
+
+  it("resolves title/description/image from /feed/@user when the article is 403-blocked", async () => {
+    useRaw(
+      rawResponse(Buffer.from("Forbidden"), {
+        url: "https://medium.com/@rupalsinghal/how-to-become-a-senior-frontend-developer-in-2026-76ed61b33b71",
+        status: 403,
+        contentType: "text/html; charset=utf-8",
+      })
+    )
+    useRaw(
+      rawResponse(Buffer.from(feedXml), {
+        url: "https://medium.com/feed/@rupalsinghal",
+        contentType: "text/xml; charset=utf-8",
+      })
+    )
+    const meta = await fetchPageMetadata(
+      new URL(
+        "https://medium.com/@rupalsinghal/how-to-become-a-senior-frontend-developer-in-2026-76ed61b33b71"
+      )
+    )
+
+    expect(meta.title).toBe("How to Become a Senior Frontend Developer in 2026")
+    expect(meta.description).toBe(
+      "It’s not about learning more technologies."
+    )
+    expect(meta.previewImage).toBe(
+      "https://cdn-images-1.medium.com/max/730/1*Rku4MDH6fz_GenuXnZ5UFw.png"
+    )
+  })
+})
+
+describe("fetchPageMetadata — Medium legacy description feed", () => {
+  const feedXml = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
+<item>
+<title><![CDATA[Pi 1.0 Guards]]></title>
+<link>https://halilozel1903.medium.com/pi-1-0-guards-64c25e82ed03?source=rss</link>
+<guid isPermaLink="false">https://medium.com/p/64c25e82ed03</guid>
+<description><![CDATA[<div class="medium-feed-item"><p class="medium-feed-image"><a href="https://halilozel1903.medium.com/x"><img src="https://cdn-images-1.medium.com/max/1600/1*OlcyCKxtueRBgZiY79nsdA.png" width="1600"></a></p><p class="medium-feed-snippet">Pi, the minimal coding agent from Earendil.</p></div>]]></description>
+<category><![CDATA[ai-agent]]></category>
+</item>
+</channel></rss>`
+
+  it("re-parses CDATA description markup for snippet and image", async () => {
+    useRaw(
+      rawResponse(Buffer.from("Forbidden"), {
+        url: "https://halilozel1903.medium.com/pi-1-0-guards-64c25e82ed03",
+        status: 403,
+        contentType: "text/html; charset=utf-8",
+      })
+    )
+    useRaw(
+      rawResponse(Buffer.from(feedXml), {
+        url: "https://halilozel1903.medium.com/feed",
+        contentType: "text/xml; charset=utf-8",
+      })
+    )
+    const meta = await fetchPageMetadata(
+      new URL("https://halilozel1903.medium.com/pi-1-0-guards-64c25e82ed03")
+    )
+
+    expect(meta.title).toBe("Pi 1.0 Guards")
+    expect(meta.description).toBe("Pi, the minimal coding agent from Earendil.")
+    expect(meta.previewImage).toBe(
+      "https://cdn-images-1.medium.com/max/1600/1*OlcyCKxtueRBgZiY79nsdA.png"
+    )
+    expect(meta.tags).toEqual(["ai-agent"])
+  })
+})
+
+describe("fetchPageMetadata — Medium custom domain + freedium fallback", () => {
+  it("resolves a custom-domain post from same-host /feed", async () => {
+    const feedXml = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
+<item>
+<title><![CDATA[Cloudflare&#x2019;s Answer to Jev]]></title>
+<link>https://pub.towardsai.net/cloudflares-answer-to-jev-a6731c537b90?source=rss</link>
+<guid isPermaLink="false">https://medium.com/p/a6731c537b90</guid>
+<description><![CDATA[<div class="medium-feed-item"><p class="medium-feed-image"><a href="https://pub.towardsai.net/x"><img src="https://cdn-images-1.medium.com/max/1999/0*FHHQJtTaUwadBBvt" width="1999"></a></p><p class="medium-feed-snippet">And It&#x2019;s Open Source</p></div>]]></description>
+</item>
+</channel></rss>`
+    useRaw(
+      rawResponse(Buffer.from("Forbidden"), {
+        url: "https://pub.towardsai.net/cloudflares-answer-to-jev-a6731c537b90",
+        status: 403,
+        contentType: "text/html; charset=utf-8",
+      })
+    )
+    useRaw(
+      rawResponse(Buffer.from(feedXml), {
+        url: "https://pub.towardsai.net/feed",
+        contentType: "text/xml; charset=utf-8",
+      })
+    )
+    const meta = await fetchPageMetadata(
+      new URL("https://pub.towardsai.net/cloudflares-answer-to-jev-a6731c537b90")
+    )
+
+    expect(meta.title).toBe("Cloudflare’s Answer to Jev")
+    expect(meta.description).toBe("And It’s Open Source")
+    expect(meta.previewImage).toBe(
+      "https://cdn-images-1.medium.com/max/1999/0*FHHQJtTaUwadBBvt"
+    )
+  })
+
+  it("falls back to the freedium mirror when the post aged out of the feed", async () => {
+    const emptyFeed = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
+<item>
+<title><![CDATA[Some Other Post]]></title>
+<link>https://medium.com/@nk271452/some-other-post-aaaaaaaaaaaa?source=rss</link>
+<guid isPermaLink="false">https://medium.com/p/aaaaaaaaaaaa</guid>
+<content:encoded><![CDATA[<figure><img src="https://cdn-images-1.medium.com/max/730/other.png" /></figure><h3>Other subtitle</h3>]]></content:encoded>
+</item>
+</channel></rss>`
+    const mirrorHtml = `<!DOCTYPE html><html><head><title>10 Things Productive People Do Daily - Freedium</title>
+<meta name="description" content="It&#x2019;s not about working harder.">
+</head><body><article>
+<img src="/img/medium/700/1*yD6h1OJiYHau2xAaVW5qFw.png" alt="Post cover image" data-zoom-src="/img/medium/4000/1*yD6h1OJiYHau2xAaVW5qFw.png">
+</article></body></html>`
+    useRaw(
+      rawResponse(Buffer.from("Forbidden"), {
+        url: "https://medium.com/@nk271452/10-things-productive-people-do-daily-075d35022361",
+        status: 403,
+        contentType: "text/html; charset=utf-8",
+      })
+    )
+    useRaw(
+      rawResponse(Buffer.from(emptyFeed), {
+        url: "https://medium.com/feed/@nk271452",
+        contentType: "text/xml; charset=utf-8",
+      })
+    )
+    useRaw(
+      rawResponse(Buffer.from(mirrorHtml), {
+        url: "https://freedium-mirror.cfd/https://medium.com/@nk271452/10-things-productive-people-do-daily-075d35022361",
+        contentType: "text/html; charset=utf-8",
+      })
+    )
+    const meta = await fetchPageMetadata(
+      new URL(
+        "https://medium.com/@nk271452/10-things-productive-people-do-daily-075d35022361"
+      )
+    )
+
+    expect(meta.title).toBe("10 Things Productive People Do Daily")
+    expect(meta.description).toBe("It’s not about working harder.")
+    expect(meta.previewImage).toBe(
+      "https://freedium-mirror.cfd/img/medium/4000/1*yD6h1OJiYHau2xAaVW5qFw.png"
+    )
+  })
+})
+
 describe("extractHTMLMetadata — tags", () => {
   it("collects article:tag entries in order", () => {
     const html = `<html><head><title>T</title>
