@@ -20,6 +20,6 @@ within 72 hours.
   you explicitly want open registration.
 - Replace all bootstrap admin defaults before first start.
 - Email verification/reset links are logged server-side until an SMTP mailer
-  is configured; treat 1.0 as self-hosted single-admin unless you wire mail.
+  is configured; treat installs without SMTP as self-hosted single-admin unless you wire mail.
 - Back up both the Postgres volume (`db_data`) and the uploads volume
   (`uploads_data`), not just the database dump.
