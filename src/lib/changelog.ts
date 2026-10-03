@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.2.2",
+    date: "2026-10-03",
+    changes: [
+      "Setting up or upgrading is easier to follow: environment variables are documented in one table, and a new migration guide walks through bringing bookmarks over from Pocket, Raindrop, or your browser.",
+      "The import dialog now links straight to that guide.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.2.1",
     date: "2026-10-02",
     changes: [

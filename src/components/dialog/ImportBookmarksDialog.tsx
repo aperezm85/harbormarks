@@ -164,7 +164,17 @@ export const ImportBookmarksDialog = ({
         <DialogHeader>
           <DialogTitle>Import bookmarks</DialogTitle>
           <DialogDescription>
-           Import a file from another bookmark manager.
+            Import a file from another bookmark manager. Migrating from Pocket,
+            Raindrop, or a browser? See the{" "}
+            <a
+              href="https://github.com/aperezm85/harbormarks/blob/main/INSTRUCTIONS.md#13-migrate-from-pocket--raindrop--browsers"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-4"
+            >
+              migration guide
+            </a>
+            .
           </DialogDescription>
         </DialogHeader>
         <FieldGroup className="gap-4">

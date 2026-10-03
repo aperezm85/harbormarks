@@ -393,6 +393,25 @@ directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
 
+### 2026-10-03 (v1.2.2)
+
+- Deployment docs consolidation: `.env.example` rewritten to match what the
+  app actually reads (correct `PORT`/`HOST`, first-start
+  `HARBOR_BOOTSTRAP_ADMIN_*`, signup, origin/proxy, SMTP, cron, and CORS
+  settings). The README now carries the canonical env-var reference table
+  (required/optional, defaults, restart vs rebuild, where each is read) plus
+  ports, backup, and a generic dump → pull → rebuild → verify upgrade path;
+  section 8 keeps the Portainer and troubleshooting detail.
+- New section 13 migration guides: Pocket CSV → Import, Raindrop HTML →
+  Import, Chrome/Firefox HTML export → Import, HarborMarks JSON round-trip,
+  with duplicate strategies, the 10 MB limit, `createdAt` preservation, no
+  metadata fetch on import, and the re-import-with-`skip` idempotency check.
+  Linked from the README and the import dialog.
+- No schema migration ships in this release (drop-in image swap); unit
+  tests cover the import parser as before.
+- Bumped `package.json` to 1.2.2 and synced the CHANGELOG and in-app
+  changelog (`src/lib/changelog.ts`).
+
 ### 2026-10-02 (v1.2.1)
 
 - Fixed Medium/Freedium preview images: mirror pages expose no `og:image`,
@@ -849,3 +868,68 @@ For a toolbar button instead of a bookmarklet, load the MV3 extension in
 button) is in `extension/README.md`. You get a popup save form plus a
 right-click "Save to HarborMarks" entry that uses the `/save` page above,
 so the menu works even before an API key is configured.
+
+## 13. Migrate From Pocket / Raindrop / Browsers
+
+Import lives at **Dashboard → Import bookmarks** (`POST /api/bookmarks/import`).
+It accepts **HarborMarks JSON**, **Netscape HTML**, **Pocket CSV**, and **generic
+CSV with a `url` column**, auto-detected from content + filename (override with
+the Format picker). The 10 MB cap is enforced both by `content-length` and by
+file size — over-limit uploads return `413 "File exceeds the 10 MB import limit."`.
+Import does no metadata fetch; saved rows keep their source title/tags and fall
+back to the URL when the title is missing.
+
+Shared import behavior (all sources):
+
+- **Duplicate strategies** (Duplicates picker, default `skip`):
+  `skip` leaves the existing bookmark untouched, `merge-tags` unions only the
+  new tags into the existing row, `create-anyway` inserts a true duplicate.
+- **`createdAt` preservation**: Pocket `time_added` (Unix seconds), Netscape
+  `ADD_DATE` (Unix seconds), generic `created_at` (ISO), and HarborMarks JSON
+  `createdAt` (ISO) are stored as the bookmark's creation date. Anything
+  unparseable falls back to "now".
+- **Idempotency check**: re-importing the same file with `skip` imports zero
+  the second time (`skippedDuplicates` goes up, `imported` stays 0). Use the
+  summary line in the dialog to confirm (`Imported N, skipped M duplicate(s)`).
+- **Failures**: rows without a usable `url` are reported as failures
+  (`Line N: reason`, first 20 shown), never silently dropped.
+
+### Pocket CSV → Import
+
+1. In Pocket, export to CSV (`title,url,time_added,tags,status` header).
+2. In HarborMarks: Import dialog → Format `Auto-detect` (or `CSV`), Duplicates
+   `skip`, pick the file → Import.
+3. Expected on a fresh account: `imported` equals the data rows in the CSV;
+   archived Pocket rows import as normal bookmarks (archive state is not
+   preserved). Bracketed tag cells (`["news", "pocket"]`, `[news;rust]`) become
+   plain tags.
+4. Re-import the same file with `skip` → `imported 0`.
+
+### Raindrop → Import (HTML, recommended)
+
+1. In Raindrop, export to HTML (Netscape format).
+2. In HarborMarks: Import dialog → Format `Auto-detect` (or `Netscape HTML`),
+   Duplicates `skip` → Import.
+3. Expected: one bookmark per `<A HREF>`, folder headings become tags
+   (`Dev > Rust` yields both tags), `ADD_DATE` becomes `createdAt`.
+4. Note on Raindrop CSV: a generic CSV with a lowercase `url` column imports
+   through the same CSV path on a best-effort basis (unknown Raindrop-only
+   columns are ignored). Prefer the HTML export for fidelity — no Raindrop-only
+   parser ships.
+
+### Chrome / Firefox HTML export → Import
+
+1. Chrome: Bookmarks Manager → ⋮ → Export bookmarks (HTML). Firefox: Library →
+   Bookmarks → Manage → Import and Backup → Export to HTML.
+2. In HarborMarks: Import dialog → Format `Auto-detect` (or `Netscape HTML`),
+   Duplicates `skip` → Import.
+3. Expected: same as Raindrop — anchors become bookmarks, folders become tags,
+   descriptions come from following `<DD>` text.
+
+### HarborMarks JSON round-trip
+
+1. Export from HarborMarks (JSON `{"version": 1, "bookmarks": [...]}`).
+2. On a fresh account: Import dialog → Format `HarborMarks JSON` → Import.
+3. Expected: lossless for `url/title/description/favicon/previewImage/tags/
+   isFavorite/createdAt`; `visitCount/updatedAt/lastVisitedAt` are not carried.
+   Re-import with `skip` → `imported 0`.
