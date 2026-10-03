@@ -29,6 +29,10 @@ The following items are complete and reflected in the changelog:
   reset and email verification (v1.1.0, out-of-scope addition that bumped the minor).
 - Liveness probe (`GET /api/healthz`), deployment hardening, CI workflow, and security defaults (v1.0.0).
 - Public repo hardening: CODEOWNERS, branch protection, and squash-only merge policy.
+- Deployment docs consolidation: `.env.example` matching actual reads, canonical
+  env-var reference table, ports/backup/upgrade docs (v1.2.2).
+- Migration guides for Pocket / Raindrop / browsers plus HarborMarks JSON
+  round-trip, linked from README and the import dialog (v1.2.2, docs only).
 
 ## Remaining high-value work
 
@@ -107,10 +111,11 @@ Acceptance criteria:
 
 Product work above (1-4) stays the priority. The items below are docs-only
 or low-risk UI polish that can land in parallel in any `v1.3.x` docs release
-without a version bump. No new import parsers, no native app, no public demo
+without a version bump (items 5-6 already shipped in v1.2.2; §7-§8 remain).
+No new import parsers, no native app, no public demo
 instance (see "Not on the active roadmap").
 
-### 5) Deployment docs consolidation
+### 5) Deployment docs consolidation (shipped in v1.2.2)
 
 Why:
 
@@ -136,7 +141,7 @@ Acceptance criteria:
 - `.env.example` matches what the app actually reads.
 - A fresh deploy and an upgrade are reproducible from README alone.
 
-### 6) Migration guides (import docs, not new import code)
+### 6) Migration guides (shipped in v1.2.2 — docs only, no new import code)
 
 Why:
 
@@ -224,8 +229,8 @@ These are intentionally omitted because they are already done or no longer worth
 - Native mobile app (deferred: out of self-host scope; PWA + `/save` + API
   keys + extension cover mobile; see item 7)
 - New import parsers (shipped: HarborMarks JSON, Netscape HTML covering
-  browsers/Raindrop/Instapaper, Pocket CSV, generic CSV; remaining work is
-  migration guides only, see item 6)
+  browsers/Raindrop/Instapaper, Pocket CSV, generic CSV; migration guides
+  shipped in v1.2.2, see item 6)
 
 ## Suggested order
 
@@ -233,9 +238,9 @@ These are intentionally omitted because they are already done or no longer worth
 2. Broken link monitoring
 3. Search and filter polish
 4. Keyboard-first workflow (remainder)
-5. Docs/community track in parallel (unversioned `v1.3.x`, any order):
-   deployment docs (§5), migration guides (§6), mobile-web polish (§7),
-   community hygiene (§8)
+5. Docs/community track in parallel (any order):
+   mobile-web polish (§7), community hygiene (§8).
+   Deployment docs (§5) and migration guides (§6) shipped in v1.2.2.
 
 This keeps the roadmap focused on the remaining work that meaningfully improves trust, scale, and day-to-day usability without repeating features already shipped.
 
@@ -243,7 +248,9 @@ Release history: v1.0.0 closed duplicate UX, tag management, and
 operational hardening; v1.1.0 added the out-of-scope weekly digest plus
 real SMTP delivery, which is why the minor version moved; v1.2.0 added the
 out-of-scope quick-save suite (API keys, `/save` page, browser extension,
-copy-link), which is why the minor moved again.
+copy-link), which is why the minor moved again; v1.2.2 shipped the
+deployment docs consolidation (§5) and migration guides (§6) as a docs-only
+patch with no schema migration.
 
 ## Engineering Notes
 

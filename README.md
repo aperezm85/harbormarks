@@ -104,36 +104,69 @@ pnpm typecheck
 
 ## Environment Variables
 
-For Docker usage, set these directly under `services.app.environment` in `docker-compose.yml`.
+This is the canonical env-var reference. `.env.example` mirrors it; `INSTRUCTIONS.md`
+§3 shows the minimal Compose snippet and links here instead of duplicating values.
+
+For Docker usage, set these directly under `services.app.environment` in `docker-compose.yml`
+(or `docker-compose.deploy.yml` for image-based deploys).
 
 Important: replace any committed example/default credentials before exposing the app on a network.
 
-Required:
+| Variable | Required / optional | Default | Restart vs rebuild | Where it is read |
+| --- | --- | --- | --- | --- |
+| `DATABASE_URL` | Required | — (Compose: `postgresql://astro:astro@db:5432/harbormarks`) | Restart (`docker compose up -d`) | `src/db/client.ts` |
+| `HARBOR_BOOTSTRAP_ADMIN_EMAIL` | Required on first start (when `users` is empty) | — | First start only | `src/lib/auth.ts` (`maybeBootstrapAdminUser`) |
+| `HARBOR_BOOTSTRAP_ADMIN_PASSWORD` | Required on first start | — | First start only | `src/lib/auth.ts` |
+| `HARBOR_BOOTSTRAP_ADMIN_NAME` | Optional | `""` (falls back to email prefix) | First start only | `src/lib/auth.ts` |
+| `HARBOR_ALLOW_SIGNUP` | Optional | `"true"` when unset | Restart (read per request) | `src/lib/auth.ts` (`isSignupEnabled`) |
+| `HARBOR_CHECK_ORIGIN` | Optional | `"true"` | Restart (read per request) | `src/lib/origin-check.ts` |
+| `HARBOR_ALLOWED_DOMAINS` | Required behind a reverse proxy/tunnel; otherwise optional | `""` | Restart (read per request) | `src/lib/origin-check.ts` |
+| `HOST` | Optional (Compose forces it) | `0.0.0.0` in Compose | Restart | Astro server runtime |
+| `PORT` | Optional (Compose forces it) | `3000` in Compose | Restart | Astro server runtime |
+| `HARBOR_APP_BASE_URL` | Optional, but required for correct email links | Incoming request host | Restart (read per send) | `src/lib/mailer.ts` (`resolveAppBaseUrl`) |
+| `HARBOR_SMTP_HOST` | Optional (with `HARBOR_SMTP_FROM`: the mail on/off switch) | — | Restart | `src/lib/mailer.ts` |
+| `HARBOR_SMTP_PORT` | Optional | `587` | Restart | `src/lib/mailer.ts` |
+| `HARBOR_SMTP_SECURE` | Optional | `"false"` (`"true"` for port 465) | Restart | `src/lib/mailer.ts` |
+| `HARBOR_SMTP_USER` | Optional | — | Restart | `src/lib/mailer.ts` |
+| `HARBOR_SMTP_PASS` | Optional | — | Restart | `src/lib/mailer.ts` |
+| `HARBOR_SMTP_FROM` | Optional (with `HARBOR_SMTP_HOST`: the mail on/off switch) | `HarborMarks <noreply@localhost>` | Restart | `src/lib/mailer.ts` |
+| `HARBOR_CRON_SECRET` | Optional (only for external digest schedulers) | — | Restart | `src/pages/api/digest/run.ts` |
+| `HARBOR_CORS_ORIGINS` | Optional (only for browser-extension origins) | `""` | Restart | `src/lib/cors.ts` |
+| `HARBOR_SECURE_COOKIES` | Optional | unset = auto (https via `x-forwarded-proto`) | Restart (read per request) | `src/lib/request-security.ts` |
+| `TZ` | Optional | `UTC` | Restart | Node runtime / digest scheduler |
+| `NODE_ENV` | Optional | `development` (`production` in image builds) | Restart (rebuild for prod bundle) | Astro / Node runtime |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Required for the `db` service only | `astro` / `astro` / `harbormarks` in Compose | Restart | Postgres container, not the app |
 
-```bash
-DATABASE_URL=postgresql://astro:astro@db:5432/harbormarks
-HARBOR_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
-HARBOR_BOOTSTRAP_ADMIN_NAME=Harbor Admin
-HARBOR_BOOTSTRAP_ADMIN_PASSWORD=change_me
-```
+Notes:
 
-For local non-Docker development, you can still use a `.env` file.
-
-Bootstrap notes:
-
+- All app env vars are runtime-read. An env-only change needs a container
+  recreate (`docker compose up -d`), never a rebuild. Add `--build` only when
+  the code/image itself changed.
 - Bootstrap admin variables are only used on first start when no users exist.
-- Legacy `HARBOR_USER` / `HARBOR_PASSWORD` are still accepted as fallback bootstrap inputs.
+  Legacy `HARBOR_USER` / `HARBOR_PASSWORD` are still accepted as fallback
+  bootstrap inputs but are deprecated — use `HARBOR_BOOTSTRAP_ADMIN_*`.
+- If you start with `HARBOR_ALLOW_SIGNUP=false` and no bootstrap admin values,
+  nobody can log in (no users + no self-registration). Set the bootstrap vars
+  before first start on closed instances.
+- For local non-Docker development, you can still use a `.env` file.
 
-Optional / deployment-specific:
+### Ports
 
-```bash
-NODE_ENV=production
-HARBOR_ALLOW_SIGNUP=true
-HARBOR_CHECK_ORIGIN=true
-HARBOR_ALLOWED_DOMAINS=harbormarks.example.com
-```
+- App: `3000:3000` (container serves `HOST:PORT` = `0.0.0.0:3000`).
+- Database: `5432:5432` in `docker-compose.yml` (LAN/dev convenience only).
+  `docker-compose.deploy.yml` does not publish it. Never expose `5432` to the internet.
+- Behind a reverse proxy, map your domain to `http://127.0.0.1:3000` on the NAS
+  and set `HARBOR_ALLOWED_DOMAINS` to your public hostname (see above).
 
-Email delivery (weekly digest, password reset, email verification) needs SMTP:
+### Backup
+
+Back up both the Postgres volume (`db_data`) and the uploads volume
+(`uploads_data`). Canonical dump/restore commands live in `INSTRUCTIONS.md` §9.
+
+### Email delivery
+
+Email delivery (weekly digest, password reset, email verification) needs SMTP
+(see table above for defaults):
 
 ```bash
 HARBOR_APP_BASE_URL=https://harbormarks.example.com
@@ -144,7 +177,7 @@ HARBOR_SMTP_USER=harbormarks
 HARBOR_SMTP_PASS=change_me
 HARBOR_SMTP_FROM=HarborMarks <marks@example.com>
 # Optional: shared secret so an external scheduler can trigger the digest
-# via POST /api/digest/run instead of the built-in Sunday-morning timer.
+# via POST /api/digest/run instead of the built-in timer.
 HARBOR_CRON_SECRET=use_a_long_random_secret
 ```
 
@@ -158,7 +191,7 @@ for reset/verify); see `components.json` (`@emailcn`) and
 ### Activating the weekly digest
 
 1. Set the SMTP variables above (and `HARBOR_APP_BASE_URL` so links point at
-   your public address), then restart (`docker compose up -d --build`).
+   your public address), then restart (`docker compose up -d`).
 2. Each user opts in from **Profile → Weekly digest**: tick "Send me the
    weekly digest", pick the content (unread from the last 7 days / all unread /
    everything saved in the last 7 days), Save. Each item shows its title,
@@ -172,15 +205,6 @@ for reset/verify); see `components.json` (`@emailcn`) and
 5. Prefer your own scheduler? Set `HARBOR_CRON_SECRET` and call
    `POST /api/digest/run` with the `x-cron-secret` header from host cron,
    Uptime Kuma, or a NAS task (weekly cadence recommended).
-
-`HARBOR_CHECK_ORIGIN` controls the CSRF origin check on form submissions and is
-read on every request, so changing it never requires a rebuild. Keep it `true`.
-
-If you serve HarborMarks through a reverse proxy or tunnel, the app sees the
-internal host it was forwarded to, not the public URL your browser used, and
-rejects the mismatch with `Cross-site POST form submissions are forbidden`. List
-your public hostname in `HARBOR_ALLOWED_DOMAINS` (comma-separated, hostname
-only) instead of turning the check off.
 
 ## Run With Docker Compose
 
@@ -202,6 +226,14 @@ Stop:
 docker compose down
 ```
 
+## Migrating from Pocket / Raindrop / browsers
+
+Import ships (`POST /api/bookmarks/import`: HarborMarks JSON, Netscape HTML,
+Pocket CSV, generic CSV with a `url` column, `skip` / `merge-tags` /
+`create-anyway`, 10 MB cap). Step-by-step source guides live in
+`INSTRUCTIONS.md` §13 — from the app, open the Import dialog and follow the
+"Migration guide" link.
+
 ## Recent Changes
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes. It is the single source
@@ -212,23 +244,28 @@ every release.
 
 Migrations run automatically at container start (`node ./scripts/migrate.mjs`
 before the server boots) and are tracked in the `schema_migrations` table.
+If a migration fails the container stops instead of serving a half-migrated
+database — check `docker compose logs app` in that case.
 
-Before upgrading to 0.9.4, take a database dump. See the backup commands in
-`INSTRUCTIONS.md`.
+Generic upgrade:
 
-Two migrations in this release touch the `bookmarks` table:
+```bash
+# 1. Dump first (commands in INSTRUCTIONS.md §9).
+docker compose exec -T db pg_dump -U astro harbormarks > harbormarks_backup.sql
+# 2. Pull + rebuild + restart.
+git pull
+docker compose up -d --build
+# 3. Confirm migrations applied.
+docker compose logs app | tail -50
+docker compose exec -T db psql -U astro -d harbormarks -c "select name from schema_migrations order by name"
+```
 
-- `0002_tags_array.sql` converts `tags` from scalar `TEXT` to `TEXT[]`. It now
-  preserves existing values, parsing both the JSON-array and comma-separated
-  forms. It is a no-op where `tags` is already `TEXT[]`.
-- `0004_bookmark_search_vector.sql` adds a generated `search_vector` column and
-  a GIN index. Adding a stored generated column rewrites the table and takes a
-  brief exclusive lock, so expect the startup migration step to take a moment on
-  a large collection.
-
-If you ran a build between 30 and 31 August 2026, an earlier version of
-`0002_tags_array.sql` dropped the `tags` column instead of converting it. That
-version cannot restore the lost tags; restore from a dump if you hit it.
+Pin-to-tag strategy (recommended for NAS): set `image: ghcr.io/<owner>/harbormarks:vX.Y.Z`
+instead of `:latest` in `docker-compose.deploy.yml`, so upgrades are deliberate.
+To roll back, change the tag back to the previous version and run
+`docker compose -f docker-compose.deploy.yml up -d`. See `INSTRUCTIONS.md`
+§8, §10–§11 for Portainer stacks (keep the `command:` migrator entry) and
+troubleshooting ("every page returns 500 after an upgrade" = migrations did not run).
 
 ## Product Roadmap
 

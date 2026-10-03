@@ -4,6 +4,12 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.2.2 — 2026-10-03
+
+- Deployment docs consolidation: `.env.example` rewritten to match what the app actually reads (correct `PORT`/`HOST`, first-start `HARBOR_BOOTSTRAP_ADMIN_*`, signup, origin/proxy, SMTP, cron, and CORS settings), a canonical env-var reference table in the README (required/optional, defaults, restart vs rebuild, where each is read), plus ports, backup, and a generic dump → pull → rebuild → verify upgrade path.
+- Migration guides: new `INSTRUCTIONS.md` §13 walks through bringing bookmarks over from Pocket (CSV), Raindrop (HTML), Chrome/Firefox (HTML export), and HarborMarks JSON round-trips — duplicate strategies, 10 MB limit, `createdAt` preservation, and re-import idempotency — linked from the README and the import dialog.
+- No schema migration: drop-in image swap.
+
 ## v1.2.1 — 2026-10-02
 
 - Fixed Medium / Freedium bookmarks losing their preview image: Freedium mirror pages carry no `og:image`, so metadata extraction now falls back to the article cover (`img[alt="Post cover image"]`, preferring the full-resolution `data-zoom-src`) and then to the first non-avatar `<article>` image. Mirror ` - Freedium` title suffixes are stripped.
