@@ -21,7 +21,8 @@ to set up and submit a PR.
   - login/logout with DB-backed session tokens,
   - self-service registration (when enabled),
   - forgot/reset password flows,
-  - email verification request/confirm endpoints (link output currently logged server-side),
+   - email verification request/confirm endpoints (real SMTP delivery when
+     configured, server-log fallback otherwise),
   - route protection with role-based admin route guards.
 - Account management:
   - redesigned profile page with dashboard-style layout,
@@ -297,4 +298,5 @@ best-effort basis. Only the latest `v1.x` release line receives security fixes.
 ## Product Roadmap
 
 See `ROADMAP.md` for planned features and delivery phases, and `IMPLEMENTATION.md`
-for the detailed specifications of the work that is queued next.
+for house rules, data-isolation conventions, and specs for the active stories
+(most earlier stories there are marked done and kept as an archive).

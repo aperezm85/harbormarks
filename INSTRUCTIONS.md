@@ -92,7 +92,7 @@ Notes:
   from an inbox; this override fixes that behind any reverse proxy.
 - Any SMTP provider works (your NAS mail server, Gmail App Password, Mailgun,
   Postmark SMTP, etc.).
-- Restart after changing these: `docker compose up -d --build` (they are read
+- Restart after changing these: `docker compose up -d` (they are read
   per send, but a restart guarantees a clean transporter).
 
 ### Gmail setup
@@ -129,7 +129,7 @@ Step by step to get the App Password:
 5. Copy the 16-character code from the yellow box. You only see it once — if
    you close the dialog, generate a new one.
 6. Paste it as `HARBOR_SMTP_PASS` in `docker-compose.yml` (spaces are fine,
-   they are ignored) and restart: `docker compose up -d --build`.
+   they are ignored) and restart: `docker compose up -d`.
 7. If you ever change your Google password, Google revokes all App Passwords
    — repeat steps 3–6 to make a fresh one. To remove access later, delete it
    at the same App Passwords page.
@@ -342,19 +342,12 @@ database, so check the app logs if the container will not come up:
 docker compose logs app | tail -50
 ```
 
-### Upgrading to 0.9.4
+### Older releases (pre-1.0)
 
-This release adds a generated search column and a GIN index to the `bookmarks`
-table. Adding a stored generated column rewrites the table under a brief
-exclusive lock, so the startup migration can take a moment on a large
-collection. Nothing else is required.
-
-If your database was created before migrations existed, this upgrade also
-converts `tags` from a text column to a text array. Existing tags are preserved.
-
-> If you built an image between 30 and 31 August 2026, that build shipped a
-> version of `0002_tags_array.sql` that dropped the `tags` column instead of
-> converting it. Restore from a dump if your tags disappeared.
+Pre-1.0 upgrades (e.g. 0.9.4 search index, `tags` text-to-array conversion)
+run automatically via the same startup migrator. See `CHANGELOG.md` for
+per-release notes. If every page returns 500 after an upgrade, the migrator
+did not run — see section 7.
 
 ## 9. Backup Recommendation
 
@@ -393,274 +386,17 @@ directory differs (Compose prefixes it, e.g. `harbormarks_uploads_data`).
 
 ## Recent Changes
 
-### 2026-10-03 (v1.2.2)
+See [CHANGELOG.md](./CHANGELOG.md) for full release notes. It is the single source of truth; the in-app changelog (`src/lib/changelog.ts`) is synced from it on every release.
 
-- Deployment docs consolidation: `.env.example` rewritten to match what the
-  app actually reads (correct `PORT`/`HOST`, first-start
-  `HARBOR_BOOTSTRAP_ADMIN_*`, signup, origin/proxy, SMTP, cron, and CORS
-  settings). The README now carries the canonical env-var reference table
-  (required/optional, defaults, restart vs rebuild, where each is read) plus
-  ports, backup, and a generic dump → pull → rebuild → verify upgrade path;
-  section 8 keeps the Portainer and troubleshooting detail.
-- New section 13 migration guides: Pocket CSV → Import, Raindrop HTML →
-  Import, Chrome/Firefox HTML export → Import, HarborMarks JSON round-trip,
-  with duplicate strategies, the 10 MB limit, `createdAt` preservation, no
-  metadata fetch on import, and the re-import-with-`skip` idempotency check.
-  Linked from the README and the import dialog.
-- No schema migration ships in this release (drop-in image swap); unit
-  tests cover the import parser as before.
-- Bumped `package.json` to 1.2.2 and synced the CHANGELOG and in-app
-  changelog (`src/lib/changelog.ts`).
+Upgrade-relevant summary (see sections 8-9 for dump/restore):
 
-### 2026-10-02 (v1.2.1)
-
-- Fixed Medium/Freedium preview images: mirror pages expose no `og:image`,
-  so `GET /api/bookmarks/metadata` falls back to the article cover
-  (`img[alt="Post cover image"]`, full-resolution `data-zoom-src` first)
-  and strips the mirror ` - Freedium` title suffix.
-- Fixed the Medium `/feed` adapter matching every `*.medium.com` author
-  subdomain, and hardened Cloudflare hard-block detection so blocked
-  fetches route to the adapter instead of scraping the block page.
-- No schema migration ships in this release (drop-in image swap); unit
-  tests cover the new extraction.
-- Bumped `package.json` to 1.2.1 and synced the CHANGELOG and in-app
-  changelog (`src/lib/changelog.ts`).
-
-### 2026-09-21 (v1.2.0)
-
-- Quick-save from anywhere: per-device API keys (Profile → API keys, shown
-  once, revokable) with `Bearer` auth on `POST /api/bookmarks`; browser
-  clients additionally need `HARBOR_CORS_ORIGINS` (see `.env.example`).
-- New `/save` quick-save page (`/save?url=…&title=…&tags=…&note=…`, section
-  12): one-tap save from iOS Shortcuts and bookmarklets, server title
-  fetch on empty titles, already-saved card on duplicates, and login
-  return-to for logged-out visits.
-- Browser extension (Chrome/Edge, `extension/`, load unpacked): popup form
-  plus right-click save; setup in `extension/README.md`.
-- Cards gained a copy-link button in every density, with a clipboard
-  fallback for plain-HTTP origins.
-- One additive migration ships in this release (`0011_api_keys.sql`).
-  Take a dump before upgrading as usual (section 9); migrations run
-  automatically at container start.
-- Bumped `package.json` to 1.2.0 and synced the CHANGELOG and in-app
-  changelog (`src/lib/changelog.ts`).
-
-### 2026-09-20 (v1.1.2)
-
-- Metadata fetch suggests tags: `GET /api/bookmarks/metadata` returns
-  `tags` from `article:tag`, `keywords`/`news_keywords`, `rel="tag"`
-  links, and `article:section` fallback (deduped, capped at 8). The save
-  dialog fills an empty tag field only and never overwrites existing
-  tags; pasting a link into the URL field auto-fetches.
-- No schema migration ships in this release (drop-in image swap); unit
-  tests cover the new extraction.
-- Bumped `package.json` to 1.1.2 and synced the CHANGELOG and in-app
-  changelog (`src/lib/changelog.ts`).
-
-### 2026-09-20 (v1.1.1)
-
-- Per-user digest schedule: each user picks a weekday (Sunday by default) and
-  an hour (`07:00` by default) on the profile page; the scheduler ticks every
-  minute with a once-per-day guard plus a startup catch-up run. "Send now"
-  never blocks the automatic send. Times use the server timezone (`TZ` is
-  pinned to UTC in the image and both Compose files — override it for local
-  time).
-- One additive migration ships in this release
-  (`0010_digest_schedule.sql`, `send_day`/`send_time` on
-  `digest_preferences`). Take a dump before upgrading as usual (section 9);
-  migrations run automatically at container start.
-- Security dependencies: `pnpm audit` is clean (was 9 findings) via `astro`
-  7.3.3, `shadcn` 4.21.0, and bumped workspace overrides; `clsx` +
-  `tailwind-merge` were replaced with the drop-in `cn` package.
-- Profile page: Account details card removed, single-column order (picture,
-  profile, password, digest). Profile and admin Users pages share a
-  dashboard-style header.
-- Bumped `package.json` to 1.1.1 and synced the README, INSTRUCTIONS, and
-  in-app changelog (`src/lib/changelog.ts`).
-
-### 2026-09-13 (v1.1.0)
-
-- Weekly digest email (opt-in per user on the profile page): unread links from
-  the last 7 days, all unread, or everything saved in the last 7 days, sent
-  Sunday morning plus an on-demand "Send now" action. See section 3b for SMTP
-  setup and activation.
-- Real password reset and email verification delivery over SMTP; without SMTP
-  the links keep falling back to the server log.
-- One additive migration ships in this release (`0008_digest_prefs.sql`,
-  digest preferences defaulting to off) plus `0009_link_secret.sql`
-  (`app_settings` for email link signing). Take a dump before upgrading as usual
-  (section 9); migrations run automatically at container start.
-- Bumped `package.json` to 1.1.0 and synced the README, INSTRUCTIONS, and
-  in-app changelog (`src/lib/changelog.ts`).
-
-### 2026-09-06 (v1.0.0)
-
-- Duplicate resolution: `POST /api/bookmarks` returns a structured 409
-  (`code: "duplicate_bookmark"` with the existing row) instead of a bare
-  error; `resolve: "merge-tags"` unions tags into the existing bookmark,
-  `"create-anyway"` inserts a true duplicate. `CreateBookmarkDialog.tsx`
-  surfaces all three options (open existing / merge / save anyway).
-- Tag management: `renameBookmarkTag`, `mergeBookmarkTags`, and
-  `deleteBookmarkTag` in `src/lib/bookmarks.ts` (per-user, trash-excluded,
-  case-insensitive), a new `POST /api/bookmarks/tags/manage` route, and a
-  `/tags` page (`TagManager.tsx` behind a single `client:only` `TagsPage`
-  island) linked from the sidebar.
-- Liveness probe: `GET /api/healthz` (unauthenticated, no DB touch,
-  allowlisted in `src/middleware.ts`); both Compose files and the Portainer
-  stack probe it instead of `/login`.
-- Uploads persistence: `uploads_data:/app/public/uploads` volume in both
-  Compose files plus `mkdir -p` in the runtime image; section 9 documents
-  backup/restore of the volume.
-- Deploy defaults: `docker-compose.deploy.yml` ships
-  `HARBOR_ALLOW_SIGNUP: "false"` with a non-default bootstrap password
-  placeholder.
-- Release hygiene: `.github/workflows/ci.yml` runs lint + typecheck + test
-  on pull requests; `CHANGELOG.md` is the single source of truth (README
-  links to it); new `SECURITY.md` and issue templates.
-- Bumped `package.json` to 1.0.0 and synced the in-app changelog
-  (`src/lib/changelog.ts`), `CHANGELOG.md`, and INSTRUCTIONS.
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-
-### 2026-09-06 (v0.9.11)
-
-- Click-to-read: `HarborCard.tsx` `openBookmark` promotes `unread` to `reading`
-  once the `/visit` POST succeeds (optimistic `onSaved` with status rollback
-  only; archived and trash items untouched). Failures surface via toast with
-  the visit counter restored.
-- Save/Edit dialog redesign (`CreateBookmarkDialog.tsx`, proto-styled): preview
-  image header, a favorites switch persisted inline through a new optional
-  `isFavorite` passthrough (`updateBookmarkById`, both JSON routes), and delete
-  moved inside the dialog.
-- `N` shortcut (`app-sidebar.tsx`): opens the save-a-link dialog via the
-  trigger ref, dashboard-scoped, ignoring modified keys, typing targets, and
-  open dialogs/menus/command palettes.
-- Freedium metadata unwrap: new `src/lib/freedium-url.ts` (`unwrapFreediumUrl`,
-  unit-tested in `freedium-url.test.ts`) extracts the inner article URL from
-  mirror paths; `metadata.ts` `fetchPageMetadata` sources metadata from the
-  inner URL with a single mirror retry when the inner fetch yields only the
-  fallback. Saved bookmark URLs are untouched.
-- Avatar upload: new `src/lib/avatar-storage.ts`, `POST
-  /api/auth/profile-avatar`, serving routes (`/api/avatar/[file]`,
-  `/uploads/avatars/[file]`), `updateProfileAvatar` plus strict
-  `isAllowedAvatarUrl` in `src/lib/auth.ts`, profile page UI with
-  `ProfileToast.tsx` (floating toasts instead of layout-shifting ones), and a
-  `public/uploads/` gitignore rule so uploaded files stay local.
-- Bumped `package.json` to 0.9.11 and synced the README, INSTRUCTIONS, and
-  in-app changelog (`src/lib/changelog.ts`).
-
-### 2026-09-06 (v0.9.10)
-
-- Story 12 notes slice: migration `0006_bookmark_note.sql` adds a nullable `note`
-  column and rebuilds the `search_vector` generated column against a new 5-argument
-  `harbormarks_bookmark_search_text()` so note text is indexed (drop index, drop
-  column, drop the old 4-arg function, recreate, reindex — all in the one file, so
-  new notes are searchable instead of silently unindexed). `note` flows through
-  `src/db/schema.ts`, `BookmarkCardData`, `create/updateBookmarkById`, and both
-  JSON routes (form path untouched); `CreateBookmarkDialog.tsx` gains a "Your
-  note" field that metadata refetch never clobbers; `HarborCard.tsx` renders the
-  note inline on grid/list and behind a note-icon dialog on compact.
-- Read status slice: migration `0007_bookmark_status.sql` adds `status TEXT NOT
-  NULL DEFAULT 'unread'` with a `chk_bookmarks_status` check constraint (guarded
-  by a `DO` block for idempotence). Wired through `listBookmarks` (new `unread`
-  view), the `is:unread` / `is:reading` / `is:archived` operators (no longer
-  no-ops), `countBookmarksByView`, a new `POST /api/bookmarks/[id]/status` route,
-  a cycle control plus badge on the card, and an Unread chip in
-  `DashboardSubBar.tsx`. Existing rows default to `unread`.
-- Bumped `package.json` to 0.9.10 and synced the README, INSTRUCTIONS, and
-  in-app changelog (`src/lib/changelog.ts`).
-
-### 2026-09-06 (v0.9.9)
-
-- Added a card view selector (`src/components/dashboard/CardViewSelector.tsx`,
-  a segmented control next to the theme toggle) with three densities: `grid`
-  (the current card), `list` (horizontal cards with a 120–152px thumbnail), and
-  `compact` (single 44px rows that render no preview `<img>` at all).
-- The choice persists in `localStorage` (`harbormarks:card-view`, see the new
-  `src/lib/card-view.ts`); `DashboardLayout.tsx` owns the state, hydrates it in
-  an effect to avoid an SSR mismatch, and gates the container with `invisible`
-  until applied so reloads never flash the wrong layout. `HarborCard.tsx` takes
-  a `viewMode` prop with early returns for `list`/`compact`, reusing the same
-  visit/favorite/delete/restore handlers. Conditional classes go through `cn()`,
-  never string concatenation — `prettier-plugin-tailwindcss` eats leading spaces
-  inside `className` template literals (verified at the byte level).
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-
-### 2026-09-05 (v0.9.8)
-
-- Redesigned the bookmark card (`src/components/ui/HarborCard.tsx`) into a more
-  compact layout: the URL and a relative timestamp in the header, the description
-  and tags in the body, and the visit count plus the favorite/edit/delete actions
-  in a footer. Relative timestamps use the Temporal date API
-  (`@js-temporal/polyfill`) with `Intl.RelativeTimeFormat`.
-- Preview images render at full brightness (the previous dimmed/grayscale
-  treatment is gone), and card action buttons use a smaller `icon-xs` size.
-- The AI-summarize and visit-count-reset actions are temporarily disabled (commented
-  out) while the card is redesigned; they are not removed.
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-
-### 2026-09-03 (v0.9.7)
-
-- Search now parses the `q` parameter into operators (`tag:`, `site:`, `is:`,
-  `has:`, `before:`, `after:`) plus free text in a new pure module
-  (`src/lib/bookmark-query.ts`); `listBookmarks` builds the SQL from the
-  structured result with parameter binding, so operators and free text combine
-  and stay scoped to the requesting user.
-- `is:unread` is accepted but ignored in SQL until a read-status column lands
-  (story 12); unknown operators and malformed dates degrade to free text.
-- No new schema migration ships in this release, so upgrading is a drop-in
-  image swap with no restart-time table rewrite.
-- Brought the README, changelog, and package version back in sync for the release.
-
-### 2026-09-03 (v0.9.6)
-
-- Added five nullable enrichment columns (`site_name`, `author`, `published_at`,
-  `language`, `canonical_url`) via migration `0005_bookmark_enrichment.sql`, applied
-  automatically at container start. All are nullable, so the migration adds columns
-  without rewriting existing rows; take a dump before any upgrade as usual.
-- Metadata extraction now runs on `node-html-parser` and decodes the response body
-  with the declared or detected charset, so non-UTF-8 pages no longer arrive as
-  mojibake, and bot-protected pages fall back to a per-host adapter.
-- Brought the README, changelog, and package version back in sync for the release.
-
-### 2026-09-02 (v0.9.5)
-
-- Added import, driven by a new `POST /api/bookmarks/import` route: JSON (this
-  app's export format) and Netscape HTML, auto-detected from the file,
-  authenticated per user, with duplicate URLs reconciled against existing data.
-- Documented that no schema migration ships in 0.9.5: upgrading to this version
-  runs no new migration, so it is a drop-in image swap with no restart-time table
-  rewrite. Take a dump before any upgrade as usual.
-- Fixed toasts rendering off-screen or unstyled by loading the Sonner stylesheet.
-- Brought the README, changelog, and package version back in sync for the release.
-
-### 2026-08-31 (v0.9.4)
-
-- Documented that schema migrations run automatically at container start and are
-  tracked in `schema_migrations`.
-- Added an upgrade note for the 0.9.4 table rewrite and the tags conversion.
-- Removed the stale `SESSION_SECRET` entry from the Compose environment block in
-  section 3. The application has never read it; leave it out.
-- Added section 11 with a known-good Portainer stack definition. Portainer stacks
-  are edited in the browser and drift from this repository; a stack that loses the
-  container startup command skips migrations and takes the app down after any
-  release that adds a column.
-- Added a troubleshooting entry for "every page returns 500 after an upgrade",
-  which is what missing migrations look like from the outside.
-- Added database healthchecks and `condition: service_healthy` to both Compose
-  files, so the app no longer races Postgres on a cold start.
-- Strengthened the guidance on `HARBOR_CHECK_ORIGIN`: fix the proxy's forwarded
-  host rather than disabling the CSRF origin check.
-
-### 2026-03-16
-
-- Updated Compose setup docs to use bootstrap-admin env variables (`HARBOR_BOOTSTRAP_ADMIN_*`) instead of legacy login-only env keys.
-- Clarified that bootstrap-admin values are used only when no users exist.
-- Added explicit guidance to replace default/example credentials before deployment.
-- Added GHCR-based image publishing and deploy-without-repo-copy workflow guidance.
-- Added image-based deployment path using `docker-compose.deploy.yml`.
+- v1.2.2, v1.2.1: no schema migration (drop-in image swap).
+- v1.2.0: one additive migration (`0011_api_keys.sql`).
+- v1.1.2: no schema migration.
+- v1.1.1: one additive migration (`0010_digest_schedule.sql`).
+- v1.1.0: two additive migrations (`0008_digest_prefs.sql`, `0009_link_secret.sql`).
+- v1.0.0: no schema migration.
+- Pre-1.0: see CHANGELOG; startup migrator handles search index and tags conversion automatically.
 
 ## 10. Deploy Without Copying The Project To NAS
 

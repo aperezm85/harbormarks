@@ -72,6 +72,6 @@ protected and PRs merge squash-only.
 ## Release notes
 
 `CHANGELOG.md` is the single source of truth for release notes. The in-app
-changelog (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS
-"Recent Changes" are synced from it on every release — do not update them in
-feature PRs.
+changelog (`src/lib/changelog.ts`) is synced from it on every release —
+do not update either in feature PRs. `INSTRUCTIONS.md` keeps only a short
+upgrade-relevant summary pointing at the changelog.
