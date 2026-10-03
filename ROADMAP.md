@@ -111,7 +111,8 @@ Acceptance criteria:
 
 Product work above (1-4) stays the priority. The items below are docs-only
 or low-risk UI polish that can land in parallel in any `v1.3.x` docs release
-without a version bump (items 5-6 already shipped in v1.2.2; §7-§8 remain).
+without a version bump (items 5-6 already shipped in v1.2.2, §8 shipped as a
+docs-only change; only §7 remains).
 No new import parsers, no native app, no public demo
 instance (see "Not on the active roadmap").
 
@@ -187,7 +188,7 @@ Acceptance criteria:
 - PWA is installable per Lighthouse.
 - Share-sheet → `/save` → Save works one-handed at 360px.
 
-### 8) Community hygiene (changelog visibility + contributing + support)
+### 8) Community hygiene (shipped — docs only, no version bump)
 
 Why:
 
@@ -239,7 +240,7 @@ These are intentionally omitted because they are already done or no longer worth
 3. Search and filter polish
 4. Keyboard-first workflow (remainder)
 5. Docs/community track in parallel (any order):
-   mobile-web polish (§7), community hygiene (§8).
+   mobile-web polish (§7, remaining), community hygiene (§8, shipped).
    Deployment docs (§5) and migration guides (§6) shipped in v1.2.2.
 
 This keeps the roadmap focused on the remaining work that meaningfully improves trust, scale, and day-to-day usability without repeating features already shipped.
@@ -250,7 +251,8 @@ real SMTP delivery, which is why the minor version moved; v1.2.0 added the
 out-of-scope quick-save suite (API keys, `/save` page, browser extension,
 copy-link), which is why the minor moved again; v1.2.2 shipped the
 deployment docs consolidation (§5) and migration guides (§6) as a docs-only
-patch with no schema migration.
+patch with no schema migration. Community hygiene (§8) landed after v1.2.2 as a
+docs-only change with no schema migration and no version bump.
 
 ## Engineering Notes
 
