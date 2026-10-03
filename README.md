@@ -1,8 +1,19 @@
 # HarborMarks
 
+[![CI](https://github.com/aperezm85/harbormarks/actions/workflows/ci.yml/badge.svg)](https://github.com/aperezm85/harbormarks/actions)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
+[![Latest release](https://img.shields.io/github/v/release/aperezm85/harbormarks?sort=semver)](./CHANGELOG.md)
+[![Node 22](https://img.shields.io/badge/node-22-green.svg)](./package.json)
+[![pnpm 12](https://img.shields.io/badge/pnpm-12-orange.svg)](./package.json)
+
 HarborMarks is a self-hosted bookmark manager built with Astro, React, PostgreSQL, and Drizzle.
 
 It helps you save links, enrich them with metadata, organize them with tags, and quickly find what matters.
+
+See [CHANGELOG.md](./CHANGELOG.md) for release notes (also shown in-app via the
+sidebar "What's new" dialog, synced from `src/lib/changelog.ts`),
+[ROADMAP.md](./ROADMAP.md) for planned work, and [CONTRIBUTING.md](./CONTRIBUTING.md)
+to set up and submit a PR.
 
 ## What Is Implemented
 
@@ -266,6 +277,22 @@ To roll back, change the tag back to the previous version and run
 `docker compose -f docker-compose.deploy.yml up -d`. See `INSTRUCTIONS.md`
 §8, §10–§11 for Portainer stacks (keep the `command:` migrator entry) and
 troubleshooting ("every page returns 500 after an upgrade" = migrations did not run).
+
+## Support
+
+- Found a bug? Open a [bug report](https://github.com/aperezm85/harbormarks/issues/new/choose)
+  (include the HarborMarks version from the sidebar changelog or `package.json`,
+  install method, and `docker compose logs --tail=100 app` with secrets trimmed).
+- Have an idea? Open a [feature request](https://github.com/aperezm85/harbormarks/issues/new/choose)
+  — check [ROADMAP.md](./ROADMAP.md) first to see if it is already planned.
+- Found a security vulnerability? Open a private
+  [GitHub Security Advisory](https://github.com/aperezm85/harbormarks/security/advisories/new)
+  instead of a public issue (see [SECURITY.md](./SECURITY.md); expect an
+  acknowledgement within 72 hours).
+- Want to contribute? See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+HarborMarks is maintainer-run with no SLA: issues and PRs are handled on a
+best-effort basis. Only the latest `v1.x` release line receives security fixes.
 
 ## Product Roadmap
 
