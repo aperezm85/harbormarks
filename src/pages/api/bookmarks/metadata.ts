@@ -681,101 +681,237 @@ const FED_DEFAULT_VOID_TAGS: string[] = [
 
 const FEED_VOID_TAGS = FED_DEFAULT_VOID_TAGS.filter((tag) => tag !== "link")
 
-// The Medium /feed fallback. Matched by the medium.com host (and any subdomain
-// of blog/medium.com). Returns Partial<PageMetadata> with title, description,
-// previewImage, and tags (from <category> elements) — no favicon, no other
-// enrichments.
+// Feed-item HTML lives inside CDATA, so node-html-parser sees it as text and
+// `querySelector` inside <description> / <content:encoded> finds nothing. Strip
+// the CDATA wrapper with plain string slicing (not regex on HTML) and re-parse
+// the inner markup so snippet / image selectors work again.
+function stripCdataWrapper(raw: string): string {
+  let text = raw.trim()
+  const open = "<![CDATA["
+  const close = "]]>"
+  if (text.startsWith(open) && text.endsWith(close)) {
+    text = text.slice(open.length, text.length - close.length)
+  }
+  return text.trim()
+}
+
+function parseCdataHtml(element: HTMLElement | null | undefined): HTMLElement | null {
+  if (!element) {
+    return null
+  }
+  const raw = element.innerHTML ?? element.text ?? ""
+  if (!raw || !raw.includes("<")) {
+    return null
+  }
+  const inner = stripCdataWrapper(raw)
+  if (!inner.includes("<")) {
+    return null
+  }
+  try {
+    return parse(inner) as unknown as HTMLElement
+  } catch {
+    return null
+  }
+}
+
+// First meaningful text in document order among h4 / h3 (subtitle) and p
+// (lede). Medium's `@`-author and publication feeds put the subtitle first
+// (h4/h3) when there is one, otherwise the opening paragraph leads — document
+// order picks whichever comes first, so section headings later in the body
+// never win over the lede.
+function firstFeedContentText(doc: HTMLElement): string | null {
+  for (const el of doc.querySelectorAll("h4, h3, p")) {
+    const text = nodeText(el)
+    if (text) {
+      return text
+    }
+  }
+  return null
+}
+
+function extractFeedItemFields(
+  item: HTMLElement,
+  feedUrl: URL
+): { description: string; previewImage: string | null } {
+  // Legacy subdomain format: <description> holds medium-feed-image + snippet.
+  const descriptionEl = item.querySelector("description")
+  const reparsedDesc = parseCdataHtml(descriptionEl)
+  const snippet =
+    reparsedDesc?.querySelector("p.medium-feed-snippet") ??
+    descriptionEl?.querySelector("p.medium-feed-snippet")
+  const snippetText = nodeText(snippet)
+  if (snippetText) {
+    const imageHref =
+      attrText(reparsedDesc?.querySelector("img"), "src") ??
+      attrText(descriptionEl?.querySelector("img"), "src")
+    return {
+      description: snippetText,
+      previewImage: imageHref ? resolveAgainst(imageHref, feedUrl) : null,
+    }
+  }
+
+  // Author / publication format (medium.com/feed/@user, pub domains):
+  // <content:encoded> holds <figure><img> + subtitle + paragraphs.
+  let contentEl: HTMLElement | null | undefined = null
+  for (const child of item.childNodes) {
+    const tag = (child as unknown as HTMLElement).rawTagName
+    if (typeof tag === "string" && tag.toLowerCase() === "content:encoded") {
+      contentEl = child as unknown as HTMLElement
+      break
+    }
+  }
+  const reparsedContent = parseCdataHtml(contentEl)
+  if (reparsedContent) {
+    const description = firstFeedContentText(reparsedContent) ?? ""
+    const imageHref = attrText(reparsedContent.querySelector("img"), "src")
+    return {
+      description,
+      previewImage: imageHref ? resolveAgainst(imageHref, feedUrl) : null,
+    }
+  }
+
+  // Plain-text <description> fallback (no markup inside).
+  return {
+    description: stripCdataWrapper(nodeText(descriptionEl) ?? ""),
+    previewImage: null,
+  }
+}
+
+// Candidate RSS feeds for a Medium-hosted article. Direct article fetches are
+// frequently 403-blocked, so metadata comes from the feed instead:
+//   - medium.com/@user/slug-id → https://medium.com/feed/@user
+//   - medium.com/<publication>/slug-id → https://medium.com/feed/<publication>
+//   - <author>.medium.com/... → https://<author>.medium.com/feed
+//   - custom Medium domains (e.g. pub.towardsai.net/...) → same-host /feed
+function mediumFeedCandidates(pageUrl: URL): URL[] {
+  const candidates: URL[] = []
+  const hostname = (pageUrl.hostname || "").toLowerCase()
+  const segments = pageUrl.pathname.split("/").filter(Boolean)
+  const first = segments[0] ?? ""
+
+  if (hostname === "medium.com") {
+    if (first.startsWith("@")) {
+      candidates.push(new URL(`/feed/${first}`, pageUrl))
+    } else if (first && first !== "p" && first !== "feed" && first !== "tag") {
+      candidates.push(new URL(`/feed/${first}`, pageUrl))
+    }
+    return candidates
+  }
+
+  // Author subdomains, *-medium.com mirrors, and custom publication domains
+  // (pub.towardsai.net, etc.) all serve their feed at same-host /feed.
+  candidates.push(new URL("/feed", pageUrl))
+  return candidates
+}
+
+// The Medium /feed fallback. Returns Partial<PageMetadata> with title,
+// description, previewImage, and tags (from <category> elements) — no favicon,
+// no other enrichments.
 async function fetchMediumFeedMetadata(
   pageUrl: URL
 ): Promise<PartialPageMetadata | null> {
-  const feedUrl = new URL("/feed", pageUrl)
-  try {
-    const response = await fetchRawSafely(feedUrl.toString(), {
-      timeoutMs: FEED_TIMEOUT_MS,
-      maxBytes: FEED_MAX_BYTES,
-      maxRedirects: FEED_MAX_REDIRECTS,
-      headers: {
-        "user-agent": USER_AGENT,
-      },
-    })
+  for (const feedUrl of mediumFeedCandidates(pageUrl)) {
+    try {
+      const response = await fetchRawSafely(feedUrl.toString(), {
+        timeoutMs: FEED_TIMEOUT_MS,
+        maxBytes: FEED_MAX_BYTES,
+        maxRedirects: FEED_MAX_REDIRECTS,
+        headers: {
+          "user-agent": USER_AGENT,
+        },
+      })
 
-    if (!response.ok) {
-      return null
-    }
-
-    const charset =
-      response.rawCharset ??
-      resolveCharset(response.contentType ?? "", response.body)
-    const xml = decodeWithCharset(response.body, charset)
-
-    // Parse as XML: strip link from the void set so <link>url</link> keeps its
-    // text node, while <img>, <meta>, etc. stay void for querySelector.
-    const doc = parse(xml, {
-      voidTag: { tags: FEED_VOID_TAGS },
-    })
-    const items = doc.querySelectorAll("item")
-
-    const targetPathname = normalizePathname(pageUrl.pathname)
-    const targetId = extractPostId(pageUrl.pathname)
-
-    for (const item of items) {
-      const linkText = nodeText(item.querySelector("link"))
-      const guidText = nodeText(item.querySelector("guid"))
-      const titleText = nodeText(item.querySelector("title"))
-
-      let linkPathname: string | null = null
-      if (linkText) {
-        try {
-          linkPathname = normalizePathname(new URL(linkText).pathname)
-        } catch {
-          linkPathname = null
-        }
-      }
-      const linkId = linkPathname ? extractPostId(linkPathname) : null
-      const guidId = guidText ? extractIdFromText(guidText) : null
-
-      const matchesPath = linkPathname === targetPathname
-      const matchesId = Boolean(
-        targetId && (targetId === linkId || targetId === guidId)
-      )
-
-      if (!matchesPath && !matchesId) {
+      if (!response.ok) {
         continue
       }
 
-      const descriptionEl = item.querySelector("description")
-      // Prefer the Medium snippet paragraph, fall back to the raw
-      // description text; node-html-parser decodes entities on `.text`.
-      const snippet = descriptionEl?.querySelector("p.medium-feed-snippet")
-      const description = nodeText(snippet) ?? nodeText(descriptionEl) ?? ""
-      const imageHref = attrText(descriptionEl?.querySelector("img"), "src")
-      const previewImage = imageHref ? resolveAgainst(imageHref, feedUrl) : null
-      const tags = normalizeTagList(
-        item.querySelectorAll("category").map((c) => nodeText(c))
-      )
+      const charset =
+        response.rawCharset ??
+        resolveCharset(response.contentType ?? "", response.body)
+      const xml = decodeWithCharset(response.body, charset)
 
-      return {
-        title: titleText ?? undefined,
-        description: description ?? "",
-        previewImage,
-        tags,
+      // Parse as XML: strip link from the void set so <link>url</link> keeps
+      // its text node, while <img>, <meta>, etc. stay void for querySelector.
+      const doc = parse(xml, {
+        voidTag: { tags: FEED_VOID_TAGS },
+      })
+      const items = doc.querySelectorAll("item")
+      if (items.length === 0) {
+        continue
       }
-    }
 
-    return null
-  } catch (error) {
-    logMetadataFailure("medium feed", pageUrl, error)
-    return null
+      const targetPathname = normalizePathname(pageUrl.pathname)
+      const targetId = extractPostId(pageUrl.pathname)
+
+      for (const item of items) {
+        const linkText =
+          stripCdataWrapper(nodeText(item.querySelector("link")) ?? "") ||
+          null
+        const guidText =
+          stripCdataWrapper(nodeText(item.querySelector("guid")) ?? "") ||
+          null
+        const titleText =
+          stripCdataWrapper(nodeText(item.querySelector("title")) ?? "") ||
+          null
+
+        let linkPathname: string | null = null
+        if (linkText) {
+          try {
+            linkPathname = normalizePathname(new URL(linkText).pathname)
+          } catch {
+            linkPathname = null
+          }
+        }
+        const linkId = linkPathname ? extractPostId(linkPathname) : null
+        const guidId = guidText ? extractIdFromText(guidText) : null
+
+        const matchesPath = linkPathname === targetPathname
+        const matchesId = Boolean(
+          targetId && (targetId === linkId || targetId === guidId)
+        )
+
+        if (!matchesPath && !matchesId) {
+          continue
+        }
+
+        const { description, previewImage } = extractFeedItemFields(
+          item,
+          feedUrl
+        )
+        const tags = normalizeTagList(
+          item
+            .querySelectorAll("category")
+            .map((c) => stripCdataWrapper(nodeText(c) ?? ""))
+        )
+
+        return {
+          title: titleText ?? undefined,
+          description: description ?? "",
+          previewImage,
+          tags,
+        }
+      }
+    } catch (error) {
+      logMetadataFailure("medium feed", feedUrl, error)
+    }
   }
+
+  return null
+}
+
+function isMediumHost(hostname: string): boolean {
+  const host = (hostname || "").toLowerCase()
+  return (
+    host === "medium.com" ||
+    host.endsWith(".medium.com") ||
+    host.endsWith("-medium.com")
+  )
 }
 
 // Per-host adapter lookup. Order matters: first matching adapter wins.
 const metadataAdapters: MetadataAdapter[] = [
   {
-    hosts: (hostname) =>
-      hostname === "medium.com" ||
-      hostname.endsWith(".medium.com") ||
-      hostname.endsWith("-medium.com"),
+    hosts: (hostname) => isMediumHost(hostname),
     fetchMetadata: fetchMediumFeedMetadata,
   },
 ]
@@ -785,10 +921,17 @@ async function fetchAdapterMetadata(
 ): Promise<PartialPageMetadata | null> {
   const host = (pageUrl.hostname || "").toLowerCase()
   const adapter = metadataAdapters.find((a) => a.hosts(host))
-  if (!adapter) {
-    return null
+  if (adapter) {
+    return adapter.fetchMetadata(pageUrl)
   }
-  return adapter.fetchMetadata(pageUrl)
+  // Custom Medium publication domains (e.g. pub.towardsai.net,
+  // betterprogramming.pub): not medium.com, but Medium-hosted articles whose
+  // same-host /feed carries the post. Only probe when the path ends in a
+  // Medium post ID so ordinary sites never pay for an extra feed fetch.
+  if (extractPostId(pageUrl.pathname) !== null) {
+    return fetchMediumFeedMetadata(pageUrl)
+  }
+  return null
 }
 
 // Content types we are willing to parse as a document. An empty header is
@@ -909,22 +1052,71 @@ function stripFreediumTitleSuffix(title: string): string {
   return title
 }
 
+function isOnlyFallback(meta: PageMetadata, url: URL): boolean {
+  const fallbackTitle = buildFallbackMetadata(url).title
+  return (
+    meta.title === fallbackTitle &&
+    meta.description === "" &&
+    meta.previewImage === null &&
+    meta.tags.length === 0
+  )
+}
+
+const FREEDIUM_MIRROR_HOST = "freedium-mirror.cfd"
+
+// Last-resort mirror for Medium-hosted articles that are blocked (403) and
+// aged out of their author's /feed (latest ~10 posts only). The mirror page
+// keeps the real title/description plus the cover image (via the
+// article-image fallback), though it carries no tags.
+async function fetchFreediumMirrorMetadata(
+  original: URL
+): Promise<PageMetadata | null> {
+  let mirrorUrl: URL
+  try {
+    mirrorUrl = new URL(`https://${FREEDIUM_MIRROR_HOST}/${original.href}`)
+  } catch {
+    return null
+  }
+  try {
+    const mirrorMeta = await fetchSinglePageMetadata(mirrorUrl)
+    if (isOnlyFallback(mirrorMeta, mirrorUrl)) {
+      return null
+    }
+    // A mirror error page would have a title but no article description or
+    // cover image — only accept the mirror when it actually carries article
+    // content, so non-Medium URLs keep their humanized fallback.
+    if (!mirrorMeta.description && !mirrorMeta.previewImage) {
+      return null
+    }
+    if (mirrorMeta.title) {
+      mirrorMeta.title = stripFreediumTitleSuffix(mirrorMeta.title)
+    }
+    return mirrorMeta
+  } catch (error) {
+    logMetadataFailure("freedium mirror", mirrorUrl, error)
+    return null
+  }
+}
+
 export async function fetchPageMetadata(url: URL): Promise<PageMetadata> {
   const inner = unwrapFreediumUrl(url)
   if (!inner || inner.href === url.href) {
-    return fetchSinglePageMetadata(url)
+    const direct = await fetchSinglePageMetadata(url)
+    if (isOnlyFallback(direct, url) && extractPostId(url.pathname) !== null) {
+      console.warn(
+        `[metadata] direct fetch yielded only fallback for ${url.href}; trying freedium mirror`
+      )
+      const mirrorMeta = await fetchFreediumMirrorMetadata(url)
+      if (mirrorMeta) {
+        return mirrorMeta
+      }
+    }
+    return direct
   }
 
   console.log(`[metadata] freedium mirror detected, fetching inner ${inner.href}`)
   const innerMeta = await fetchSinglePageMetadata(inner)
-  const innerFallbackTitle = buildFallbackMetadata(inner).title
-  const innerYieldedOnlyFallback =
-    innerMeta.title === innerFallbackTitle &&
-    innerMeta.description === "" &&
-    innerMeta.previewImage === null &&
-    innerMeta.tags.length === 0
-
-  if (!innerYieldedOnlyFallback) {
+  if (!isOnlyFallback(innerMeta, inner)) {
     return innerMeta
   }
 
