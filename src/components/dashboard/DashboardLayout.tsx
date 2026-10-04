@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import {
+  parseBookmarkQuery,
+  removeOperatorFromQuery,
+} from "@/lib/bookmark-query"
+import {
   DEFAULT_BOOKMARK_PAGE_SIZE,
   type BookmarkCardData,
   type BookmarkView,
@@ -12,14 +16,10 @@ import {
   setStoredCardView,
   type CardViewMode,
 } from "@/lib/card-view"
-import {
-  parseBookmarkQuery,
-  removeOperatorFromQuery,
-} from "@/lib/bookmark-query"
 import { cn } from "@/lib/utils"
 
-import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar"
 import { DashboardSubBar } from "@/components/dashboard/DashboardSubBar"
+import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { Button } from "@/components/ui/button"
 import { HarborCard } from "@/components/ui/HarborCard"
@@ -342,10 +342,10 @@ export const DashboardLayout = ({
   // classes without touching the conditional `invisible` gate below.
   const densityClassName =
     cardView === "grid"
-      ? "grid gap-4 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]"
+      ? "grid w-full min-w-0 gap-4 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]"
       : cardView === "list"
-        ? "flex flex-col gap-2.5 p-4"
-        : "flex flex-col gap-px overflow-hidden p-4"
+        ? "flex w-full min-w-0 flex-col gap-2.5 p-4"
+        : "flex w-full min-w-0 flex-col gap-px overflow-hidden p-4"
 
   // Client-side navigation that rides the app's ClientRouter: click a
   // transient link so the transition (and the route-sync effect) run without
@@ -417,8 +417,8 @@ export const DashboardLayout = ({
               setDebouncedSearch(next)
             }}
           />
-          <div className="flex flex-1 flex-col p-4">
-            <div className="min-h-screen flex-1 md:min-h-min">
+          <div className="flex min-w-0 flex-1 flex-col p-4">
+            <div className="min-h-screen min-w-0 flex-1 md:min-h-min">
               {/* `invisible` until the stored view is applied: it keeps the
               layout space reserved, so the cards appear at the right density
               with no layout jump (see isCardViewReady). */}

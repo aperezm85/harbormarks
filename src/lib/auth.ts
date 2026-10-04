@@ -395,6 +395,16 @@ export async function ensureAuthSchema() {
           console.error("[digest] scheduler failed to start", error)
         })
 
+      // Link health scheduler (src/lib/link-health-check.ts). Lazy import
+      // avoids pulling in the Drizzle client at module load time.
+      void import("@/lib/link-health-check")
+        .then((linkHealth) => {
+          linkHealth.scheduleLinkHealthCheck()
+        })
+        .catch((error) => {
+          console.error("[link-health] scheduler failed to start", error)
+        })
+
       isAuthSchemaReady = true
     } finally {
       authSchemaReadyPromise = null

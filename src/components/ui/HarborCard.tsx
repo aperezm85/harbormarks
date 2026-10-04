@@ -40,8 +40,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import type { BookmarkCardData, BookmarkStatus } from "@/lib/bookmark-types"
+import type {
+  BookmarkCardData,
+  BookmarkLinkHealth,
+  BookmarkStatus,
+} from "@/lib/bookmark-types"
 import type { CardViewMode } from "@/lib/card-view"
+import { formatTagLabel } from "@/lib/bookmark-tags"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -99,6 +104,7 @@ export const HarborCard = ({
   canonicalUrl,
   note,
   status = "unread",
+  linkHealth = "unknown",
   onSaved,
   onVisit,
   onVisitRollback,
@@ -131,6 +137,7 @@ export const HarborCard = ({
   canonicalUrl: string | null
   note: string | null
   status?: BookmarkStatus
+  linkHealth?: BookmarkLinkHealth
   onSaved?: (bookmark: BookmarkCardData) => void
   onVisit?: () => void
   onVisitRollback?: () => void
@@ -221,6 +228,7 @@ export const HarborCard = ({
     canonicalUrl,
     note,
     status,
+    linkHealth,
   }
 
   const openBookmark = () => {
@@ -408,6 +416,8 @@ export const HarborCard = ({
         ? "Reading"
         : "Archived"
 
+  const isLinkBroken = linkHealth === "broken"
+
   const renderStatusControl = () => {
     // Card shows the unread state only — no dot for reading/archived.
     if (status !== "unread") {
@@ -442,6 +452,14 @@ export const HarborCard = ({
   }
 
   const renderStatusBadge = () => {
+    // Story 14: broken-link badge always takes priority, regardless of read
+    // status — a dead link matters more than whether the user has opened it.
+    if (isLinkBroken) {
+      return (
+        <Badge variant="destructive">Broken</Badge>
+      )
+    }
+
     // Card shows the unread state only — no badge for reading/archived.
     if (status !== "unread") {
       return null
@@ -730,7 +748,7 @@ export const HarborCard = ({
   // Shared action cluster for the list and compact densities. Same handlers
   // and dialogs as the grid card, only the layout wrapper differs.
   const renderStandaloneActions = () => (
-    <div className="relative z-20 flex shrink-0 items-center gap-1">
+    <div className="relative z-20 flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
       {renderStatusControl()}
       <Button
         variant="ghost"
@@ -976,20 +994,22 @@ export const HarborCard = ({
   // never the compact image-less row.
   if (viewMode === "list") {
     return (
-      <div className="group relative flex flex-row items-stretch overflow-hidden rounded-md bg-card text-sm text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted/50">
+      <div className="group relative flex min-w-0 flex-row items-stretch overflow-hidden rounded-md bg-card text-sm text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted/50">
         {stretchedLink}
         <div className="relative z-0 w-[120px] shrink-0 self-stretch sm:w-[152px]">
           {previewImage && isPreviewImageVisible ? (
             <img
               src={previewImage}
               alt={`${title} preview`}
-              className="absolute inset-0 h-full w-full object-cover"
+              className={`absolute inset-0 h-full w-full object-cover ${isLinkBroken ? "opacity-40 blur-sm grayscale" : ""}`}
               loading="lazy"
               decoding="async"
               onError={() => setIsPreviewImageVisible(false)}
             />
           ) : (
-            <div className="absolute inset-0 bg-linear-to-br from-sky-500/25 via-cyan-400/15 to-indigo-500/30" />
+            <div
+              className={`absolute inset-0 ${isLinkBroken ? "bg-red-950/40" : "bg-linear-to-br from-sky-500/25 via-cyan-400/15 to-indigo-500/30"}`}
+            />
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3">
@@ -1027,13 +1047,13 @@ export const HarborCard = ({
             <div className="mt-auto flex flex-wrap gap-1.5 pt-1.5">
               {tags.map((tag) => (
                 <Badge variant="outline" key={tag}>
-                  {tag}
+                  {formatTagLabel(tag)}
                 </Badge>
               ))}
             </div>
           ) : null}
         </div>
-        <div className="relative z-20 flex shrink-0 flex-col items-end justify-between gap-2 border-l bg-muted/20 px-3 py-3">
+        <div className="relative z-20 flex w-[132px] min-w-[132px] shrink-0 flex-col items-end justify-between gap-2 border-l bg-muted/20 px-3 py-3 sm:w-[180px] sm:min-w-[180px]">
           <div className="flex items-center gap-0.75 text-muted-foreground">
             <EyeIcon className="size-3" />
             <span className="font-mono text-[10px]/[12px]">{visitCount}</span>
@@ -1065,7 +1085,7 @@ export const HarborCard = ({
           <span className="relative z-0 hidden shrink-0 items-center gap-1 md:flex">
             {tags.slice(0, 2).map((tag) => (
               <Badge variant="outline" key={tag}>
-                {tag}
+                {formatTagLabel(tag)}
               </Badge>
             ))}
           </span>
@@ -1130,13 +1150,15 @@ export const HarborCard = ({
           <img
             src={previewImage}
             alt={`${title} preview`}
-            className="h-full w-full object-cover"
+            className={`h-full w-full object-cover ${isLinkBroken ? "opacity-40 blur-sm grayscale" : ""}`}
             loading="lazy"
             decoding="async"
             onError={() => setIsPreviewImageVisible(false)}
           />
         ) : (
-          <div className="h-full w-full bg-linear-to-br from-sky-500/25 via-cyan-400/15 to-indigo-500/30" />
+          <div
+            className={`h-full w-full ${isLinkBroken ? "bg-red-950/40" : "bg-linear-to-br from-sky-500/25 via-cyan-400/15 to-indigo-500/30"}`}
+          />
         )}
       </div>
       <CardHeader className="min-w-0">
@@ -1221,7 +1243,7 @@ export const HarborCard = ({
           <div className="mt-4 flex flex-wrap gap-2">
             {tags.map((tag) => (
               <Badge variant="outline" key={tag}>
-                {tag}
+                {formatTagLabel(tag)}
               </Badge>
             ))}
           </div>

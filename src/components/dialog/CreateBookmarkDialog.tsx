@@ -23,6 +23,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { normalizeBookmarkUrl } from "@/lib/bookmark-url"
+import { formatTagLabel } from "@/lib/bookmark-tags"
 import {
   ArrowsClockwiseIcon,
   BookmarkSimpleIcon,
@@ -742,7 +743,7 @@ export const CreateBookmarkDialog = ({
         <div className="mb-2 flex flex-wrap gap-2">
           {selectedTags.map((tag) => (
             <Badge key={tag} variant="secondary" className="h-6 gap-1 pr-1">
-              {tag}
+              {formatTagLabel(tag)}
               <button
                 type="button"
                 className="inline-flex size-4 items-center justify-center rounded-full hover:bg-black/10"
@@ -816,7 +817,7 @@ export const CreateBookmarkDialog = ({
                   setIsTagSuggestionsOpen(false)
                 }}
               >
-                {tag}
+                {formatTagLabel(tag)}
               </button>
             ))}
           </div>

@@ -45,7 +45,7 @@ The following items are complete and reflected in the changelog:
 
 ### 1) Bulk actions on bookmarks
 
-Target: v1.3.0 (next up — unlocks cleanup of large imported collections).
+Target: v1.4.0 (next up — unlocks cleanup of large imported collections).
 
 Why:
 
@@ -62,13 +62,19 @@ Acceptance criteria:
 - Actions apply only to selected bookmarks.
 - Selected count is visible and cancel/reset is obvious.
 
-### 2) Broken link monitoring
+### 2) Broken link monitoring (shipped in v1.3.0)
 
 Why:
 
 - A bookmark manager loses trust when links silently rot.
 
-Scope:
+Shipped in v1.3.0:
+
+- Daily opt-in health checks for bookmarked URLs (`HARBOR_LINK_HEALTH_*`).
+- `link_health` column (`unknown` / `checking` / `ok` / `broken`), orthogonal to read status.
+- Dead/healthy badges in the UI, `is:broken` operator, auto-managed `broken` tag, `broken` digest scope.
+
+Scope (as originally planned):
 
 - Background health checks for bookmarked URLs.
 - Store last-checked timestamp and status.
@@ -164,8 +170,8 @@ These are intentionally omitted because they are already done or no longer worth
 
 ## Suggested order
 
-1. Bulk actions on bookmarks (next up, target v1.3.0)
-2. Broken link monitoring
+1. Bulk actions on bookmarks (next up, target v1.4.0)
+2. Broken link monitoring (shipped in v1.3.0)
 3. Search and filter polish
 4. Keyboard-first workflow (remainder)
 5. Mobile-web polish (PWA + `/save` UX, no native app)
@@ -180,7 +186,10 @@ suggestions and paste-to-fetch; v1.2.0 added the out-of-scope quick-save suite
 (API keys, `/save` page, browser extension, copy-link), which is why the minor
 moved again; v1.2.1 shipped Medium/Freedium metadata fixes as a patch;
 v1.2.2 shipped the deployment docs consolidation and migration guides as a
-docs-only patch with no schema migration. Community hygiene landed after v1.2.2
+docs-only patch with no schema migration; v1.3.0 shipped opt-in broken link
+monitoring (daily checks, Broken badge, is:broken, broken digest scope, one
+additive migration `0012_link_health.sql`) plus the list-view card-width fix.
+Community hygiene landed after v1.2.2
 as a docs-only change with no schema migration and no version bump.
 
 ## Engineering Notes

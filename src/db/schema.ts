@@ -54,6 +54,7 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
 })
 
 export const bookmarks = pgTable("bookmarks", {
+  linkHealth: text("link_health").notNull().default("unknown"),
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, {
     onDelete: "cascade",

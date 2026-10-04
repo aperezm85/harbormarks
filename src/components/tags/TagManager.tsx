@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { formatTagLabel } from "@/lib/bookmark-tags"
 import { toast } from "sonner"
 
 type TagSummary = {
@@ -99,7 +100,7 @@ export function TagManager() {
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <span className="font-medium">{t.tag}</span>
+                  <span className="font-medium">{formatTagLabel(t.tag)}</span>
                   <span className="ml-2 text-xs text-muted-foreground">
                     {t.count} bookmark{t.count === 1 ? "" : "s"}
                   </span>

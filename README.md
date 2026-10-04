@@ -143,6 +143,10 @@ Important: replace any committed example/default credentials before exposing the
 | `HARBOR_SMTP_PASS` | Optional | — | Restart | `src/lib/mailer.ts` |
 | `HARBOR_SMTP_FROM` | Optional (with `HARBOR_SMTP_HOST`: the mail on/off switch) | `HarborMarks <noreply@localhost>` | Restart | `src/lib/mailer.ts` |
 | `HARBOR_CRON_SECRET` | Optional (only for external digest schedulers) | — | Restart | `src/pages/api/digest/run.ts` |
+| `HARBOR_LINK_HEALTH_ENABLED` | Optional (broken link monitoring off unless set) | `"false"` | Restart | `src/lib/link-health-check.ts` (`getLinkHealthConfig`) |
+| `HARBOR_LINK_HEALTH_HOUR` | Optional (UTC hour of the daily check) | `2` | Restart | `src/lib/link-health-check.ts` (`getLinkHealthConfig`) |
+| `HARBOR_LINK_HEALTH_BATCH` | Optional (bookmarks checked per run) | `5` | Restart | `src/lib/link-health-check.ts` (`getLinkHealthConfig`) |
+| `HARBOR_LINK_HEALTH_DELAY_MS` | Optional (pause between link checks) | `2000` | Restart | `src/lib/link-health-check.ts` (`getLinkHealthConfig`) |
 | `HARBOR_CORS_ORIGINS` | Optional (only for browser-extension origins) | `""` | Restart | `src/lib/cors.ts` |
 | `HARBOR_SECURE_COOKIES` | Optional | unset = auto (https via `x-forwarded-proto`) | Restart (read per request) | `src/lib/request-security.ts` |
 | `TZ` | Optional | `UTC` | Restart | Node runtime / digest scheduler |

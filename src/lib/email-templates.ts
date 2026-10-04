@@ -11,6 +11,8 @@
 // To switch theme or restyle, edit these builders in place; the structure maps
 // 1:1 to the emailcn block props.
 
+import { formatTagLabel } from "@/lib/bookmark-tags"
+
 export type DigestArticle = {
   title: string
   url: string
@@ -22,6 +24,7 @@ export type DigestArticle = {
   note: string | null
   tags: string[]
   savedAt: string
+  linkHealth: string | null
 }
 
 export function escapeEmailHtml(value: string): string {
@@ -87,13 +90,17 @@ export function buildDigestEmail(opts: {
     .map((article) => {
       const tags =
         article.tags.length > 0
-          ? `<div style="margin-top:6px;font-size:12px;color:#71717a;">${article.tags.map((tag) => `#${escapeEmailHtml(tag)}`).join(" ")}</div>`
+          ? `<div style="margin-top:6px;font-size:12px;color:#71717a;">${article.tags.map((tag) => `#${escapeEmailHtml(formatTagLabel(tag))}`).join(" ")}</div>`
           : ""
       const note = article.note
         ? `<div style="margin-top:8px;padding:8px 12px;background-color:#f4f4f5;border-left:3px solid #00598a;border-radius:0 6px 6px 0;font-size:13px;line-height:20px;color:#3f3f46;"><span style="font-weight:600;">Your note: </span>${escapeEmailHtml(article.note)}</div>`
         : ""
+      const brokenBadge =
+        article.linkHealth === "broken"
+          ? `<span style="display:inline-block;padding:2px 8px;margin-right:8px;font-size:12px;font-weight:600;color:#ef4444;background-color:#fef2f2;border-radius:4px;">broken</span>`
+          : ""
       return `<tr><td style="padding:14px 0;border-bottom:1px solid #f4f4f5;">
-<a href="${escapeEmailHtml(article.href)}" style="font-size:15px;font-weight:600;color:#18181b;text-decoration:none;">${escapeEmailHtml(article.title)}</a>
+<a href="${escapeEmailHtml(article.href)}" style="font-size:15px;font-weight:600;color:#18181b;text-decoration:none;">${brokenBadge}${escapeEmailHtml(article.title)}</a>
 ${article.description ? `<div style="margin-top:6px;font-size:13px;line-height:20px;color:#52525b;">${escapeEmailHtml(article.description)}</div>` : ""}
 ${note}
 ${tags}
@@ -112,11 +119,11 @@ ${actionButton("Open HarborMarks", opts.dashboardUrl)}
     `${greeting} here are your links for ${opts.scopeLabel}:`,
     "",
     ...opts.articles.flatMap((article) => [
-      `- ${article.title}`,
+      `${article.linkHealth === "broken" ? "[broken] " : "- "}${article.title}`,
       `  ${article.href}`,
       ...(article.description ? [`  ${article.description}`] : []),
       ...(article.note ? [`  Your note: ${article.note}`] : []),
-      ...(article.tags.length > 0 ? [`  Tags: ${article.tags.join(", ")}`] : []),
+      ...(article.tags.length > 0 ? [`  Tags: ${article.tags.map(formatTagLabel).join(", ")}`] : []),
       `  Saved ${article.savedAt}`,
       "",
     ]),

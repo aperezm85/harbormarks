@@ -140,6 +140,8 @@ export async function getDigestBookmarks(
     filters.push(eq(bookmarks.status, "unread"), gte(bookmarks.createdAt, weekAgo))
   } else if (scope === "all_unread") {
     filters.push(eq(bookmarks.status, "unread"))
+  } else if (scope === "broken") {
+    filters.push(eq(bookmarks.linkHealth, "broken"))
   } else {
     filters.push(gte(bookmarks.createdAt, weekAgo))
   }
@@ -151,6 +153,7 @@ export async function getDigestBookmarks(
       description: bookmarks.description,
       note: bookmarks.note,
       tags: bookmarks.tags,
+      linkHealth: bookmarks.linkHealth,
       createdAt: bookmarks.createdAt,
     })
     .from(bookmarks)

@@ -44,3 +44,12 @@ export function normalizeTags(tags?: string[] | string | null) {
 
   return normalized.length > 0 ? normalized : null
 }
+
+/**
+ * Display label for a tag. The auto-managed link-health tag is stored
+ * lowercase (`broken`) but always shown capitalized (`Broken`).
+ * Storage, filtering, and routing must keep using the raw value.
+ */
+export function formatTagLabel(tag: string): string {
+  return tag.trim().toLowerCase() === "broken" ? "Broken" : tag
+}

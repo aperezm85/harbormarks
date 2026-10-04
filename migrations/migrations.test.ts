@@ -51,6 +51,19 @@ describe.skipIf(!TEST_DATABASE_URL)(
             )
         expect(tagsType?.udt_name).toBe("_text")
 
+        // Story 14: link_health column (orthogonal to read status).
+        expect(columnNames).toContain("link_health")
+
+        const linkHealthType = columnsResult.find(
+          (row) => row.column_name === "link_health"
+        )
+        expect(linkHealthType?.udt_name).toBe("text")
+
+        const linkHealthIndex = await client.query(
+          `SELECT 1 FROM pg_indexes WHERE indexname = 'idx_bookmarks_link_health'`
+        ).then((r) => r.rowCount)
+        expect(linkHealthIndex).toBe(1)
+
         const generated = await client.query(
             `SELECT attgenerated
               FROM pg_attribute

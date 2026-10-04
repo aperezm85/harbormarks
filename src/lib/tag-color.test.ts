@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BROKEN_TAG_HUE,
   TAG_DOT_DARK,
   TAG_DOT_LIGHT,
   TAG_HUES,
@@ -62,6 +63,12 @@ describe("tag-color", () => {
     expect(tagHue("  postgres  ")).toBe(tagHue("postgres"))
   })
 
+  it("pins the broken tag to red (case- and whitespace-insensitive)", () => {
+    expect(tagHue("broken")).toBe(BROKEN_TAG_HUE)
+    expect(tagHue("Broken")).toBe(BROKEN_TAG_HUE)
+    expect(tagHue("  BROKEN  ")).toBe(BROKEN_TAG_HUE)
+  })
+
   it("spreads distinct tags across the palette (no single slot dominates)", () => {
     const tags = Array.from({ length: 80 }, (_, i) => `tag-${i}`)
     const used = new Set(tags.map(tagHue))
@@ -79,7 +86,7 @@ describe("tag-color", () => {
     const lightSidebarY = relativeLuminance(oklchToSrgb(SIDEBAR_LIGHT))
     const darkSidebarY = relativeLuminance(oklchToSrgb(SIDEBAR_DARK))
 
-    for (const hue of TAG_HUES) {
+    for (const hue of [...TAG_HUES, BROKEN_TAG_HUE]) {
       const lightContrast = contrast(dotLuminance("light", hue), lightSidebarY)
       const darkContrast = contrast(dotLuminance("dark", hue), darkSidebarY)
       expect(lightContrast, `light theme, hue ${hue}`).toBeGreaterThanOrEqual(3)

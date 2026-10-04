@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.3.0",
+    date: "2026-10-04",
+    changes: [
+      "Broken link monitoring (opt-in): turn on HARBOR_LINK_HEALTH_ENABLED and your links are checked daily — dead ones get a red Broken badge, an is:broken search filter, and their own weekly-digest scope.",
+      "List view is fixed: cards now share one width with aligned action buttons instead of scrolling sideways.",
+      "One additive migration ships in this release (link health tracking); back up your database before upgrading, as usual.",
+    ],
+  },
+  {
     version: "v1.2.2",
     date: "2026-10-03",
     changes: [

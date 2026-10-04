@@ -38,9 +38,17 @@ function fnv1a(input: string): number {
   return hash >>> 0
 }
 
+// Reserved hue for the auto-managed `broken` tag (link-health monitoring).
+// Always red (matches `--destructive`, hue ~27) so dead links read as red in
+// the sidebar regardless of what the hash would assign.
+export const BROKEN_TAG_HUE = 27
+
 /** Stable hue (degrees) for a tag, derived from its name. */
 export function tagHue(tag: string): number {
   const key = tag.trim().toLowerCase()
+  if (key === "broken") {
+    return BROKEN_TAG_HUE
+  }
   return TAG_HUES[fnv1a(key) % TAG_HUES.length]
 }
 
