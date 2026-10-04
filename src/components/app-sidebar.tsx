@@ -22,6 +22,7 @@ import { LatestChangesDialog } from "@/components/dialog/LatestChangesDialog"
 import { NavUser, type SidebarUser } from "@/components/ui/NavUser"
 import type { BookmarkCardData } from "@/lib/bookmark-types"
 import { latestChanges } from "@/lib/changelog"
+import { formatTagLabel } from "@/lib/bookmark-tags"
 import { tagHue } from "@/lib/tag-color"
 import {
   BookmarkIcon,
@@ -361,7 +362,7 @@ export function AppSidebar({
                               { "--h": tagHue(tag.tag) } as React.CSSProperties
                             }
                           />
-                          <span className="truncate">{tag.tag}</span>
+                          <span className="truncate">{formatTagLabel(tag.tag)}</span>
                         </div>
                         <span className="text-xs text-muted-foreground">
                           {tag.count}

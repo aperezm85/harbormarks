@@ -4,6 +4,14 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.3.0 — 2026-10-04
+
+- Broken link monitoring: an opt-in in-process scheduler checks saved URLs once a day (HEAD with GET fallback, polite delay between requests) and records the result in a new `link_health` column (`unknown` / `checking` / `ok` / `broken`, orthogonal to the read status, so a bookmark can be both unread and broken).
+- Dead links surface everywhere: a red "Broken" badge on cards (grid and list) with dimmed/blurred preview images, `is:broken` search operator and `tag:broken` via an auto-managed `broken` tag, and a new `broken` digest scope so the weekly email can list just the dead links (also badged in HTML and plain-text).
+- Configure with `HARBOR_LINK_HEALTH_ENABLED=true` plus optional `HARBOR_LINK_HEALTH_HOUR` (UTC hour, default 2), `HARBOR_LINK_HEALTH_BATCH` (checks per run, default 5), and `HARBOR_LINK_HEALTH_DELAY_MS` (pause between requests, default 2000). Disabled by default; healthy links are re-checked after 30 days and interrupted `checking` rows recover on the next run.
+- List-view layout fix: cards had inconsistent widths with a horizontally scrolling page because the flex chain was missing `min-w-0` and the right action column sized to its content. The chain (`SidebarInset` → content wrappers → density container → card) now shrinks properly, and the action rail is a fixed responsive width (132px, 180px on `sm+`) so visit counts and buttons align across cards.
+- One additive migration ships in this release (`0012_link_health.sql`, new column defaulting to `unknown` plus a partial index). Back up before upgrading, as usual.
+
 ## v1.2.2 — 2026-10-03
 
 - Deployment docs consolidation: `.env.example` rewritten to match what the app actually reads (correct `PORT`/`HOST`, first-start `HARBOR_BOOTSTRAP_ADMIN_*`, signup, origin/proxy, SMTP, cron, and CORS settings), a canonical env-var reference table in the README (required/optional, defaults, restart vs rebuild, where each is read), plus ports, backup, and a generic dump → pull → rebuild → verify upgrade path.

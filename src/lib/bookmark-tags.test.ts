@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { normalizeTags, parseTags } from "./bookmark-tags"
+import { formatTagLabel, normalizeTags, parseTags } from "./bookmark-tags"
 
 describe("parseTags", () => {
   it("parses a JSON array string", () => {
@@ -45,4 +45,17 @@ describe("normalizeTags", () => {
   it("splits on every comma, quoting is not JSON-aware", () => {
     expect(normalizeTags('a,"b,c",d')).toEqual(["a", '"b', 'c"', "d"])
         })
+})
+
+describe("formatTagLabel", () => {
+  it("capitalizes the auto-managed broken tag", () => {
+    expect(formatTagLabel("broken")).toBe("Broken")
+    expect(formatTagLabel("Broken")).toBe("Broken")
+    expect(formatTagLabel("  BROKEN  ")).toBe("Broken")
+  })
+
+  it("leaves all other tags untouched", () => {
+    expect(formatTagLabel("dev")).toBe("dev")
+    expect(formatTagLabel("Reading")).toBe("Reading")
+  })
 })

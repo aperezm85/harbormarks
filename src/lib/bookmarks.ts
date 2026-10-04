@@ -8,6 +8,7 @@ import { normalizeTags, parseTags } from "@/lib/bookmark-tags"
 import { parseBookmarkQuery } from "@/lib/bookmark-query"
 import {
   type BookmarkCardData,
+  type BookmarkLinkHealth,
   type BookmarkStatus,
   type BookmarkTagSummary,
   type BookmarkView,
@@ -120,8 +121,12 @@ function toCardData(bookmark: typeof bookmarks.$inferSelect): BookmarkCardData {
     status: normalizeBookmarkStatus(
       (bookmark as { status?: unknown }).status
     ),
-   }
- }
+    // Story 14: link health status (orthogonal to read status).
+    linkHealth:
+      ((bookmark as { linkHealth?: string }).linkHealth ??
+        "unknown") as BookmarkLinkHealth,
+  }
+}
 
 async function findBookmarkByCanonicalUrl(
   userId: number,
@@ -290,6 +295,8 @@ export async function listBookmarks(
           op.value === "archived"
         ) {
           filters.push(eq(bookmarks.status, op.value))
+        } else if (op.value === "broken") {
+          filters.push(eq(bookmarks.linkHealth, "broken"))
         }
         break
       }

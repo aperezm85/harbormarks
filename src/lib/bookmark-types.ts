@@ -1,4 +1,5 @@
 export type BookmarkStatus = "unread" | "reading" | "archived"
+export type BookmarkLinkHealth = "unknown" | "checking" | "ok" | "broken"
 
 export type BookmarkCardData = {
   id: string
@@ -13,6 +14,7 @@ export type BookmarkCardData = {
   lastVisitedAt: string | null
   isFavorite: boolean
   visitCount: number
+  linkHealth: BookmarkLinkHealth
   // Story 7 enrichment columns (nullable, best-effort extraction).
   siteName: string | null
   author: string | null

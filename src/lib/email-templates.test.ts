@@ -28,6 +28,7 @@ describe("buildDigestEmail", () => {
           note: "My <b>take</b>",
           tags: ["rust"],
           savedAt: "2026-09-10",
+          linkHealth: null,
         },
         {
           title: "Second",
@@ -37,6 +38,7 @@ describe("buildDigestEmail", () => {
           note: null,
           tags: [],
           savedAt: "2026-09-11",
+          linkHealth: "broken",
         },
       ],
       dashboardUrl: "https://marks.example.com/?view=unread",
@@ -50,6 +52,8 @@ describe("buildDigestEmail", () => {
     expect(email.html).not.toContain("<b>take</b>")
     expect(email.html).toContain("Your note:")
     expect(email.html).toContain("#rust")
+    expect(email.html).toContain("broken")
+    expect(email.text).toContain("[broken] Second")
     expect(email.text).toContain("https://marks.example.com/api/bookmarks/1/open?sig=abc")
     expect(email.text).toContain("Open HarborMarks")
   })
