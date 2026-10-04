@@ -54,24 +54,6 @@ export function getLinkHealthConfig(): {
   }
 }
 
-const LINK_HEALTH_ENABLED =
-  readEnv("HARBOR_LINK_HEALTH_ENABLED", "false") === "true"
-const LINK_HEALTH_HOUR = Math.max(
-  0,
-  Math.min(
-    23,
-    Number.parseInt(readEnv("HARBOR_LINK_HEALTH_HOUR", "2"), 10) || 2
-  )
-)
-const LINK_HEALTH_BATCH = Math.max(
-  1,
-  Number.parseInt(readEnv("HARBOR_LINK_HEALTH_BATCH", "5"), 10) || 5
-)
-const LINK_HEALTH_DELAY_MS = Math.max(
-  0,
-  Number.parseInt(readEnv("HARBOR_LINK_HEALTH_DELAY_MS", "2000"), 10) || 2000
-)
-
 // Bookmarks marked `ok` are re-checked after this long so healthy links don't
 // go stale forever.
 const STALE_OK_AFTER_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
@@ -354,5 +336,3 @@ export function resetLinkHealthSchedulerForTests(): void {
   }
   healthSchedulerStarted = false
 }
-
-export { LINK_HEALTH_BATCH, LINK_HEALTH_DELAY_MS, LINK_HEALTH_HOUR }
