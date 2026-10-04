@@ -22,9 +22,9 @@ import {
 // ensureAuthSchema() and is covered by manual testing instead.
 
 describe("isDigestScope", () => {
-  it("accepts the three supported scopes", () => {
-    expect(DIGEST_SCOPES).toHaveLength(3)
-    for (const scope of ["unread_7d", "all_unread", "all_7d"]) {
+  it("accepts the four supported scopes", () => {
+    expect(DIGEST_SCOPES).toHaveLength(4)
+    for (const scope of ["unread_7d", "all_unread", "all_7d", "broken"]) {
       expect(isDigestScope(scope)).toBe(true)
     }
   })
@@ -132,6 +132,7 @@ describe("toDigestArticles", () => {
         description: null,
         note: null,
         tags: null,
+        linkHealth: null,
         createdAt: new Date("2026-09-01T10:00:00.000Z"),
       },
     ]
@@ -153,6 +154,7 @@ describe("toDigestArticles", () => {
         description: "  desc  ",
         note: "  read this  ",
         tags: ["rust", "  ", ""],
+        linkHealth: "broken",
         createdAt: null,
       },
     ]
