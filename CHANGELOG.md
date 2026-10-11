@@ -4,6 +4,13 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.4.0 — 2026-10-11
+
+- Bulk actions for large collections: select bookmarks with checkboxes (shift-click selects a range, the header box selects everything loaded with a tri-state count) and apply one action to all of them from a compact toolbar pinned above the cards.
+- One endpoint (`POST /api/bookmarks/bulk`, up to 500 at a time) covers soft delete to Trash, favorite/unfavorite, archive/unarchive, and tag add/remove via a dialog. Foreign ids are simply skipped and reported in the affected count, never an error.
+- Selection clears after every action and on view change; card updates apply optimistically with rollback on failure, matching the single-card pattern.
+- No schema migration: drop-in image swap.
+
 ## v1.3.1 — 2026-10-11
 
 - Fixed broken-link false positives on Medium and other Cloudflare-fronted sites: the checker sent a bot `User-Agent` that gets a 403 on both HEAD and GET, so live articles were marked broken. Every check now sends a browser-like `User-Agent` with `Accept` headers, and any non-healthy HEAD response (not just 405) falls back to a redirect-following GET — a link is only marked broken when the GET also fails.

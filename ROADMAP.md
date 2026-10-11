@@ -30,6 +30,7 @@ The following items are complete and reflected in the changelog:
 - Per-user digest schedule, profile/users redesign, and dependency hardening (v1.1.1).
 - Metadata tag suggestions and paste-to-fetch in the save dialog (v1.1.2).
 - Quick-save suite: API keys, `/save` page, browser extension, copy-link button (v1.2.0, out-of-scope addition that bumped the minor).
+- Bulk actions on bookmarks: Gmail-style multi-select with shift-click ranges, tri-state header checkbox, and bulk delete/tag/favorite/archive via `POST /api/bookmarks/bulk` (v1.4.0).
 - Medium/Freedium metadata fixes and bot-protection hardening (v1.2.1, patch, no migration).
 - Liveness probe (`GET /api/healthz`), deployment hardening, CI workflow, and security defaults (v1.0.0).
 - Public repo hardening: CODEOWNERS, branch protection, and squash-only merge policy.
@@ -43,24 +44,17 @@ The following items are complete and reflected in the changelog:
 
 ## Remaining high-value work
 
-### 1) Bulk actions on bookmarks
-
-Target: v1.4.0 (next up — unlocks cleanup of large imported collections).
+### 1) Bulk actions on bookmarks (shipped in v1.4.0)
 
 Why:
 
 - This becomes important as collections grow beyond a few hundred entries.
 
-Scope:
+Shipped in v1.4.0:
 
-- Multi-select dashboard actions.
-- Bulk delete, tag add/remove, favorite toggle, and archive/unarchive.
-- Clear selection state and undo-friendly behavior.
-
-Acceptance criteria:
-
-- Actions apply only to selected bookmarks.
-- Selected count is visible and cancel/reset is obvious.
+- Gmail-style multi-select with shift-click ranges and a tri-state header checkbox.
+- `POST /api/bookmarks/bulk` (500-id cap) for soft delete, favorite/unfavorite, archive/unarchive, and tag add/remove via a dialog.
+- Sticky toolbar above the cards; selection clears after every action and on view change; optimistic UI with rollback.
 
 ### 2) Broken link monitoring (shipped in v1.3.0)
 
@@ -170,7 +164,7 @@ These are intentionally omitted because they are already done or no longer worth
 
 ## Suggested order
 
-1. Bulk actions on bookmarks (next up, target v1.4.0)
+1. Bulk actions on bookmarks (shipped in v1.4.0)
 2. Broken link monitoring (shipped in v1.3.0)
 3. Search and filter polish
 4. Keyboard-first workflow (remainder)
@@ -190,7 +184,9 @@ docs-only patch with no schema migration; v1.3.0 shipped opt-in broken link
 monitoring (daily checks, Broken badge, is:broken, broken digest scope, one
 additive migration `0012_link_health.sql`) plus the list-view card-width fix.
 Community hygiene landed after v1.2.2
-as a docs-only change with no schema migration and no version bump.
+as a docs-only change with no schema migration and no version bump; v1.4.0
+shipped bulk bookmark actions (multi-select, `POST /api/bookmarks/bulk`)
+with no schema migration.
 
 ## Engineering Notes
 
