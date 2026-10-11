@@ -431,8 +431,6 @@ export const DashboardLayout = ({
 
   useEffect(() => {
     if (!showBookmarkFeed) {
-      setIsRefreshingBookmarks(false)
-      setIsLoadingMore(false)
       return
     }
 
