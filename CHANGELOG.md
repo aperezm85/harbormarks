@@ -4,6 +4,12 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.3.1 — 2026-10-11
+
+- Fixed broken-link false positives on Medium and other Cloudflare-fronted sites: the checker sent a bot `User-Agent` that gets a 403 on both HEAD and GET, so live articles were marked broken. Every check now sends a browser-like `User-Agent` with `Accept` headers, and any non-healthy HEAD response (not just 405) falls back to a redirect-following GET — a link is only marked broken when the GET also fails.
+- New on-demand check: the profile page has a "Link health → Check links now" button (`POST /api/link-health/check-now`, 10/hour) that runs a batch immediately instead of waiting for the daily tick. Previously broken links that now load are unmarked automatically.
+- No schema migration: drop-in image swap.
+
 ## v1.3.0 — 2026-10-04
 
 - Broken link monitoring: an opt-in in-process scheduler checks saved URLs once a day (HEAD with GET fallback, polite delay between requests) and records the result in a new `link_health` column (`unknown` / `checking` / `ok` / `broken`, orthogonal to the read status, so a bookmark can be both unread and broken).

@@ -95,13 +95,31 @@ export function syncBrokenTagState(
 }
 
 /**
- * Check a single bookmark's URL and update its link_health column.
+ * Check a single URL for the broken-link monitor.
  *
- * Uses a HEAD request first (fast path). If HEAD returns 405 Method Not
- * Allowed, falls back to GET with early abort (followRedirect: "manual"
- * avoids following redirects that would blow the timeout).
+ * Medium/Cloudflare-fronted sites return 403 to generic bot User-Agents on
+ * both HEAD and GET, but serve 200/301 to a browser-like UA (verified
+ * 2026-10-11 against 4 Medium false positives). So every request uses a
+ * browser UA plus Accept headers.
+ *
+ * Uses a HEAD request first (fast path, redirect manual). Any non-healthy
+ * HEAD (403, 405, 429, … — not just 405) falls back to GET with
+ * redirect: "follow", which is what actually separates dead links from
+ * bot-walled pages.
  */
-async function checkUrl(url: string): Promise<boolean> {
+export const LINK_HEALTH_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+function linkHealthHeaders(): Record<string, string> {
+  return {
+    "User-Agent": LINK_HEALTH_USER_AGENT,
+    Accept:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+  }
+}
+
+export async function checkUrl(url: string): Promise<boolean> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 10_000) // 10s timeout
   try {
@@ -110,36 +128,40 @@ async function checkUrl(url: string): Promise<boolean> {
       method: "HEAD",
       signal: controller.signal,
       redirect: "manual",
-      headers: {
-        "User-Agent": "HarborMarks-BrokenLinkChecker/1.0",
-      },
+      headers: linkHealthHeaders(),
     })
+    try {
+      await headRes.arrayBuffer().catch(() => {})
+    } catch {
+      // Ignore body-drain errors; status is what matters.
+    }
 
     if (classifyLinkHealthResponse(headRes.status)) {
       return true
     }
 
-    // 405 on HEAD → fall back to GET.
-    if (headRes.status === 405) {
-      const getController = new AbortController()
-      const getTimer = setTimeout(() => getController.abort(), 10_000)
+    // Any non-healthy HEAD falls back to GET (bot-walled pages often 403
+    // HEAD but serve GET, or 405 Method Not Allowed). GET follows redirects
+    // so short-link / Medium 301 chains resolve to the real page.
+    const getController = new AbortController()
+    const getTimer = setTimeout(() => getController.abort(), 10_000)
+    try {
+      const getRes = await fetch(url, {
+        method: "GET",
+        signal: getController.signal,
+        redirect: "follow",
+        headers: linkHealthHeaders(),
+      })
       try {
-        const getRes = await fetch(url, {
-          method: "GET",
-          signal: getController.signal,
-          redirect: "manual",
-          headers: {
-            "User-Agent": "HarborMarks-BrokenLinkChecker/1.0",
-          },
-        })
-
-        return classifyLinkHealthResponse(getRes.status)
-      } finally {
-        clearTimeout(getTimer)
+        await getRes.arrayBuffer().catch(() => {})
+      } catch {
+        // Ignore body-drain errors; status is what matters.
       }
-    }
 
-    return false
+      return classifyLinkHealthResponse(getRes.status)
+    } finally {
+      clearTimeout(getTimer)
+    }
   } catch {
     // Network error, DNS failure, abort, etc. → broken.
     return false
