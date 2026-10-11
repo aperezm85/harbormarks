@@ -4,6 +4,14 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.5.0 — 2026-10-11
+
+- Collection Dashboard is now a dedicated page (`/dashboard`) instead of sharing the bookmark list home. Existing `/health` links continue working and redirect to `/dashboard`.
+- The dashboard focuses on actionable cleanup: score, bookmark debt, attention categories, organisation sections, trends, preservation risk, rediscovery picks, and advanced breakdowns.
+- Broken-links triage is one click from the dashboard itself: a new "Re-run checker" button in the Broken Links block triggers `POST /api/link-health/check-now` and refreshes counts live.
+- Added direct cleanup links in the unassigned/inbox blocks so users can jump straight to the relevant bookmark views (`/?view=unorganized`, `/?view=unread`).
+- No schema migration: drop-in image swap.
+
 ## v1.4.0 — 2026-10-11
 
 - Bulk actions for large collections: select bookmarks with checkboxes (shift-click selects a range, the header box selects everything loaded with a tri-state count) and apply one action to all of them from a compact toolbar pinned above the cards.

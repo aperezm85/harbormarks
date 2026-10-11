@@ -25,6 +25,7 @@ import { latestChanges } from "@/lib/changelog"
 import { formatTagLabel } from "@/lib/bookmark-tags"
 import { tagHue } from "@/lib/tag-color"
 import {
+  ChartLineUpIcon,
   BookmarkIcon,
   HeartStraightIcon,
   PlusIcon,
@@ -233,6 +234,11 @@ export function AppSidebar({
             title: "All Bookmarks",
             url: "/",
             icon: <BookmarkIcon className="size-4" />,
+          },
+          {
+            title: "Collection Dashboard",
+            url: "/dashboard",
+            icon: <ChartLineUpIcon className="size-4" />,
           },
           {
             title: "Favorites",

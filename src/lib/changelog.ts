@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.5.0",
+    date: "2026-10-11",
+    changes: [
+      "Collection Dashboard now has its own page (/dashboard), with /health kept as a compatibility redirect.",
+      "Broken links can be re-checked directly from the dashboard via a new Re-run checker button.",
+      "Organisation blocks now include direct cleanup shortcuts for unassigned and unread inbox views.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.4.0",
     date: "2026-10-11",
     changes: [
