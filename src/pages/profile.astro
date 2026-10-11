@@ -359,6 +359,32 @@ if (error?.startsWith("Password must be at least")) {
 
         <Card>
           <CardHeader>
+            <CardTitle>Link health</CardTitle>
+            <CardDescription>
+              Dead links get a red Broken badge and an is:broken search
+              filter. The automatic scan runs daily — use this to re-check
+              right now (for example after a false positive).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-4">
+              <p id="linkhealth-message" class="hidden text-sm"></p>
+              <div class="flex flex-wrap gap-2">
+                <Button type="button" id="linkhealth-check" variant="outline">
+                  Check links now
+                </Button>
+              </div>
+              <p class="text-xs text-muted-foreground">
+                Checks the next batch of unchecked or broken links (max 10
+                per hour). Previously broken links that now load are
+                unmarked automatically.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>API keys</CardTitle>
             <CardDescription>
               Keys for the browser extension and iOS Shortcuts. A key saves
@@ -637,6 +663,60 @@ if (error?.startsWith("Password must be at least")) {
     })
 
     void loadDigestPrefs()
+  </script>
+
+  <script>
+    const linkHealthCheck = document.getElementById(
+      "linkhealth-check"
+    ) as HTMLButtonElement | null
+    const linkHealthMessage = document.getElementById("linkhealth-message")
+
+    function showLinkHealthMessage(message: string, ok: boolean) {
+      if (!linkHealthMessage) return
+      linkHealthMessage.textContent = message
+      linkHealthMessage.classList.remove("hidden")
+      linkHealthMessage.classList.toggle("text-destructive", !ok)
+      linkHealthMessage.classList.toggle("text-muted-foreground", ok)
+    }
+
+    function notifyLinkHealthToast(type: "success" | "error", message: string) {
+      window.dispatchEvent(
+        new CustomEvent("profile:toast", { detail: { type, message } })
+      )
+    }
+
+    linkHealthCheck?.addEventListener("click", () => {
+      if (linkHealthCheck) linkHealthCheck.disabled = true
+      showLinkHealthMessage("Checking links…", true)
+      void fetch("/api/link-health/check-now", { method: "POST" })
+        .then(async (response) => {
+          const result = (await response.json().catch(() => null)) as {
+            error?: string
+            data?: { checked?: number; healthy?: number; broken?: number }
+          } | null
+          if (!response.ok) {
+            const message = result?.error ?? "Could not check links."
+            showLinkHealthMessage(message, false)
+            notifyLinkHealthToast("error", message)
+            return
+          }
+          const checked = result?.data?.checked ?? 0
+          const healthy = result?.data?.healthy ?? 0
+          const broken = result?.data?.broken ?? 0
+          const message =
+            checked === 0
+              ? "Nothing to check — all links are already verified."
+              : `Checked ${checked} link${checked === 1 ? "" : "s"}: ${healthy} healthy, ${broken} broken.`
+          showLinkHealthMessage(message, true)
+          notifyLinkHealthToast("success", message)
+        })
+        .catch(() => {
+          showLinkHealthMessage("Could not check links.", false)
+        })
+        .finally(() => {
+          if (linkHealthCheck) linkHealthCheck.disabled = false
+        })
+    })
   </script>
 
   <script>

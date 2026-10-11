@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.3.1",
+    date: "2026-10-11",
+    changes: [
+      "Fixed live Medium links wrongly flagged as broken: the checker now looks like a browser and double-checks with a full page load before marking anything dead.",
+      "New Check links now button on the profile page re-verifies your links immediately instead of waiting for the daily scan.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.3.0",
     date: "2026-10-04",
     changes: [
