@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.4.0",
+    date: "2026-10-11",
+    changes: [
+      "Bulk actions: tick checkboxes to select bookmarks (shift-click grabs a whole range) and favorite, archive, tag, or delete them all at once from the toolbar above the cards.",
+      "Deleting in bulk still goes to Trash first, and tag add/remove keeps your existing casing instead of duplicating tags.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.3.1",
     date: "2026-10-11",
     changes: [

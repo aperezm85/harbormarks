@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm"
 
 import { db } from "@/db/client"
 import { bookmarks } from "@/db/schema"
@@ -837,6 +837,153 @@ export async function restoreBookmarkById(userId: number, id: number) {
     .returning({ id: bookmarks.id })
 
   return restored.length > 0
+}
+
+export type BulkBookmarksAction =
+  | "delete"
+  | "favorite"
+  | "unfavorite"
+  | "add-tags"
+  | "remove-tags"
+  | "archive"
+  | "unarchive"
+
+export const BULK_BOOKMARK_ACTIONS: readonly BulkBookmarksAction[] = [
+  "delete",
+  "favorite",
+  "unfavorite",
+  "add-tags",
+  "remove-tags",
+  "archive",
+  "unarchive",
+]
+
+export function isBulkBookmarksAction(
+  value: unknown
+): value is BulkBookmarksAction {
+  return (
+    typeof value === "string" &&
+    (BULK_BOOKMARK_ACTIONS as readonly string[]).includes(value)
+  )
+}
+
+// Story 11 bulk actions. Every statement is scoped by user_id and
+// deleted_at IS NULL, so ids belonging to another user (or already in Trash)
+// simply do not match and the returned count is lower — not an error. `delete`
+// is a soft delete consistent with deleteBookmarkById. Tag writes reuse the
+// case-insensitive union/difference helpers so casing never duplicates.
+export async function bulkUpdateBookmarks(
+  userId: number,
+  ids: number[],
+  action: BulkBookmarksAction,
+  tags?: string[]
+): Promise<number> {
+  await ensureBookmarksTable()
+
+  const uniqueIds = [...new Set(ids)]
+
+  if (uniqueIds.length === 0) {
+    return 0
+  }
+
+  const scope = and(
+    eq(bookmarks.userId, userId),
+    isNull(bookmarks.deletedAt),
+    inArray(bookmarks.id, uniqueIds)
+  )
+
+  switch (action) {
+    case "delete": {
+      const rows = await db
+        .update(bookmarks)
+        .set({ deletedAt: new Date(), updatedAt: new Date() })
+        .where(scope)
+        .returning({ id: bookmarks.id })
+      return rows.length
+    }
+    case "favorite": {
+      const rows = await db
+        .update(bookmarks)
+        .set({ isFavorite: true, updatedAt: new Date() })
+        .where(scope)
+        .returning({ id: bookmarks.id })
+      return rows.length
+    }
+    case "unfavorite": {
+      const rows = await db
+        .update(bookmarks)
+        .set({ isFavorite: false, updatedAt: new Date() })
+        .where(scope)
+        .returning({ id: bookmarks.id })
+      return rows.length
+    }
+    case "archive": {
+      const rows = await db
+        .update(bookmarks)
+        .set({ status: "archived", updatedAt: new Date() })
+        .where(scope)
+        .returning({ id: bookmarks.id })
+      return rows.length
+    }
+    case "unarchive": {
+      const rows = await db
+        .update(bookmarks)
+        .set({ status: "reading", updatedAt: new Date() })
+        .where(scope)
+        .returning({ id: bookmarks.id })
+      return rows.length
+    }
+    case "add-tags":
+    case "remove-tags": {
+      const incoming = dedupeTags(
+        (tags ?? []).map((tag) => tag.trim()).filter(Boolean)
+      )
+
+      if (incoming.length === 0) {
+        throw new Error("Tags are required")
+      }
+
+      const rows = await db
+        .select({ id: bookmarks.id, tags: bookmarks.tags })
+        .from(bookmarks)
+        .where(scope)
+
+      let affected = 0
+
+      await db.transaction(async (tx) => {
+        for (const row of rows) {
+          const current = parseTags(row.tags)
+          const next =
+            action === "add-tags"
+              ? unionTags(current, incoming)
+              : current.filter(
+                  (tag) =>
+                    !incoming.some(
+                      (wanted) => wanted.toLowerCase() === tag.toLowerCase()
+                    )
+                )
+          if (tagSetsDiffer(current, next)) {
+            await tx
+              .update(bookmarks)
+              .set({
+                tags: next.length > 0 ? next : null,
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(bookmarks.id, row.id),
+                  eq(bookmarks.userId, userId),
+                  isNull(bookmarks.deletedAt)
+                )
+              )
+            affected += 1
+          }
+        }
+      })
+
+      return affected
+    }
+  }
 }
 
 export async function incrementBookmarkVisitById(userId: number, id: number) {

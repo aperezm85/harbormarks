@@ -47,6 +47,7 @@ import type {
 } from "@/lib/bookmark-types"
 import type { CardViewMode } from "@/lib/card-view"
 import { formatTagLabel } from "@/lib/bookmark-tags"
+import { SelectCheckbox } from "@/components/ui/select-checkbox"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -117,6 +118,9 @@ export const HarborCard = ({
   onPurged,
   isTrashItem,
   viewMode = "grid",
+  selected = false,
+  selectionActive = false,
+  onSelectToggle,
 }: {
   id: string
   url: string
@@ -150,6 +154,9 @@ export const HarborCard = ({
   onPurged?: (bookmark: BookmarkCardData) => void
   isTrashItem?: boolean
   viewMode?: CardViewMode
+  selected?: boolean
+  selectionActive?: boolean
+  onSelectToggle?: (shiftKey: boolean) => void
 }) => {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   // Read status slice: cycles unread -> reading -> archived -> unread.
@@ -417,6 +424,50 @@ export const HarborCard = ({
         : "Archived"
 
   const isLinkBroken = linkHealth === "broken"
+
+  // Story 11 bulk selection. Two variants sharing one behavior: an overlay
+  // badge for image cards (grid/list) and an inline box for compact rows.
+  // Both use the custom SelectCheckbox (not a native input) so checked,
+  // unchecked, and indeterminate render identically in light and dark mode.
+  // Reveal rule: always on touch devices and focus, always once a selection
+  // exists (Gmail-style), otherwise on hover.
+  const selectionRevealClassName =
+    selected || selectionActive
+      ? "opacity-100"
+      : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+
+  const renderOverlayCheckbox = (positionClassName: string) => {
+    if (!onSelectToggle) {
+      return null
+    }
+
+    return (
+      <span
+        className={`absolute z-20 transition-opacity ${positionClassName} ${selectionRevealClassName}`}
+      >
+        <SelectCheckbox
+          checked={selected}
+          label={`Select bookmark: ${title}`}
+          onToggle={(shiftKey) => onSelectToggle(shiftKey)}
+        />
+      </span>
+    )
+  }
+
+  const renderInlineCheckbox = () => {
+    if (!onSelectToggle) {
+      return null
+    }
+
+    return (
+      <SelectCheckbox
+        checked={selected}
+        label={`Select bookmark: ${title}`}
+        onToggle={(shiftKey) => onSelectToggle(shiftKey)}
+        className="relative z-20"
+      />
+    )
+  }
 
   const renderStatusControl = () => {
     // Card shows the unread state only — no dot for reading/archived.
@@ -994,8 +1045,9 @@ export const HarborCard = ({
   // never the compact image-less row.
   if (viewMode === "list") {
     return (
-      <div className="group relative flex min-w-0 flex-row items-stretch overflow-hidden rounded-md bg-card text-sm text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted/50">
+      <div className={`group relative flex min-w-0 flex-row items-stretch overflow-hidden rounded-md bg-card text-sm text-card-foreground ring-1 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : "ring-foreground/10"}`}>
         {stretchedLink}
+        {renderOverlayCheckbox("top-2 left-2")}
         <div className="relative z-0 w-[120px] shrink-0 self-stretch sm:w-[152px]">
           {previewImage && isPreviewImageVisible ? (
             <img
@@ -1068,8 +1120,9 @@ export const HarborCard = ({
   // all — not even hidden — so compact mode issues no image requests.
   if (viewMode === "compact") {
     return (
-      <div className="group relative flex h-11 min-w-0 flex-row items-center gap-2 bg-card px-3 text-sm text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted/50">
+      <div className={`group relative flex h-11 min-w-0 flex-row items-center gap-2 bg-card px-3 text-sm text-card-foreground ring-1 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : "ring-foreground/10"}`}>
         {stretchedLink}
+        {renderInlineCheckbox()}
         <img
           src={favicon}
           alt={`${title} favicon`}
@@ -1132,7 +1185,8 @@ export const HarborCard = ({
   }
 
   return (
-    <Card className="group relative h-full border pt-0 transition-colors hover:bg-muted/50">
+    <Card className={`group relative h-full border pt-0 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : ""}`}>
+      {renderOverlayCheckbox("top-2 left-2")}
       <a
         href={url}
         target="_blank"
