@@ -20,10 +20,14 @@ import { cn } from "@/lib/utils"
 
 import { DashboardSubBar } from "@/components/dashboard/DashboardSubBar"
 import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar"
+import { BulkActionBar } from "@/components/dashboard/BulkActionBar"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { Button } from "@/components/ui/button"
 import { HarborCard } from "@/components/ui/HarborCard"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { toast } from "sonner"
+
+import type { BulkBookmarksAction } from "@/lib/bookmarks"
 
 import { Toaster } from "@/components/ui/sonner"
 
@@ -68,6 +72,56 @@ export const DashboardLayout = ({
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const requestIdRef = useRef(0)
   const skipInitialRefreshRef = useRef(true)
+  // Story 11 bulk selection. A Set of bookmark ids (strings, matching
+  // BookmarkCardData.id). Selection clears after an action and on view change.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkWorking, setIsBulkWorking] = useState(false)
+  const lastSelectedIndexRef = useRef<number | null>(null)
+
+  const selectionActive = selectedIds.size > 0
+
+  const clearSelection = () => {
+    lastSelectedIndexRef.current = null
+    setSelectedIds(new Set())
+  }
+
+  const toggleSelect = (id: string, index: number, shiftKey: boolean) => {
+    const lastIndex = lastSelectedIndexRef.current
+
+    if (shiftKey && lastIndex !== null && lastIndex !== index) {
+      const [from, to] =
+        lastIndex < index ? [lastIndex, index] : [index, lastIndex]
+      const rangeIds = visibleBookmarks.slice(from, to + 1).map((b) => b.id)
+      setSelectedIds((current) => new Set([...current, ...rangeIds]))
+    } else {
+      setSelectedIds((current) => {
+        const next = new Set(current)
+        if (next.has(id)) {
+          next.delete(id)
+        } else {
+          next.add(id)
+        }
+        return next
+      })
+    }
+    lastSelectedIndexRef.current = index
+  }
+
+  const toggleSelectAllLoaded = () => {
+    setSelectedIds((current) => {
+      if (
+        visibleBookmarks.length > 0 &&
+        current.size >= visibleBookmarks.length &&
+        visibleBookmarks.every((b) => current.has(b.id))
+      ) {
+        lastSelectedIndexRef.current = null
+        return new Set()
+      }
+
+      lastSelectedIndexRef.current = null
+      return new Set(visibleBookmarks.map((b) => b.id))
+    })
+  }
 
   // A successful import posts this event; reset to page 1 and re-fetch so the
   // newly imported bookmarks appear without a full page reload.
@@ -109,6 +163,8 @@ export const DashboardLayout = ({
     function syncRouteFilters() {
       const { pathname, search } = window.location
       const searchParams = new URLSearchParams(search)
+      lastSelectedIndexRef.current = null
+      setSelectedIds(new Set())
 
       if (pathname === "/tag") {
         const nextTag = searchParams.get("tag")?.trim() ?? ""
@@ -233,6 +289,114 @@ export const DashboardLayout = ({
 
       return [bookmarkToRestore, ...current]
     })
+  }
+
+  const handleBulkAction = (action: BulkBookmarksAction, tags?: string[]) => {
+    if (selectedIds.size === 0 || isBulkWorking) {
+      return
+    }
+
+    const ids = [...selectedIds]
+    const numericIds = ids
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+
+    if (numericIds.length === 0) {
+      return
+    }
+
+    const snapshot = visibleBookmarks
+    const selected = new Set(ids)
+    const cleanTags = (tags ?? []).map((t) => t.trim()).filter(Boolean)
+
+    // Optimistic update matching the single-card pattern in HarborCard.
+    setVisibleBookmarks((current) => {
+      switch (action) {
+        case "delete":
+          return current.filter((b) => !selected.has(b.id))
+        case "favorite":
+          return current.map((b) =>
+            selected.has(b.id) ? { ...b, isFavorite: true } : b
+          )
+        case "unfavorite":
+          return current.map((b) =>
+            selected.has(b.id) ? { ...b, isFavorite: false } : b
+          )
+        case "archive":
+          return current.map((b) =>
+            selected.has(b.id) ? { ...b, status: "archived" } : b
+          )
+        case "unarchive":
+          return current.map((b) =>
+            selected.has(b.id) ? { ...b, status: "reading" } : b
+          )
+        case "add-tags":
+          return current.map((b) => {
+            if (!selected.has(b.id)) return b
+            const merged = [...b.tags]
+            for (const tag of cleanTags) {
+              if (!merged.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+                merged.push(tag)
+              }
+            }
+            return { ...b, tags: merged }
+          })
+        case "remove-tags": {
+          const drop = new Set(cleanTags.map((t) => t.toLowerCase()))
+          return current.map((b) =>
+            selected.has(b.id)
+              ? { ...b, tags: b.tags.filter((t) => !drop.has(t.toLowerCase())) }
+              : b
+          )
+        }
+      }
+    })
+    clearSelection()
+    setIsBulkWorking(true)
+
+    void fetch("/api/bookmarks/bulk", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids: numericIds, action, tags: cleanTags }),
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as {
+          data?: { affected?: number; requested?: number }
+          error?: string
+        } | null
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Bulk update failed")
+        }
+
+        const affected = payload?.data?.affected ?? numericIds.length
+        const requested = payload?.data?.requested ?? numericIds.length
+
+        if (action === "delete") {
+          toast.success(
+            affected === 1
+              ? "Bookmark moved to Trash."
+              : `${affected} bookmarks moved to Trash.`
+          )
+        } else if (affected < requested) {
+          toast.success(
+            `${affected} of ${requested} bookmarks updated (others were skipped).`
+          )
+        } else {
+          toast.success(
+            affected === 1 ? "Bookmark updated." : `${affected} bookmarks updated.`
+          )
+        }
+
+        window.dispatchEvent(new CustomEvent("harbormarks:tags-changed"))
+      })
+      .catch(() => {
+        setVisibleBookmarks(snapshot)
+        toast.error("Bulk update failed. Changes were reverted.")
+      })
+      .finally(() => {
+        setIsBulkWorking(false)
+      })
   }
 
   useEffect(() => {
@@ -402,12 +566,14 @@ export const DashboardLayout = ({
               setRouteTrashOnly(false)
               setRouteTagFilter(undefined)
               setActiveView(view)
+              clearSelection()
               navigateTo("/")
             }}
             onNavigate={(path) => {
               setPage(1)
               setSearchInput("")
               setDebouncedSearch("")
+              clearSelection()
               navigateTo(path)
             }}
             onRemoveOperator={(token) => {
@@ -418,6 +584,14 @@ export const DashboardLayout = ({
             }}
           />
           <div className="flex min-w-0 flex-1 flex-col p-4">
+            <BulkActionBar
+              selectedCount={selectedIds.size}
+              totalLoaded={visibleBookmarks.length}
+              isWorking={isBulkWorking}
+              onToggleSelectAll={toggleSelectAllLoaded}
+              onClear={clearSelection}
+              onAction={handleBulkAction}
+            />
             <div className="min-h-screen min-w-0 flex-1 md:min-h-min">
               {/* `invisible` until the stored view is applied: it keeps the
               layout space reserved, so the cards appear at the right density
@@ -428,11 +602,16 @@ export const DashboardLayout = ({
                   !isCardViewReady && "invisible"
                 )}
               >
-                {visibleBookmarks.map((bookmark) => (
+                {visibleBookmarks.map((bookmark, index) => (
                   <HarborCard
                     key={bookmark.id}
                     {...bookmark}
                     viewMode={cardView}
+                    selected={selectedIds.has(bookmark.id)}
+                    selectionActive={selectionActive}
+                    onSelectToggle={(shiftKey) =>
+                      toggleSelect(bookmark.id, index, shiftKey)
+                    }
                     onSaved={applyBookmarkUpdate}
                     onVisit={() => incrementVisitCount(bookmark.id)}
                     onVisitRollback={() => decrementVisitCount(bookmark.id)}
