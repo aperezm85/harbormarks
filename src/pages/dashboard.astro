@@ -1,0 +1,22 @@
+---
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import Layout from "@/layouts/main.astro"
+import { getCollectionHealthSummary } from "@/lib/bookmarks"
+
+const userId = Astro.locals.userId
+const user = Astro.locals.user
+const collectionHealth = userId ? await getCollectionHealthSummary(userId) : null
+---
+
+<Layout page="Collection Dashboard | HarborMarks">
+  <DashboardLayout
+    client:load
+    transition:persist
+    bookmarks={[]}
+    hasMore={false}
+    currentUser={user}
+    showCollectionHealthHome
+    showBookmarkFeed={false}
+    initialCollectionHealth={collectionHealth}
+  />
+</Layout>

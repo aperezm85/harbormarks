@@ -54,6 +54,13 @@ to set up and submit a PR.
   - Most visited (recency-weighted, so old counts decay),
   - Unorganized,
   - Trash.
+- Collection Dashboard (`/dashboard`):
+  - score-based overview (healthy/broken/duplicates/untagged),
+  - attention sections (broken links, redirects, dead domains),
+  - organisation insights (untagged, duplicates, inbox backlog),
+  - trends, preservation risk, rediscovery picks, and bookmark debt,
+  - one-click "Re-run checker" for broken links and direct cleanup links for
+    unassigned and unread inbox views.
 - Visit tracking with reset action per bookmark.
 - Preview image rendering in cards, with gradient fallback when unavailable.
 - Persistent UI behavior:

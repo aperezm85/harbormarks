@@ -390,6 +390,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full release notes. It is the single sour
 
 Upgrade-relevant summary (see sections 8-9 for dump/restore):
 
+- v1.5.0: no schema migration (drop-in image swap).
 - v1.4.0: no schema migration (drop-in image swap).
 - v1.3.1: no schema migration (drop-in image swap).
 - v1.3.0: one additive migration (`0012_link_health.sql`).
@@ -457,7 +458,7 @@ docker compose -f docker-compose.deploy.yml up -d
 
 ### C) Recommended tag strategy
 
-For safer upgrades on NAS, pin to a version tag (for example `:v1.4.0`) instead of always using `:latest`.
+For safer upgrades on NAS, pin to a version tag (for example `:v1.5.0`) instead of always using `:latest`.
 
 Rollback example:
 

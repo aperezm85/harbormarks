@@ -4,6 +4,10 @@ import { db } from "@/db/client"
 import { bookmarks } from "@/db/schema"
 import { ensureAuthSchema } from "@/lib/auth"
 import { normalizeBookmarkAssetUrl } from "@/lib/bookmark-assets"
+import {
+  buildCollectionHealthSummary,
+  type CollectionHealthSourceBookmark,
+} from "@/lib/collection-health"
 import { normalizeTags, parseTags } from "@/lib/bookmark-tags"
 import { parseBookmarkQuery } from "@/lib/bookmark-query"
 import {
@@ -13,6 +17,7 @@ import {
   type BookmarkTagSummary,
   type BookmarkView,
   type BookmarkViewCounts,
+  type CollectionHealthSummary,
   DEFAULT_BOOKMARK_PAGE_SIZE,
 } from "@/lib/bookmark-types"
 import {
@@ -32,6 +37,7 @@ export type {
   BookmarkTagSummary,
   BookmarkView,
   BookmarkViewCounts,
+  CollectionHealthSummary,
 }
 // Maintained by Postgres as a STORED generated column and backed by a GIN index
 // (migrations/0004_bookmark_search_vector.sql). Computing the tsvector inline here
@@ -525,6 +531,43 @@ export async function countBookmarksByView(
     trash: Number(row?.trash ?? 0),
     unread: Number(row?.unread ?? 0),
   }
+}
+
+export async function getCollectionHealthSummary(
+  userId: number
+): Promise<CollectionHealthSummary> {
+  await ensureBookmarksTable()
+
+  const rows = await db
+    .select({
+      id: bookmarks.id,
+      url: bookmarks.url,
+      title: bookmarks.title,
+      canonicalUrl: bookmarks.canonicalUrl,
+      tags: bookmarks.tags,
+      linkHealth: bookmarks.linkHealth,
+      status: bookmarks.status,
+      createdAt: bookmarks.createdAt,
+      updatedAt: bookmarks.updatedAt,
+      lastVisitedAt: bookmarks.lastVisitedAt,
+    })
+    .from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt)))
+
+  const formattedRows: CollectionHealthSourceBookmark[] = rows.map((row) => ({
+    id: row.id,
+    url: row.url,
+    title: row.title,
+    canonicalUrl: row.canonicalUrl,
+    tags: row.tags,
+    linkHealth: row.linkHealth,
+    status: row.status,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    lastVisitedAt: row.lastVisitedAt,
+  }))
+
+  return buildCollectionHealthSummary(formattedRows)
 }
 
 // `published_at` is a timestamp column, but the JSON API and the metadata

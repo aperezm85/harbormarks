@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 
 import { DashboardSubBar } from "@/components/dashboard/DashboardSubBar"
 import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar"
+import { CollectionHealthDashboard } from "@/components/dashboard/CollectionHealthDashboard"
 import { BulkActionBar } from "@/components/dashboard/BulkActionBar"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ import { toast } from "sonner"
 import type { BulkBookmarksAction } from "@/lib/bookmarks"
 
 import { Toaster } from "@/components/ui/sonner"
+import type { CollectionHealthSummary } from "@/lib/bookmark-types"
 
 export const DashboardLayout = ({
   bookmarks,
@@ -38,12 +40,18 @@ export const DashboardLayout = ({
   view,
   currentUser,
   hasMore: initialHasMore = false,
+  showCollectionHealthHome = false,
+  showBookmarkFeed = true,
+  initialCollectionHealth = null,
 }: {
   bookmarks: BookmarkCardData[]
   tagFilter?: string
   onlyFavorites?: boolean
   view?: "recent" | "unread" | "mostVisited" | "unorganized" | "trash"
   hasMore?: boolean
+  showCollectionHealthHome?: boolean
+  showBookmarkFeed?: boolean
+  initialCollectionHealth?: CollectionHealthSummary | null
   currentUser?: {
     id: number
     email: string
@@ -55,6 +63,9 @@ export const DashboardLayout = ({
   const [routeTagFilter, setRouteTagFilter] = useState(tagFilter)
   const [routeOnlyFavorites, setRouteOnlyFavorites] = useState(onlyFavorites)
   const [routeTrashOnly, setRouteTrashOnly] = useState(view === "trash")
+  const [routeIsCollectionHealthRoute, setRouteIsCollectionHealthRoute] = useState(
+    showCollectionHealthHome
+  )
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [visibleBookmarks, setVisibleBookmarks] =
@@ -77,6 +88,11 @@ export const DashboardLayout = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkWorking, setIsBulkWorking] = useState(false)
   const lastSelectedIndexRef = useRef<number | null>(null)
+  const [collectionHealth, setCollectionHealth] =
+    useState<CollectionHealthSummary | null>(initialCollectionHealth)
+  const [isCollectionHealthLoading, setIsCollectionHealthLoading] = useState(
+    showCollectionHealthHome && !initialCollectionHealth
+  )
 
   const selectionActive = selectedIds.size > 0
 
@@ -171,6 +187,7 @@ export const DashboardLayout = ({
         setRouteTagFilter(nextTag || undefined)
         setRouteOnlyFavorites(false)
         setRouteTrashOnly(false)
+        setRouteIsCollectionHealthRoute(false)
         setPage(1)
         return
       }
@@ -179,6 +196,7 @@ export const DashboardLayout = ({
         setRouteTagFilter(undefined)
         setRouteOnlyFavorites(true)
         setRouteTrashOnly(false)
+        setRouteIsCollectionHealthRoute(false)
         setPage(1)
         return
       }
@@ -187,6 +205,7 @@ export const DashboardLayout = ({
         setRouteTagFilter(undefined)
         setRouteOnlyFavorites(false)
         setRouteTrashOnly(true)
+        setRouteIsCollectionHealthRoute(false)
         setPage(1)
         return
       }
@@ -194,6 +213,7 @@ export const DashboardLayout = ({
       setRouteTagFilter(undefined)
       setRouteOnlyFavorites(false)
       setRouteTrashOnly(false)
+      setRouteIsCollectionHealthRoute(pathname === "/dashboard")
       setPage(1)
     }
 
@@ -410,6 +430,10 @@ export const DashboardLayout = ({
   }, [searchInput])
 
   useEffect(() => {
+    if (!showBookmarkFeed) {
+      return
+    }
+
     if (skipInitialRefreshRef.current) {
       skipInitialRefreshRef.current = false
       return
@@ -492,6 +516,7 @@ export const DashboardLayout = ({
     routeOnlyFavorites,
     routeTrashOnly,
     refreshTrigger,
+    showBookmarkFeed,
   ])
 
   // Story 8: derive the parsed operators from the debounced search at render
@@ -500,6 +525,64 @@ export const DashboardLayout = ({
   const queryOperators = parseBookmarkQuery(debouncedSearch).operators
 
   const hasActiveSearch = debouncedSearch.length > 0
+  const showCollectionHealthSection =
+    routeIsCollectionHealthRoute &&
+    !routeOnlyFavorites &&
+    !routeTagFilter &&
+    !routeTrashOnly &&
+    !hasActiveSearch
+
+  useEffect(() => {
+    if (!showCollectionHealthSection) {
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    async function refreshCollectionHealth() {
+      setIsCollectionHealthLoading(true)
+      try {
+        const response = await fetch("/api/bookmarks/collection-health", {
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error(
+            `Failed to load collection health (${response.status})`
+          )
+        }
+        const payload = (await response.json()) as {
+          data?: CollectionHealthSummary
+        }
+        if (!cancelled) {
+          setCollectionHealth(payload.data ?? null)
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error(error)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCollectionHealthLoading(false)
+        }
+      }
+    }
+
+    void refreshCollectionHealth()
+
+    const refresh = () => {
+      void refreshCollectionHealth()
+    }
+    window.addEventListener("harbormarks:bookmarks-changed", refresh)
+    window.addEventListener("harbormarks:tags-changed", refresh)
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      window.removeEventListener("harbormarks:bookmarks-changed", refresh)
+      window.removeEventListener("harbormarks:tags-changed", refresh)
+    }
+  }, [showCollectionHealthSection])
 
   // Container classes per card density. Kept as a plain variable (not an
   // inline template literal) so prettier-plugin-tailwindcss can sort the
@@ -549,122 +632,134 @@ export const DashboardLayout = ({
             cardView={cardView}
             onCardViewChange={handleCardViewChange}
           />
-          <DashboardSubBar
-            activeView={activeView}
-            routeTagFilter={routeTagFilter}
-            routeOnlyFavorites={routeOnlyFavorites ?? false}
-            routeTrashOnly={routeTrashOnly}
-            hasActiveSearch={hasActiveSearch}
-            debouncedSearch={debouncedSearch}
-            count={visibleBookmarks.length}
-            queryOperators={queryOperators}
-            onIndexViewChange={(view) => {
-              setPage(1)
-              setSearchInput("")
-              setDebouncedSearch("")
-              setRouteOnlyFavorites(false)
-              setRouteTrashOnly(false)
-              setRouteTagFilter(undefined)
-              setActiveView(view)
-              clearSelection()
-              navigateTo("/")
-            }}
-            onNavigate={(path) => {
-              setPage(1)
-              setSearchInput("")
-              setDebouncedSearch("")
-              clearSelection()
-              navigateTo(path)
-            }}
-            onRemoveOperator={(token) => {
-              const next = removeOperatorFromQuery(searchInput, token)
-              setPage(1)
-              setSearchInput(next)
-              setDebouncedSearch(next)
-            }}
-          />
-          <div className="flex min-w-0 flex-1 flex-col p-4">
-            <BulkActionBar
-              selectedCount={selectedIds.size}
-              totalLoaded={visibleBookmarks.length}
-              isWorking={isBulkWorking}
-              onToggleSelectAll={toggleSelectAllLoaded}
-              onClear={clearSelection}
-              onAction={handleBulkAction}
+          {showBookmarkFeed ? (
+            <DashboardSubBar
+              activeView={activeView}
+              routeTagFilter={routeTagFilter}
+              routeOnlyFavorites={routeOnlyFavorites ?? false}
+              routeTrashOnly={routeTrashOnly}
+              hasActiveSearch={hasActiveSearch}
+              debouncedSearch={debouncedSearch}
+              count={visibleBookmarks.length}
+              queryOperators={queryOperators}
+              onIndexViewChange={(view) => {
+                setPage(1)
+                setSearchInput("")
+                setDebouncedSearch("")
+                setRouteOnlyFavorites(false)
+                setRouteTrashOnly(false)
+                setRouteTagFilter(undefined)
+                setActiveView(view)
+                clearSelection()
+                navigateTo("/")
+              }}
+              onNavigate={(path) => {
+                setPage(1)
+                setSearchInput("")
+                setDebouncedSearch("")
+                clearSelection()
+                navigateTo(path)
+              }}
+              onRemoveOperator={(token) => {
+                const next = removeOperatorFromQuery(searchInput, token)
+                setPage(1)
+                setSearchInput(next)
+                setDebouncedSearch(next)
+              }}
             />
-            <div className="min-h-screen min-w-0 flex-1 md:min-h-min">
-              {/* `invisible` until the stored view is applied: it keeps the
-              layout space reserved, so the cards appear at the right density
-              with no layout jump (see isCardViewReady). */}
-              <div
-                className={cn(
-                  densityClassName,
-                  !isCardViewReady && "invisible"
-                )}
-              >
-                {visibleBookmarks.map((bookmark, index) => (
-                  <HarborCard
-                    key={bookmark.id}
-                    {...bookmark}
-                    viewMode={cardView}
-                    selected={selectedIds.has(bookmark.id)}
-                    selectionActive={selectionActive}
-                    onSelectToggle={(shiftKey) =>
-                      toggleSelect(bookmark.id, index, shiftKey)
-                    }
-                    onSaved={applyBookmarkUpdate}
-                    onVisit={() => incrementVisitCount(bookmark.id)}
-                    onVisitRollback={() => decrementVisitCount(bookmark.id)}
-                    onVisitReset={() => resetVisitCount(bookmark.id)}
-                    onVisitResetRollback={(previousCount) =>
-                      setVisibleBookmarks((current) =>
-                        current.map((currentBookmark) =>
-                          currentBookmark.id === bookmark.id
-                            ? {
-                                ...currentBookmark,
-                                visitCount: previousCount,
-                              }
-                            : currentBookmark
-                        )
-                      )
-                    }
-                    onFavoriteToggle={(nextIsFavorite) =>
-                      setFavoriteState(bookmark.id, nextIsFavorite)
-                    }
-                    onDeleted={removeBookmark}
-                    onDeleteRollback={restoreBookmark}
-                    onRestored={removeTrashBookmark}
-                    onPurged={removeTrashBookmark}
-                    isTrashItem={routeTrashOnly}
-                  />
-                ))}
-                {hasMore ? (
-                  <div className="flex w-full justify-center pt-2 pb-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setPage((current) => current + 1)}
-                      disabled={isRefreshingBookmarks || isLoadingMore}
-                    >
-                      {isLoadingMore
-                        ? "Loading more..."
-                        : "Load more bookmarks"}
-                    </Button>
+          ) : null}
+          <div className="flex min-w-0 flex-1 flex-col p-4">
+            {showCollectionHealthSection ? (
+              <CollectionHealthDashboard
+                summary={collectionHealth}
+                isLoading={isCollectionHealthLoading}
+              />
+            ) : null}
+            {showBookmarkFeed ? (
+              <>
+                <BulkActionBar
+                  selectedCount={selectedIds.size}
+                  totalLoaded={visibleBookmarks.length}
+                  isWorking={isBulkWorking}
+                  onToggleSelectAll={toggleSelectAllLoaded}
+                  onClear={clearSelection}
+                  onAction={handleBulkAction}
+                />
+                <div className="min-h-screen min-w-0 flex-1 md:min-h-min">
+                  {/* `invisible` until the stored view is applied: it keeps the
+                  layout space reserved, so the cards appear at the right density
+                  with no layout jump (see isCardViewReady). */}
+                  <div
+                    className={cn(
+                      densityClassName,
+                      !isCardViewReady && "invisible"
+                    )}
+                  >
+                    {visibleBookmarks.map((bookmark, index) => (
+                      <HarborCard
+                        key={bookmark.id}
+                        {...bookmark}
+                        viewMode={cardView}
+                        selected={selectedIds.has(bookmark.id)}
+                        selectionActive={selectionActive}
+                        onSelectToggle={(shiftKey) =>
+                          toggleSelect(bookmark.id, index, shiftKey)
+                        }
+                        onSaved={applyBookmarkUpdate}
+                        onVisit={() => incrementVisitCount(bookmark.id)}
+                        onVisitRollback={() => decrementVisitCount(bookmark.id)}
+                        onVisitReset={() => resetVisitCount(bookmark.id)}
+                        onVisitResetRollback={(previousCount) =>
+                          setVisibleBookmarks((current) =>
+                            current.map((currentBookmark) =>
+                              currentBookmark.id === bookmark.id
+                                ? {
+                                    ...currentBookmark,
+                                    visitCount: previousCount,
+                                  }
+                                : currentBookmark
+                            )
+                          )
+                        }
+                        onFavoriteToggle={(nextIsFavorite) =>
+                          setFavoriteState(bookmark.id, nextIsFavorite)
+                        }
+                        onDeleted={removeBookmark}
+                        onDeleteRollback={restoreBookmark}
+                        onRestored={removeTrashBookmark}
+                        onPurged={removeTrashBookmark}
+                        isTrashItem={routeTrashOnly}
+                      />
+                    ))}
+                    {hasMore ? (
+                      <div className="flex w-full justify-center pt-2 pb-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setPage((current) => current + 1)}
+                          disabled={isRefreshingBookmarks || isLoadingMore}
+                        >
+                          {isLoadingMore
+                            ? "Loading more..."
+                            : "Load more bookmarks"}
+                        </Button>
+                      </div>
+                    ) : null}
+                    {visibleBookmarks.length === 0 && (
+                      <div className="w-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                        {hasActiveSearch
+                          ? `Your harbor doesn't contain any results for "${debouncedSearch}".`
+                          : routeOnlyFavorites
+                            ? "No favorite bookmarks yet. Mark a bookmark as favorite to see it here."
+                            : routeTagFilter
+                              ? `No bookmarks found with the tag "${routeTagFilter}".`
+                              : "No bookmarks yet. Add your first bookmark to start building your harbor."}
+                      </div>
+                    )}
                   </div>
-                ) : null}
-                {visibleBookmarks.length === 0 && (
-                  <div className="w-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                    {hasActiveSearch
-                      ? `Your harbor doesn't contain any results for "${debouncedSearch}".`
-                      : routeOnlyFavorites
-                        ? "No favorite bookmarks yet. Mark a bookmark as favorite to see it here."
-                        : routeTagFilter
-                          ? `No bookmarks found with the tag "${routeTagFilter}".`
-                          : "No bookmarks yet. Add your first bookmark to start building your harbor."}
-                  </div>
-                )}
-              </div>
-            </div>
+                </div>
+              </>
+            ) : null}
           </div>
         </SidebarInset>
         <Toaster position="top-center" />
