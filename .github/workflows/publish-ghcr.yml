@@ -39,6 +39,7 @@ jobs:
       packages: write # to push the image to GitHub Container Registry
     with:
       output: image
+      sign: false
       push: ${{ github.event_name != 'pull_request' }}
       file: ./dockerfile
       platforms: linux/amd64,linux/arm64
