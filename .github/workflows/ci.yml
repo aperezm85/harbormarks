@@ -27,3 +27,24 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  # Builds the production image (no push) so a broken dockerfile, such as the
+  # corepack removal in node:lts, fails the PR instead of the post-merge
+  # publish workflow. amd64 only: arm64 would need QEMU and is much slower.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
