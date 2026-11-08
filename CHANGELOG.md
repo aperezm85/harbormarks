@@ -4,6 +4,17 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.7.0 — 2026-11-08
+
+- **Security fix:** the `site:` search operator was missing parentheses around its host match, so its OR clause bypassed the other filters in the query. A `site:` search could return bookmarks that belong to other users on the same instance, and bookmarks already in Trash. Results are now always scoped to your own live bookmarks. If you run a multi-user instance, upgrade.
+- Search and view live in the URL (`/?view=unread&q=tag%3Arust`, also on `/tag`, `/favorites`, and `/trash`), so refresh, back/forward, and shared links restore your results. The command palette filters use the same URLs.
+- Search now narrows the view you are in (Unread, Most visited, Unorganized, Trash, a tag, Favorites) instead of ignoring it, and Trash search finally works. Changing view keeps your search.
+- New exclusion operators: `-tag:`, `-site:`, `-is:`, and `-has:image`, shown as outlined chips.
+- Predictable combining: repeated `site:` filters OR, repeated status filters (`is:unread is:reading`) OR, repeated `tag:` still AND, and different operators AND. `site:` accepts a pasted URL (`site:https://github.com/x`). `has:image` ignores blank preview values.
+- Malformed dates and unknown `is:`/`has:` values now show a note under the search bar instead of being silently ignored.
+- Added a Search syntax section to the README.
+- No schema migration: drop-in image swap.
+
 ## v1.6.0 — 2026-11-08
 
 - Keyboard-first workflow: `/` focuses search, `j`/`k` move a focus ring between cards, and the focused card responds to `Enter`/`o` (open), `e` (edit), `f` (favorite), `a` (archive), `c` (copy link), `#` (Trash, with the usual confirm), and `x`/`Shift+X` (select / select range). With a selection active, `f`, `a`, and `#` apply to the whole selection.

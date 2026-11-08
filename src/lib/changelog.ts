@@ -6,6 +6,18 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.7.0",
+    date: "2026-11-08",
+    changes: [
+      "Security fix: a site: search could return other users' bookmarks and bookmarks in Trash. Searches are now always limited to your own live bookmarks. Multi-user instances should upgrade.",
+      "Your search and view are saved in the address bar, so refresh, back, and shared links keep your results.",
+      "Search now stays inside the view you are in (including Trash, tags, and Favorites), and switching view keeps your search.",
+      "New exclusions: -tag:, -site:, -is:, and -has:image. Repeated site: and status filters now match any of them.",
+      "Bad dates and unknown filters now show a note under the search bar instead of being ignored.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.6.0",
     date: "2026-11-08",
     changes: [

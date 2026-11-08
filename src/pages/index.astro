@@ -1,33 +1,17 @@
 ---
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
 import Layout from "@/layouts/main.astro"
-import {
-  DEFAULT_BOOKMARK_PAGE_SIZE,
-  listBookmarks,
-  type BookmarkView,
-} from "@/lib/bookmarks"
+import { DEFAULT_BOOKMARK_PAGE_SIZE, listBookmarks } from "@/lib/bookmarks"
+import { parseIndexView, readQueryParam } from "@/lib/search-params"
 
 const userId = Astro.locals.userId
 const user = Astro.locals.user
-function parseIndexView(rawValue: string | null): BookmarkView {
-  if (rawValue === "unread") {
-    return "unread"
-  }
-
-  if (rawValue === "mostVisited") {
-    return "mostVisited"
-  }
-
-  if (rawValue === "unorganized") {
-    return "unorganized"
-  }
-
-  return "recent"
-}
 const initialView = parseIndexView(Astro.url.searchParams.get("view"))
+const initialQuery = readQueryParam(Astro.url.searchParams)
 const rawBookmarks = userId
   ? await listBookmarks(userId, {
       view: initialView,
+      search: initialQuery || undefined,
       page: 1,
       pageSize: DEFAULT_BOOKMARK_PAGE_SIZE + 1,
     })
@@ -44,5 +28,6 @@ const hasMore = rawBookmarks.length > DEFAULT_BOOKMARK_PAGE_SIZE
     hasMore={hasMore}
     currentUser={user}
     view={initialView}
+    initialQuery={initialQuery}
   />
 </Layout>

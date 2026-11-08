@@ -16,6 +16,12 @@ import {
   setStoredCardView,
   type CardViewMode,
 } from "@/lib/card-view"
+import {
+  indexPath,
+  parseIndexView,
+  readQueryParam,
+  writeQueryParam,
+} from "@/lib/search-params"
 import { cn } from "@/lib/utils"
 
 import { DashboardSubBar } from "@/components/dashboard/DashboardSubBar"
@@ -44,6 +50,7 @@ export const DashboardLayout = ({
   showCollectionHealthHome = false,
   showBookmarkFeed = true,
   initialCollectionHealth = null,
+  initialQuery = "",
 }: {
   bookmarks: BookmarkCardData[]
   tagFilter?: string
@@ -53,6 +60,9 @@ export const DashboardLayout = ({
   showCollectionHealthHome?: boolean
   showBookmarkFeed?: boolean
   initialCollectionHealth?: CollectionHealthSummary | null
+  // Search text from the URL (`?q=`), already applied to `bookmarks` on the
+  // server so the first client render matches.
+  initialQuery?: string
   currentUser?: {
     id: number
     email: string
@@ -67,8 +77,8 @@ export const DashboardLayout = ({
   const [routeIsCollectionHealthRoute, setRouteIsCollectionHealthRoute] = useState(
     showCollectionHealthHome
   )
-  const [searchInput, setSearchInput] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [searchInput, setSearchInput] = useState(initialQuery)
+  const [debouncedSearch, setDebouncedSearch] = useState(initialQuery)
   const [visibleBookmarks, setVisibleBookmarks] =
     useState<BookmarkCardData[]>(bookmarks)
   const [activeView, setActiveView] = useState<BookmarkView>(view ?? "recent")
@@ -195,6 +205,16 @@ export const DashboardLayout = ({
       const searchParams = new URLSearchParams(search)
       lastSelectedIndexRef.current = null
       setSelectedIds(new Set())
+
+      // The URL is the source of truth for the search text and the index view,
+      // so refresh, deep links, and the back button all restore them.
+      const urlQuery = readQueryParam(searchParams)
+      setSearchInput(urlQuery)
+      setDebouncedSearch(urlQuery)
+
+      if (pathname === "/") {
+        setActiveView(parseIndexView(searchParams.get("view")))
+      }
 
       if (pathname === "/tag") {
         const nextTag = searchParams.get("tag")?.trim() ?? ""
@@ -451,6 +471,18 @@ export const DashboardLayout = ({
     }
   }, [searchInput])
 
+  // Mirror the applied search into the URL without adding history entries.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+
+    if (readQueryParam(url.searchParams) === debouncedSearch) {
+      return
+    }
+
+    writeQueryParam(url, debouncedSearch)
+    window.history.replaceState(window.history.state, "", url)
+  }, [debouncedSearch])
+
   useEffect(() => {
     if (!showBookmarkFeed) {
       return
@@ -466,12 +498,16 @@ export const DashboardLayout = ({
     requestIdRef.current = requestId
     const query = new URLSearchParams()
 
+    // Search narrows whatever you are looking at: the index view, Trash, a tag,
+    // or Favorites. It never silently widens to the whole collection.
     if (routeTrashOnly) {
       query.set("view", "trash")
-    } else if (debouncedSearch) {
-      query.set("q", debouncedSearch)
     } else if (!routeTagFilter && !routeOnlyFavorites) {
       query.set("view", activeView)
+    }
+
+    if (debouncedSearch) {
+      query.set("q", debouncedSearch)
     }
 
     if (routeTagFilter) {
@@ -544,7 +580,9 @@ export const DashboardLayout = ({
   // Story 8: derive the parsed operators from the debounced search at render
   // time (not in an effect) so the removable chips always reflect the active
   // query. Removal happens in an event handler, never in an effect.
-  const queryOperators = parseBookmarkQuery(debouncedSearch).operators
+  const parsedQuery = parseBookmarkQuery(debouncedSearch)
+  const queryOperators = parsedQuery.operators
+  const queryWarnings = parsedQuery.warnings
 
   const hasActiveSearch = debouncedSearch.length > 0
   const showCollectionHealthSection =
@@ -630,14 +668,18 @@ export const DashboardLayout = ({
 
   const applyQuery = (query: string) => {
     setPage(1)
-    setSearchInput(query)
-    setDebouncedSearch(query)
     clearSelection()
     setFocusedId(null)
-    // Filters operate on the home feed; leave tag/favorites/trash routes.
+
+    // Palette filters apply to the home feed: from any other route, navigate
+    // there with the query in the URL (the route sync picks it up).
     if (window.location.pathname !== "/") {
-      navigateTo("/")
+      navigateTo(indexPath("recent", query))
+      return
     }
+
+    setSearchInput(query)
+    setDebouncedSearch(query)
   }
 
   // Drop focus if the focused card left the list (deleted, filtered out).
@@ -682,16 +724,16 @@ export const DashboardLayout = ({
               debouncedSearch={debouncedSearch}
               count={visibleBookmarks.length}
               queryOperators={queryOperators}
+              queryWarnings={queryWarnings}
               onIndexViewChange={(view) => {
+                // Keep the search: it now scopes to the chosen view.
                 setPage(1)
-                setSearchInput("")
-                setDebouncedSearch("")
                 setRouteOnlyFavorites(false)
                 setRouteTrashOnly(false)
                 setRouteTagFilter(undefined)
                 setActiveView(view)
                 clearSelection()
-                navigateTo("/")
+                navigateTo(indexPath(view, debouncedSearch))
               }}
               onNavigate={(path) => {
                 setPage(1)

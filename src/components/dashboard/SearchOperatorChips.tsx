@@ -21,7 +21,11 @@ export const SearchOperatorChips = ({
   return (
     <div className="col-span-full flex flex-wrap gap-2 pt-1">
       {operators.map((op, index) => (
-        <Badge key={`${op.token}-${index}`} variant="secondary" className="gap-1.5">
+        <Badge
+          key={`${op.token}-${index}`}
+          variant={"negated" in op && op.negated ? "outline" : "secondary"}
+          className="gap-1.5"
+        >
           {op.token}
           <button
             type="button"
