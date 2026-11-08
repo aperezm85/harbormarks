@@ -31,7 +31,7 @@ export const DashboardTopBar = ({
       <div className="max-w-[560px] flex-1">
         <SidebarInput
           id="search"
-          placeholder="Search your harbor..."
+          placeholder="Search your harbor... (press /)"
           value={searchInput}
           onChange={(event) => onSearchChange(event.target.value)}
           onClear={onSearchClear}

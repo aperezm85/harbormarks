@@ -30,7 +30,9 @@ The following items are complete and reflected in the changelog:
 - Per-user digest schedule, profile/users redesign, and dependency hardening (v1.1.1).
 - Metadata tag suggestions and paste-to-fetch in the save dialog (v1.1.2).
 - Quick-save suite: API keys, `/save` page, browser extension, copy-link button (v1.2.0, out-of-scope addition that bumped the minor).
+- Keyboard-first workflow: `/` search, `j`/`k` card focus, per-card action keys, `g`-chord navigation, `Ctrl/Cmd+K` command palette, `?` cheat sheet (v1.6.0, no migration).
 - Bulk actions on bookmarks: Gmail-style multi-select with shift-click ranges, tri-state header checkbox, and bulk delete/tag/favorite/archive via `POST /api/bookmarks/bulk` (v1.4.0).
+- Collection Dashboard as a dedicated `/dashboard` page (`/health` redirects), with cleanup-focused blocks and a one-click "Re-run checker" for broken links (v1.5.0, no migration).
 - Medium/Freedium metadata fixes and bot-protection hardening (v1.2.1, patch, no migration).
 - Liveness probe (`GET /api/healthz`), deployment hardening, CI workflow, and security defaults (v1.0.0).
 - Public repo hardening: CODEOWNERS, branch protection, and squash-only merge policy.
@@ -96,23 +98,18 @@ Acceptance criteria:
 - Operators combine predictably.
 - Filter state remains stable across refreshes and deep links.
 
-### 4) Keyboard-first workflow (remainder)
+### 4) Keyboard-first workflow (shipped in v1.6.0)
 
-Shipped so far: `N` opens the save dialog (v0.9.11), plus save/edit dialog shortcuts.
+Shipped: `/` focuses search, `j`/`k` move card focus, the focused card takes
+`Enter`/`o`, `e`, `f`, `a`, `c`, `#`, `x`/`Shift+X`; `g` chords navigate;
+`Ctrl/Cmd+K` opens a command palette; `?` shows the cheat sheet. The keymap
+lives in `src/lib/keyboard-shortcuts.ts` and drives both the handler and the
+cheat sheet.
 
-Why:
+Remaining polish:
 
-- It helps power users work faster without sacrificing clarity.
-
-Scope:
-
-- Keyboard shortcuts for search focus, save dialog, and common card actions.
-- Optional command palette for frequent filters and tag jumps.
-
-Acceptance criteria:
-
-- Core actions are usable without a mouse.
-- Shortcut behavior is discoverable and avoids conflicts.
+- Shortcuts only run on the dashboard-family pages (not `/tags` or `/profile`).
+- No first-visit nudge for `?`.
 
 ### 5) Mobile-web polish (PWA + `/save` UX, no native app)
 
@@ -167,7 +164,7 @@ These are intentionally omitted because they are already done or no longer worth
 1. Bulk actions on bookmarks (shipped in v1.4.0)
 2. Broken link monitoring (shipped in v1.3.0)
 3. Search and filter polish
-4. Keyboard-first workflow (remainder)
+4. Keyboard-first workflow (shipped in v1.6.0)
 5. Mobile-web polish (PWA + `/save` UX, no native app)
 
 This keeps the roadmap focused on the remaining work that meaningfully improves trust, scale, and day-to-day usability without repeating features already shipped.
@@ -186,7 +183,10 @@ additive migration `0012_link_health.sql`) plus the list-view card-width fix.
 Community hygiene landed after v1.2.2
 as a docs-only change with no schema migration and no version bump; v1.4.0
 shipped bulk bookmark actions (multi-select, `POST /api/bookmarks/bulk`)
-with no schema migration.
+with no schema migration; v1.5.0 moved the Collection Dashboard to its own
+`/dashboard` page, also with no schema migration; v1.6.0 shipped the
+keyboard-first workflow (card focus, action keys, `g` chords, command palette,
+cheat sheet), again with no schema migration.
 
 ## Engineering Notes
 

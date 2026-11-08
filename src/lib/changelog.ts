@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 export const latestChanges: ChangelogEntry[] = [
   {
+    version: "v1.6.0",
+    date: "2026-11-08",
+    changes: [
+      "Keyboard-first workflow: press / to search, j and k to move between cards, and Enter, e, f, a, c, # or x to open, edit, favorite, archive, copy, trash or select the focused card.",
+      "Press g then h, f, t, d or r to jump to Home, Favorites, Tags, Dashboard or Trash, Ctrl/Cmd+K for a command palette of filters, tags and pages, and ? for the full shortcut list.",
+      "With cards selected, f, a and # apply to the whole selection. Shortcuts stay off while you type or have a dialog open.",
+      "No database changes in this release, so upgrading is a drop-in image swap.",
+    ],
+  },
+  {
     version: "v1.5.0",
     date: "2026-10-11",
     changes: [
