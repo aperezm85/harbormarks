@@ -22,6 +22,7 @@ import { DashboardSubBar } from "@/components/dashboard/DashboardSubBar"
 import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar"
 import { CollectionHealthDashboard } from "@/components/dashboard/CollectionHealthDashboard"
 import { BulkActionBar } from "@/components/dashboard/BulkActionBar"
+import { DashboardKeyboard } from "@/components/dashboard/DashboardKeyboard"
 import { AppErrorBoundary } from "@/components/ui/AppErrorBoundary"
 import { Button } from "@/components/ui/button"
 import { HarborCard } from "@/components/ui/HarborCard"
@@ -88,6 +89,8 @@ export const DashboardLayout = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkWorking, setIsBulkWorking] = useState(false)
   const lastSelectedIndexRef = useRef<number | null>(null)
+  // Keyboard-focused card (j/k). Purely visual + shortcut target.
+  const [focusedId, setFocusedId] = useState<string | null>(null)
   const [collectionHealth, setCollectionHealth] =
     useState<CollectionHealthSummary | null>(initialCollectionHealth)
   const [isCollectionHealthLoading, setIsCollectionHealthLoading] = useState(
@@ -95,6 +98,17 @@ export const DashboardLayout = ({
   )
 
   const selectionActive = selectedIds.size > 0
+
+  // Bring the keyboard-focused card into view (the sticky top bar is cleared by
+  // the card's scroll margin).
+  useEffect(() => {
+    if (!focusedId) {
+      return
+    }
+    document
+      .querySelector(`[data-bookmark-id="${CSS.escape(focusedId)}"]`)
+      ?.scrollIntoView({ block: "nearest" })
+  }, [focusedId])
 
   const clearSelection = () => {
     lastSelectedIndexRef.current = null
@@ -312,11 +326,19 @@ export const DashboardLayout = ({
   }
 
   const handleBulkAction = (action: BulkBookmarksAction, tags?: string[]) => {
-    if (selectedIds.size === 0 || isBulkWorking) {
+    runBulk([...selectedIds], action, tags)
+  }
+
+  // Shared by the toolbar (selection) and keyboard shortcuts (focused card).
+  const runBulk = (
+    ids: string[],
+    action: BulkBookmarksAction,
+    tags?: string[]
+  ) => {
+    if (ids.length === 0 || isBulkWorking) {
       return
     }
 
-    const ids = [...selectedIds]
     const numericIds = ids
       .map((id) => Number(id))
       .filter((id) => Number.isInteger(id) && id > 0)
@@ -606,6 +628,24 @@ export const DashboardLayout = ({
     link.remove()
   }
 
+  const applyQuery = (query: string) => {
+    setPage(1)
+    setSearchInput(query)
+    setDebouncedSearch(query)
+    clearSelection()
+    setFocusedId(null)
+    // Filters operate on the home feed; leave tag/favorites/trash routes.
+    if (window.location.pathname !== "/") {
+      navigateTo("/")
+    }
+  }
+
+  // Drop focus if the focused card left the list (deleted, filtered out).
+  const effectiveFocusedId =
+    focusedId && visibleBookmarks.some((b) => b.id === focusedId)
+      ? focusedId
+      : null
+
   return (
     <AppErrorBoundary>
       <SidebarProvider>
@@ -702,6 +742,7 @@ export const DashboardLayout = ({
                         viewMode={cardView}
                         selected={selectedIds.has(bookmark.id)}
                         selectionActive={selectionActive}
+                        focused={bookmark.id === effectiveFocusedId}
                         onSelectToggle={(shiftKey) =>
                           toggleSelect(bookmark.id, index, shiftKey)
                         }
@@ -762,6 +803,29 @@ export const DashboardLayout = ({
             ) : null}
           </div>
         </SidebarInset>
+        <DashboardKeyboard
+          enabled
+          bookmarks={showBookmarkFeed ? visibleBookmarks : []}
+          focusedId={effectiveFocusedId}
+          onFocusChange={setFocusedId}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onClearSelection={clearSelection}
+          onBulk={(ids, action) => {
+            // Trash items are read-only apart from restore/purge.
+            if (!routeTrashOnly) {
+              runBulk(ids, action)
+            }
+          }}
+          onNavigate={(path) => {
+            setPage(1)
+            setSearchInput("")
+            setDebouncedSearch("")
+            clearSelection()
+            navigateTo(path)
+          }}
+          onApplyQuery={applyQuery}
+        />
         <Toaster position="top-center" />
       </SidebarProvider>
     </AppErrorBoundary>

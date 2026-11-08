@@ -151,10 +151,17 @@ export function AppSidebar({
       saveTriggerRef.current?.click()
     }
 
+    // The command palette asks for the same dialog through this event.
+    function handleOpenSave() {
+      saveTriggerRef.current?.click()
+    }
+
     window.addEventListener("keydown", handleKeydown)
+    window.addEventListener("harbormarks:open-save", handleOpenSave)
 
     return () => {
       window.removeEventListener("keydown", handleKeydown)
+      window.removeEventListener("harbormarks:open-save", handleOpenSave)
     }
   }, [])
 

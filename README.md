@@ -61,6 +61,12 @@ to set up and submit a PR.
   - trends, preservation risk, rediscovery picks, and bookmark debt,
   - one-click "Re-run checker" for broken links and direct cleanup links for
     unassigned and unread inbox views.
+- Keyboard shortcuts (press `?` in the app for the full list):
+  - `/` focuses search, `j`/`k` move between cards, and the focused card takes
+    `Enter`, `e`, `f`, `a`, `c`, `#` and `x`,
+  - `g` then `h`/`f`/`t`/`d`/`r` jumps to Home, Favorites, Tags, Dashboard or
+    Trash,
+  - `Ctrl/Cmd+K` opens a command palette for filters, tags and pages.
 - Visit tracking with reset action per bookmark.
 - Preview image rendering in cards, with gradient fallback when unavailable.
 - Persistent UI behavior:

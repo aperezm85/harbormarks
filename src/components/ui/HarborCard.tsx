@@ -120,6 +120,7 @@ export const HarborCard = ({
   viewMode = "grid",
   selected = false,
   selectionActive = false,
+  focused = false,
   onSelectToggle,
 }: {
   id: string
@@ -156,6 +157,8 @@ export const HarborCard = ({
   viewMode?: CardViewMode
   selected?: boolean
   selectionActive?: boolean
+  // Keyboard-focus ring (j/k navigation); see DashboardKeyboard.
+  focused?: boolean
   onSelectToggle?: (shiftKey: boolean) => void
 }) => {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
@@ -1045,7 +1048,7 @@ export const HarborCard = ({
   // never the compact image-less row.
   if (viewMode === "list") {
     return (
-      <div className={`group relative flex min-w-0 flex-row items-stretch overflow-hidden rounded-md bg-card text-sm text-card-foreground ring-1 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : "ring-foreground/10"}`}>
+      <div data-bookmark-id={id} data-kb-focused={focused} className={`group relative flex min-w-0 flex-row items-stretch overflow-hidden rounded-md bg-card text-sm text-card-foreground ring-1 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : "ring-foreground/10"} scroll-mt-20 scroll-mb-4 data-[kb-focused=true]:outline-2 data-[kb-focused=true]:outline-offset-2 data-[kb-focused=true]:outline-ring`}>
         {stretchedLink}
         {renderOverlayCheckbox("top-2 left-2")}
         <div className="relative z-0 w-[120px] shrink-0 self-stretch sm:w-[152px]">
@@ -1120,7 +1123,7 @@ export const HarborCard = ({
   // all — not even hidden — so compact mode issues no image requests.
   if (viewMode === "compact") {
     return (
-      <div className={`group relative flex h-11 min-w-0 flex-row items-center gap-2 bg-card px-3 text-sm text-card-foreground ring-1 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : "ring-foreground/10"}`}>
+      <div data-bookmark-id={id} data-kb-focused={focused} className={`group relative flex h-11 min-w-0 flex-row items-center gap-2 bg-card px-3 text-sm text-card-foreground ring-1 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : "ring-foreground/10"} scroll-mt-20 scroll-mb-4 data-[kb-focused=true]:outline-2 data-[kb-focused=true]:outline-offset-2 data-[kb-focused=true]:outline-ring`}>
         {stretchedLink}
         {renderInlineCheckbox()}
         <img
@@ -1185,7 +1188,7 @@ export const HarborCard = ({
   }
 
   return (
-    <Card className={`group relative h-full border pt-0 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : ""}`}>
+    <Card data-bookmark-id={id} data-kb-focused={focused} className={`group relative h-full border pt-0 transition-colors hover:bg-muted/50 ${selected ? "ring-2 ring-primary" : ""} scroll-mt-20 scroll-mb-4 data-[kb-focused=true]:outline-2 data-[kb-focused=true]:outline-offset-2 data-[kb-focused=true]:outline-ring`}>
       {renderOverlayCheckbox("top-2 left-2")}
       <a
         href={url}

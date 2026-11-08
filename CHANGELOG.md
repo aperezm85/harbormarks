@@ -4,6 +4,13 @@ Single source of truth for release notes. The in-app changelog
 (`src/lib/changelog.ts`), README "Recent Changes", and INSTRUCTIONS "Recent
 Changes" are synced from here on every release.
 
+## v1.6.0 — 2026-11-08
+
+- Keyboard-first workflow: `/` focuses search, `j`/`k` move a focus ring between cards, and the focused card responds to `Enter`/`o` (open), `e` (edit), `f` (favorite), `a` (archive), `c` (copy link), `#` (Trash, with the usual confirm), and `x`/`Shift+X` (select / select range). With a selection active, `f`, `a`, and `#` apply to the whole selection.
+- `g` then `h`/`f`/`t`/`d`/`r` jumps to Home, Favorites, Tags, Dashboard, or Trash. `Ctrl/Cmd+K` opens a command palette for filters, tag jumps, pages, and the save dialog; `?` opens the shortcut cheat sheet.
+- Shortcuts stay off while typing in a field or with a dialog or menu open, and never use Ctrl/Cmd/Alt combos other than the palette.
+- No schema migration: drop-in image swap.
+
 ## v1.5.0 — 2026-10-11
 
 - Collection Dashboard is now a dedicated page (`/dashboard`) instead of sharing the bookmark list home. Existing `/health` links continue working and redirect to `/dashboard`.
