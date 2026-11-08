@@ -1,9 +1,14 @@
+# pnpm is installed with npm at the exact version package.json pins
+# ("packageManager"). Node 25+ no longer ships corepack, so `corepack enable`
+# fails on `node:lts-alpine` with "not found" (exit 127).
+#
 # 1. Build stage
 FROM node:lts-alpine AS build
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")" \
+	&& pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm run build
@@ -21,7 +26,7 @@ COPY migrations ./migrations
 COPY scripts ./scripts
 
 # Install only production deps, then remove package-manager caches to keep the image lean.
-RUN corepack enable \
+RUN npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")" \
 	&& pnpm install --prod --frozen-lockfile \
 	&& pnpm store prune \
 	&& rm -rf /root/.cache /root/.local/share/pnpm \
