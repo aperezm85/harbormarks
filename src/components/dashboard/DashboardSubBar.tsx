@@ -47,6 +47,7 @@ export const DashboardSubBar = ({
   debouncedSearch,
   count,
   queryOperators,
+  queryWarnings,
   onIndexViewChange,
   onNavigate,
   onRemoveOperator,
@@ -59,14 +60,24 @@ export const DashboardSubBar = ({
   debouncedSearch: string
   count: number
   queryOperators: BookmarkQueryOperator[]
+  queryWarnings: string[]
   onIndexViewChange: (view: "recent" | "unread" | "mostVisited" | "unorganized") => void
   onNavigate: (path: string) => void
   onRemoveOperator: (token: string) => void
 }) => {
   // Title follows the same priority the content used to use: search, then the
   // route views, then the index view.
+  const scopeLabel = routeOnlyFavorites
+    ? "Favorites"
+    : routeTagFilter
+      ? `tag ${routeTagFilter}`
+      : routeTrashOnly
+        ? "Trash"
+        : activeView === "recent"
+          ? null
+          : VIEW_TITLE[activeView]
   const title = hasActiveSearch
-    ? `Results for “${debouncedSearch}”`
+    ? `Results for “${debouncedSearch}”${scopeLabel ? ` in ${scopeLabel}` : ""}`
     : routeOnlyFavorites
       ? "Favorites"
       : routeTagFilter
@@ -77,15 +88,13 @@ export const DashboardSubBar = ({
 
   // The active chip reflects the view you are in, not the search. A tag filter
   // or an active search leaves no chip highlighted.
-  const activeChip: ViewChipKey | null = hasActiveSearch
-    ? null
-    : routeOnlyFavorites
-      ? "favorites"
-      : routeTagFilter
-        ? null
-        : routeTrashOnly
-          ? "trash"
-          : activeView
+  const activeChip: ViewChipKey | null = routeOnlyFavorites
+    ? "favorites"
+    : routeTagFilter
+      ? null
+      : routeTrashOnly
+        ? "trash"
+        : activeView
 
   const [viewCounts, setViewCounts] = useState<BookmarkViewCounts | null>(null)
 
@@ -184,6 +193,16 @@ export const DashboardSubBar = ({
             operators={queryOperators}
             onRemove={onRemoveOperator}
           />
+          {queryWarnings.length > 0 ? (
+            <ul
+              role="status"
+              className="space-y-0.5 pt-1 text-xs text-amber-600 dark:text-amber-400"
+            >
+              {queryWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
     </div>

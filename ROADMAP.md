@@ -30,6 +30,7 @@ The following items are complete and reflected in the changelog:
 - Per-user digest schedule, profile/users redesign, and dependency hardening (v1.1.1).
 - Metadata tag suggestions and paste-to-fetch in the save dialog (v1.1.2).
 - Quick-save suite: API keys, `/save` page, browser extension, copy-link button (v1.2.0, out-of-scope addition that bumped the minor).
+- Search and filter polish: URL-backed search and view, view-scoped search, `-` exclusions, documented combining rules, `site:` security fix (v1.7.0, no migration).
 - Keyboard-first workflow: `/` search, `j`/`k` card focus, per-card action keys, `g`-chord navigation, `Ctrl/Cmd+K` command palette, `?` cheat sheet (v1.6.0, no migration).
 - Bulk actions on bookmarks: Gmail-style multi-select with shift-click ranges, tri-state header checkbox, and bulk delete/tag/favorite/archive via `POST /api/bookmarks/bulk` (v1.4.0).
 - Collection Dashboard as a dedicated `/dashboard` page (`/health` redirects), with cleanup-focused blocks and a one-click "Re-run checker" for broken links (v1.5.0, no migration).
@@ -81,22 +82,18 @@ Acceptance criteria:
 - Users can quickly identify broken links.
 - Health checks do not block the normal browsing experience.
 
-### 3) Search and filter polish
+### 3) Search and filter polish (shipped in v1.7.0)
 
-Why:
+Shipped: search text and view in the URL (also on tag, favorites, and trash
+pages), search scoped to the current view, `-` exclusions, predictable operator
+combining (documented in the README), pasted-URL `site:`, stricter `has:image`,
+and visible warnings for bad dates and unknown filters. Also fixed a
+`site:` precedence bug that leaked rows across users.
 
-- Search is good already, but the metadata model and filtering UX still have room to become faster and more consistent.
+Remaining polish:
 
-Scope:
-
-- Tighten combined operator behavior.
-- Make domain and image-related filters more consistent.
-- Improve saved/filter state in the URL for easier sharing and reload behavior.
-
-Acceptance criteria:
-
-- Operators combine predictably.
-- Filter state remains stable across refreshes and deep links.
+- Saved searches / named filters.
+- `before:`/`after:` shorthand such as `after:7d`.
 
 ### 4) Keyboard-first workflow (shipped in v1.6.0)
 
@@ -163,7 +160,7 @@ These are intentionally omitted because they are already done or no longer worth
 
 1. Bulk actions on bookmarks (shipped in v1.4.0)
 2. Broken link monitoring (shipped in v1.3.0)
-3. Search and filter polish
+3. Search and filter polish (shipped in v1.7.0)
 4. Keyboard-first workflow (shipped in v1.6.0)
 5. Mobile-web polish (PWA + `/save` UX, no native app)
 
@@ -186,7 +183,8 @@ shipped bulk bookmark actions (multi-select, `POST /api/bookmarks/bulk`)
 with no schema migration; v1.5.0 moved the Collection Dashboard to its own
 `/dashboard` page, also with no schema migration; v1.6.0 shipped the
 keyboard-first workflow (card focus, action keys, `g` chords, command palette,
-cheat sheet), again with no schema migration.
+cheat sheet), again with no schema migration; v1.7.0 shipped search and filter polish plus a
+`site:` cross-user leak fix, with no schema migration.
 
 ## Engineering Notes
 

@@ -852,6 +852,113 @@ describe.skipIf(!TEST_DATABASE_URL)("search operators", () => {
     expect(urls).not.toContain(other.url)
   })
 
+  it("site: never leaks another user's or a trashed row, and ANDs with other operators", async () => {
+    const mine = await insertBookmark(raw, ownerA, {
+      url: "https://gist.leak-check.com/a",
+      tags: ["keep"],
+    })
+    const mineOtherTag = await insertBookmark(raw, ownerA, {
+      url: "https://docs.leak-check.com/b",
+      tags: ["other"],
+    })
+    const trashed = await insertBookmark(raw, ownerA, {
+      url: "https://old.leak-check.com/c",
+      tags: ["keep"],
+      deleted: true,
+    })
+    const foreign = await insertBookmark(raw, ownerB, {
+      url: "https://gist.leak-check.com/d",
+      tags: ["keep"],
+    })
+
+    const siteOnly = urlsOf(
+      await bm.listBookmarks(ownerA, {
+        search: "site:leak-check.com",
+        pageSize: 100,
+      })
+    )
+    expect(siteOnly).toContain(mine.url)
+    expect(siteOnly).toContain(mineOtherTag.url)
+    expect(siteOnly).not.toContain(trashed.url)
+    expect(siteOnly).not.toContain(foreign.url)
+
+    const combined = urlsOf(
+      await bm.listBookmarks(ownerA, {
+        search: "site:leak-check.com tag:keep",
+        pageSize: 100,
+      })
+    )
+    expect(combined).toEqual([mine.url])
+  })
+
+  it("negation excludes: -tag, -site, -is:favorite, -has:image", async () => {
+    const keep = await insertBookmark(raw, ownerA, {
+      url: "https://keep.neg-check.com/a",
+      tags: ["keep"],
+    })
+    const old = await insertBookmark(raw, ownerA, {
+      url: "https://old.neg-check.com/b",
+      tags: ["old"],
+      favorite: true,
+      previewImage: "https://img.example.com/p.png",
+    })
+    const untagged = await insertBookmark(raw, ownerA, {
+      url: "https://untagged.other-check.com/c",
+    })
+
+    const search = async (q: string) =>
+      urlsOf(await bm.listBookmarks(ownerA, { search: q, pageSize: 100 }))
+
+    expect(await search("-tag:old")).toEqual(
+      expect.arrayContaining([keep.url, untagged.url])
+    )
+    expect(await search("-tag:old")).not.toContain(old.url)
+    expect(await search("site:neg-check.com -tag:old")).toEqual([keep.url])
+    expect(await search("-site:neg-check.com")).toEqual([untagged.url])
+    expect(await search("-is:favorite")).not.toContain(old.url)
+    expect(await search("-has:image")).not.toContain(old.url)
+    expect(await search("-has:image")).toContain(keep.url)
+  })
+
+  it("repeated site: and status filters OR; different kinds AND", async () => {
+    const a = await insertBookmark(raw, ownerA, { url: "https://a.or-check.com/1" })
+    const b = await insertBookmark(raw, ownerA, { url: "https://b.or-check.com/2" })
+    const c = await insertBookmark(raw, ownerA, { url: "https://c.or-check.com/3" })
+    await raw.query("UPDATE bookmarks SET status = 'archived' WHERE id = $1", [b.id])
+    await raw.query("UPDATE bookmarks SET status = 'reading' WHERE id = $1", [c.id])
+
+    const search = async (q: string) =>
+      urlsOf(await bm.listBookmarks(ownerA, { search: q, pageSize: 100 })).sort()
+
+    expect(await search("site:a.or-check.com site:b.or-check.com")).toEqual(
+      [a.url, b.url].sort()
+    )
+    expect(await search("site:or-check.com is:unread is:reading")).toEqual(
+      [a.url, c.url].sort()
+    )
+    expect(await search("site:or-check.com is:archived")).toEqual([b.url])
+  })
+
+  it("site: accepts a pasted URL, and has:image ignores a blank preview", async () => {
+    const real = await insertBookmark(raw, ownerA, {
+      url: "https://pasted.site-check.com/page",
+      previewImage: "https://img.example.com/p.png",
+    })
+    const blank = await insertBookmark(raw, ownerA, {
+      url: "https://pasted.site-check.com/blank",
+      previewImage: "   ",
+    })
+
+    const search = async (q: string) =>
+      urlsOf(await bm.listBookmarks(ownerA, { search: q, pageSize: 100 })).sort()
+
+    expect(await search("site:https://pasted.site-check.com/anything")).toEqual(
+      [real.url, blank.url].sort()
+    )
+    expect(await search("site:site-check.com has:image")).toEqual([real.url])
+    expect(await search("site:site-check.com -has:image")).toEqual([blank.url])
+  })
+
   it("operators respect soft delete and user scoping", async () => {
     const active = await insertBookmark(raw, ownerA, {
       url: "https://scope-active.example.com/a",

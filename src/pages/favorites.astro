@@ -2,12 +2,15 @@
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
 import Layout from "@/layouts/main.astro"
 import { DEFAULT_BOOKMARK_PAGE_SIZE, listBookmarks } from "@/lib/bookmarks"
+import { readQueryParam } from "@/lib/search-params"
 
 const userId = Astro.locals.userId
 const user = Astro.locals.user
+const initialQuery = readQueryParam(Astro.url.searchParams)
 const rawBookmarks = userId
   ? await listBookmarks(userId, {
       onlyFavorites: true,
+      search: initialQuery || undefined,
       page: 1,
       pageSize: DEFAULT_BOOKMARK_PAGE_SIZE + 1,
     })
@@ -24,5 +27,6 @@ const hasMore = rawBookmarks.length > DEFAULT_BOOKMARK_PAGE_SIZE
     hasMore={hasMore}
     currentUser={user}
     onlyFavorites
+    initialQuery={initialQuery}
   />
 </Layout>

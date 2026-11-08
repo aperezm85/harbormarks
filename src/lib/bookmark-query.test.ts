@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  normalizeSiteValue,
   parseBookmarkQuery,
   removeOperatorFromQuery,
   type BookmarkQueryOperator,
@@ -194,7 +195,10 @@ const parseCases: ParseCase[] = [
 describe("parseBookmarkQuery", () => {
   for (const { name, query, freeText, operators } of parseCases) {
     it(name, () => {
-      expect(parseBookmarkQuery(query)).toEqual({ freeText, operators })
+      const parsed = parseBookmarkQuery(query)
+      expect({ freeText: parsed.freeText, operators: parsed.operators }).toEqual(
+        { freeText, operators }
+      )
     })
   }
 })
@@ -222,5 +226,88 @@ describe("removeOperatorFromQuery", () => {
 
   it("trims the result after removal", () => {
     expect(removeOperatorFromQuery("tag:rust", "tag:rust")).toBe("")
+  })
+})
+
+describe("negated operators", () => {
+  it("parses -tag, -site, -is and -has with negated: true", () => {
+    const parsed = parseBookmarkQuery("-tag:old -site:example.com -is:archived -has:image")
+
+    expect(parsed.freeText).toBe("")
+    expect(parsed.operators).toEqual([
+      { kind: "tag", value: "old", token: "-tag:old", negated: true },
+      { kind: "site", value: "example.com", token: "-site:example.com", negated: true },
+      { kind: "is", value: "archived", token: "-is:archived", negated: true },
+      { kind: "has", value: "image", token: "-has:image", negated: true },
+    ])
+  })
+
+  it("leaves -word and -unknown:op to free text", () => {
+    const parsed = parseBookmarkQuery("rust -python -foo:bar")
+
+    expect(parsed.operators).toEqual([])
+    expect(parsed.freeText).toBe("rust -python -foo:bar")
+  })
+
+  it("does not negate dates", () => {
+    const parsed = parseBookmarkQuery("-before:2026-01-01")
+
+    expect(parsed.operators).toEqual([])
+    expect(parsed.freeText).toBe("-before:2026-01-01")
+  })
+
+  it("removes a negated token by its exact text", () => {
+    expect(removeOperatorFromQuery("rust -tag:old", "-tag:old")).toBe("rust")
+  })
+})
+
+describe("normalizeSiteValue", () => {
+  it.each([
+    ["github.com", "github.com"],
+    ["GitHub.com", "github.com"],
+    ["https://github.com/aperezm85/harbormarks", "github.com"],
+    ["http://gist.github.com?x=1#y", "gist.github.com"],
+    ["github.com:443", "github.com"],
+    ["user@github.com", "github.com"],
+    ["*.github.com", "github.com"],
+    ["github.com.", "github.com"],
+    ["www.github.com", "www.github.com"],
+    ["", ""],
+    ["not a host", ""],
+    ["%20", ""],
+  ])("%s -> %s", (input, expected) => {
+    expect(normalizeSiteValue(input)).toBe(expected)
+  })
+
+  it("normalizes a pasted URL inside the operator and keeps the original token", () => {
+    const parsed = parseBookmarkQuery("site:https://Example.com/a/b")
+
+    expect(parsed.operators).toEqual([
+      { kind: "site", value: "example.com", token: "site:https://Example.com/a/b" },
+    ])
+  })
+})
+
+describe("warnings", () => {
+  it("has none for a clean query", () => {
+    expect(parseBookmarkQuery("tag:rust before:2026-01-01 hello").warnings).toEqual([])
+  })
+
+  it("warns about an impossible or malformed date", () => {
+    expect(parseBookmarkQuery("before:2026-02-30").warnings).toEqual([
+      'Ignored "before:2026-02-30": use a real date as YYYY-MM-DD.',
+    ])
+    expect(parseBookmarkQuery("after:yesterday").warnings).toHaveLength(1)
+  })
+
+  it("does not warn while an operator value is still empty", () => {
+    expect(parseBookmarkQuery("before: is: has: site: tag:").warnings).toEqual([])
+  })
+
+  it("warns when an is: or has: value is unknown but still searches it as text", () => {
+    const parsed = parseBookmarkQuery("is:later has:video")
+
+    expect(parsed.warnings).toHaveLength(2)
+    expect(parsed.freeText).toBe("is:later has:video")
   })
 })

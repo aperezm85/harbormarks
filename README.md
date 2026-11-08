@@ -41,7 +41,9 @@ to set up and submit a PR.
   everywhere, merge one tag into another, or delete a tag from all bookmarks.
 - Metadata extraction (title, description, favicon, preview image).
 - Local proxying and caching for bookmark favicons and preview images to avoid hotlinking.
-- Indexed PostgreSQL full-text search with relevance ranking.
+- Indexed PostgreSQL full-text search with relevance ranking, plus search
+  operators (see [Search syntax](#search-syntax)). The search text and view live
+  in the URL, so refresh, back, and shared links keep your results.
 - Paged bookmark lists with a "load more" control.
 - Favorite bookmarks support with a dedicated Favorites page.
 - Tag support with:
@@ -109,6 +111,28 @@ to set up and submit a PR.
 - PostgreSQL
 - Drizzle ORM
 - Docker and Docker Compose
+
+## Search syntax
+
+Type free text and operators in the search box. Operators combine with each
+other and with free text; anything that is not a recognized operator is searched
+as plain text.
+
+| Operator | Matches |
+| --- | --- |
+| `tag:rust` | Bookmarks with that tag (`tag:"machine learning"` for spaces) |
+| `site:github.com` | That host and its subdomains (a pasted URL works too) |
+| `is:favorite` / `unread` / `reading` / `archived` / `broken` | Favorites, a read status, or a dead link |
+| `has:image` | Bookmarks with a preview image |
+| `before:2026-01-01` / `after:2025-01-01` | Saved before / on or after a date (`YYYY-MM-DD`) |
+| `-tag:old`, `-site:a.com`, `-is:archived`, `-has:image` | Exclude with a leading `-` |
+
+How they combine: different operators AND together; repeated `tag:` AND (every
+tag required); repeated `site:` OR; repeated `is:unread is:reading` style status
+filters OR; `before:` and `after:` form a date range. Search always narrows the
+current view (Unread, Trash, a tag, Favorites). Bad dates and unknown `is:` or
+`has:` values are called out under the search bar instead of being dropped
+silently.
 
 ## Local Development
 

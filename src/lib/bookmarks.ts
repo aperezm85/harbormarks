@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm"
 
 import { db } from "@/db/client"
 import { bookmarks } from "@/db/schema"
@@ -10,6 +10,7 @@ import {
 } from "@/lib/collection-health"
 import { normalizeTags, parseTags } from "@/lib/bookmark-tags"
 import { parseBookmarkQuery } from "@/lib/bookmark-query"
+import { buildOperatorFilters } from "@/lib/bookmark-query-sql"
 import {
   type BookmarkCardData,
   type BookmarkLinkHealth,
@@ -213,7 +214,7 @@ export async function listBookmarks(
   // object with parameter binding, never from interpolated text.
   const parsedQuery = options?.search
     ? parseBookmarkQuery(options.search)
-    : { freeText: "", operators: [] }
+    : { freeText: "", operators: [], warnings: [] }
   const freeText = parsedQuery.freeText
   // Ranking (ts_rank) applies only when free text is present, so an
   // operators-only query keeps the view's default sort order.
@@ -264,67 +265,9 @@ export async function listBookmarks(
   }
 
   // Story 8 operators. Pushed to the same `filters` array as the user and
-  // soft-delete scoping, so every operator inherits that scoping and the
-  // operators AND together. Each value is parameter-bound, never interpolated.
-  for (const op of parsedQuery.operators) {
-    switch (op.kind) {
-      case "tag": {
-        filters.push(
-          sql<boolean>`exists (
-            select 1
-            from unnest(coalesce(${bookmarks.tags}, ARRAY[]::text[])) as bookmark_tag
-            where lower(bookmark_tag) = ${op.value.toLowerCase()}
-          )`
-        )
-        break
-      }
-      case "site": {
-        const siteValue = op.value.toLowerCase()
-        // The host is extracted from the stored URL. Matching is exact-host OR
-        // subdomain; the `%.` prefix keeps `notgithub.com` and
-        // `github.com.evil.com` from matching `site:github.com`.
-        const host = sql`lower(coalesce(
-          (regexp_match(${bookmarks.url}, '^[a-z][a-z0-9+.-]*://([^/:?#]+)'))[1],
-          ''
-        ))`
-        filters.push(
-          sql<boolean>`${host} = ${siteValue} or ${host} like ${`%.${siteValue}`}`
-        )
-        break
-      }
-      case "is": {
-        if (op.value === "favorite") {
-          filters.push(eq(bookmarks.isFavorite, true))
-        } else if (
-          op.value === "unread" ||
-          op.value === "reading" ||
-          op.value === "archived"
-        ) {
-          filters.push(eq(bookmarks.status, op.value))
-        } else if (op.value === "broken") {
-          filters.push(eq(bookmarks.linkHealth, "broken"))
-        }
-        break
-      }
-      case "has": {
-        if (op.value === "image") {
-          filters.push(isNotNull(bookmarks.previewImage))
-        }
-        break
-      }
-      case "before": {
-        // `created_at` is `timestamp without time zone` and the session timezone
-        // is UTC, so binding the JS Date (midnight UTC) matches how rows are
-        // written.
-        filters.push(sql<boolean>`${bookmarks.createdAt} < ${op.value}`)
-        break
-      }
-      case "after": {
-        filters.push(sql<boolean>`${bookmarks.createdAt} >= ${op.value}`)
-        break
-      }
-    }
-  }
+  // soft-delete scoping, so every operator inherits that scoping. See
+  // `bookmark-query-sql.ts` for the combination rules.
+  filters.push(...buildOperatorFilters(parsedQuery.operators))
 
   if (tag) {
     filters.push(sql<boolean>`exists (
